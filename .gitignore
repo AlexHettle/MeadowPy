@@ -1,0 +1,38 @@
+# Virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# MeadowPy user data
+.meadowpy/
+
+# IDEs
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Packaging
+dist/
+build/
+*.egg-info/
+
+# Dev/test files
+testing file.py
+turtle test.py
+check_python.bat
+MeadowPy Development Phase Plan.txt
+MeadowPy Installation Plan.txt
+
+# Generated shortcut
+MeadowPy.lnk
+
+# Claude
+.claude/
