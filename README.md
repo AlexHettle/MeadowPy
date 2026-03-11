@@ -94,9 +94,7 @@ MeadowPy is designed from the ground up for people learning to code.
 - Problems panel with click-to-jump-to-line
 - Beginner-friendly error explanations for every issue
 - AI explanations for more complicated problems
-
-![MeadowPy Welcome window](meadowpy/resources/Images/Error%20AI%20tool.png)
-
+- 
 
 ### Project Management
 - File explorer sidebar with create, rename, and delete
