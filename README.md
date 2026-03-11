@@ -8,7 +8,7 @@ A beginner-friendly Python IDE with built-in AI assistance, a step-through debug
 
 ## Requirements
 
-- **Windows 10 or 11**
+- **Windows 10 or 11** (MacOS compatability coming soon)
 - **Python 3.11 or newer** — [Download Python](https://www.python.org/downloads/)
   > During installation, make sure to check **"Add Python to PATH"**.
 - **Ollama** (optional, for AI features) — [Download Ollama](https://ollama.com/download)
