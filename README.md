@@ -28,13 +28,15 @@ A beginner-friendly Python IDE with built-in AI assistance, a step-through debug
 MeadowPy has a built-in AI assistant powered by [Ollama](https://ollama.com) that runs entirely on your computer — no accounts, no internet, and no data leaves your machine.
 
 **AI Chat Panel** — Open the chat sidebar and ask questions in plain English. The AI knows which file you're editing and what function you're in, so it gives relevant answers. Responses stream in token-by-token so you don't have to wait.
+
 ![MeadowPy Welcome window](meadowpy/resources/Images/AI%20chat.png)
 
 **Right-click any code** to:
 - **Explain this code** — Get a plain-English breakdown of what selected code does
 - **Review & improve** — Get suggestions for cleaner, better code
 - **Generate docstring** — Automatically write a docstring for any function or class
-- ![MeadowPy Welcome window](meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
+- 
+![MeadowPy Welcome window](meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
 
 
 **Review Current File** (Ctrl+Shift+R) — The AI reviews your entire file and gives feedback on structure, readability, naming, potential bugs, and performance.
