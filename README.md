@@ -6,6 +6,9 @@
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
 
+![MeadowPy Welcome window](meadowpy/resources/Images/full%20screenshot.png)
+
+
 ## Requirements
 
 - **Windows 10 or 11** (MacOS compatability coming soon)
@@ -114,3 +117,15 @@ Open Command Prompt, navigate to the MeadowPy folder, and run `.venv\Scripts\pyt
 
 **AI features not working**
 Make sure [Ollama](https://ollama.com/download) is installed and running. MeadowPy connects to it automatically at `localhost:11434`. You need at least one model installed 
+
+
+
+## Future Updates
+
+I plan to continue improving this IDE regularly. Here are a few features I’m aiming to add in the near future:
+
+**LM Studio Integration** - Ollama is currently the only supported option for AI features, but I plan to expand support to LM Studio and potentially other local LLMs in the future.
+
+**macOS Compatibility** - MeadowPy is currently only available on Windows, but macOS support is planned and coming soon.
+
+
