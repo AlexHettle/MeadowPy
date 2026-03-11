@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Page with folded corner -->
+  <path d="M14 2H6C4.9 2 4 2.9 4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M14 2v6h6" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Plus sign -->
+  <line x1="12" y1="12" x2="12" y2="18" stroke="#9E9E9E" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="9" y1="15" x2="15" y2="15" stroke="#9E9E9E" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

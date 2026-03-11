@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Curved right arrow -->
+  <path d="M17 7H9C6.24 7 4 9.24 4 12s2.24 5 5 5h10" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow head pointing right -->
+  <path d="M14 4l3 3-3 3" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

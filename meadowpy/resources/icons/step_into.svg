@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Step Into: downward arrow into a line -->
+  <!-- Horizontal line (function entry) -->
+  <line x1="5" y1="19" x2="19" y2="19" stroke="#1976D2" stroke-width="2" stroke-linecap="round"/>
+  <!-- Vertical arrow shaft -->
+  <line x1="12" y1="3" x2="12" y2="14" stroke="#1976D2" stroke-width="2" stroke-linecap="round"/>
+  <!-- Arrowhead pointing down -->
+  <polygon points="12,17 8,12 16,12" fill="#1976D2"/>
+</svg>

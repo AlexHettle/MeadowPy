@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Step Over: arrow arcing over a dot -->
+  <!-- Dot (line being stepped over) -->
+  <circle cx="12" cy="18" r="2.5" fill="#1976D2"/>
+  <!-- Arc arrow -->
+  <path d="M5 14 Q5 5 12 5 Q19 5 19 14" stroke="#1976D2" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Arrowhead -->
+  <polygon points="19,10 22,14 16,14" fill="#1976D2"/>
+</svg>

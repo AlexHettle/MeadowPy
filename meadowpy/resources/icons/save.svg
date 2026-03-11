@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Floppy disk -->
+  <path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4z" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Label area -->
+  <path d="M7 3v5h8V3" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Disk center -->
+  <circle cx="12" cy="15" r="3" fill="none" stroke="#9E9E9E" stroke-width="1.5"/>
+</svg>
