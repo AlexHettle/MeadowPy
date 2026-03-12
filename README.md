@@ -1,17 +1,58 @@
+<p align="center">
+  <img src="meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy logo" width="300"><br>
+  <strong>MeadowPy</strong>
+</p>
 
 <p align="center">
-  <img src="meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy main window" width="300"><br>
-  <strong>MeadowPy</strong>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
+  <img alt="AI" src="https://img.shields.io/badge/AI-Ollama%20powered-orange">
 </p>
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/full%20screenshot.png)
+![MeadowPy main interface showing the code editor, file explorer, and output panel](meadowpy/resources/Images/full%20screenshot.png)
 
+---
+
+## Table of Contents
+
+- [Why MeadowPy?](#why-meadowpy)
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
+- [AI Assistant](#ai-assistant)
+- [Built for Beginners](#built-for-beginners)
+- [Features](#features)
+  - [Code Editor](#code-editor)
+  - [Run & Debug](#run--debug)
+  - [Code Quality](#code-quality)
+  - [Project Management](#project-management)
+- [Troubleshooting](#troubleshooting)
+- [Future Updates](#future-updates)
+- [License](#license)
+
+---
+
+## Why MeadowPy?
+
+Most code editors are built for professional developers. They're powerful, but for someone just starting out they can be overwhelming — cluttered interfaces, cryptic error messages, and no guidance when something goes wrong.
+
+MeadowPy is different. It's built specifically for beginners, with three core ideas:
+
+**Everything is explained, not just shown.** When your code errors, MeadowPy tells you what went wrong in plain English. When you don't know what a keyword means, you can right-click and find out instantly. The IDE teaches you as you use it.
+
+**AI that stays on your machine.** MeadowPy's AI assistant runs entirely locally via Ollama — no account, no subscription, no data sent anywhere. It knows the context of what you're writing and answers questions like a knowledgeable friend sitting next to you.
+
+**Zero friction to get started.** Six ready-to-run starter projects, one-click setup, and a full example library mean you can go from download to running code in minutes — no configuration required.
+
+If you're learning Python and want an environment that supports you rather than gets in your way, MeadowPy is for you.
+
+---
 
 ## Requirements
 
-- **Windows 10 or 11** (MacOS compatability coming soon)
+- **Windows 10 or 11** (macOS compatibility coming soon)
 - **Python 3.11 or newer** — [Download Python](https://www.python.org/downloads/)
   > During installation, make sure to check **"Add Python to PATH"**.
 - **Ollama** (optional, for AI features) — [Download Ollama](https://ollama.com/download)
@@ -29,22 +70,20 @@ MeadowPy has a built-in AI assistant powered by [Ollama](https://ollama.com) tha
 
 **AI Chat Panel** — Open the chat sidebar and ask questions in plain English. The AI knows which file you're editing and what function you're in, so it gives relevant answers. Responses stream in token-by-token so you don't have to wait.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/AI%20chat.png)
+![AI chat sidebar open alongside the code editor, showing a conversation about a Python function](meadowpy/resources/Images/AI%20chat.png)
 
 **Right-click any code** to:
 - **Explain this code** — Get a plain-English breakdown of what selected code does
 - **Review & improve** — Get suggestions for cleaner, better code
 - **Generate docstring** — Automatically write a docstring for any function or class
-- 
-![MeadowPy Welcome window](meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
 
+![Right-click context menu showing the Explain, Review, and Generate Docstring options](meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
 
 **Review Current File** (Ctrl+Shift+R) — The AI reviews your entire file and gives feedback on structure, readability, naming, potential bugs, and performance.
 
 Works with any model you have installed in Ollama — Llama, CodeLlama, DeepSeek Coder, and more. MeadowPy auto-connects when Ollama is running and lets you switch models from the status bar.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/AI%20file%20review.png)
-
+![AI file review panel displaying structured feedback on code quality and suggestions](meadowpy/resources/Images/AI%20file%20review.png)
 
 ## Built for Beginners
 
@@ -52,21 +91,19 @@ MeadowPy is designed from the ground up for people learning to code.
 
 **Welcome screen with templates** — When you first open MeadowPy, you'll see six ready-to-run projects to get started with: Hello World, Simple Calculator, Guessing Game, Todo List, Turtle Graphics, and Simple Quiz. One click and you're coding.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/Welcome%20screen.png)
+![MeadowPy welcome screen showing six starter project templates](meadowpy/resources/Images/Welcome%20screen.png)
 
 **Error messages you can actually understand** — When your code hits an error, MeadowPy translates the traceback into plain English. Over 100 common error patterns are covered, from `NameError` typos to `IndentationError` mix-ups. Each explanation tells you what went wrong and how to fix it.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/beginner-friendly%20errors.png)
+![Beginner-friendly error panel translating a Python traceback into a plain-English explanation](meadowpy/resources/Images/beginner-friendly%20errors.png)
 
 **"What does this mean?" on any keyword** — Right-click any Python keyword (`for`, `def`, `class`, `try`, etc.) and MeadowPy explains it in simple terms with a code example. Over 50 keywords are documented this way.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/Keyword%20explanations.png)
-
+![Keyword explanation popup showing a definition and example for the 'for' keyword](meadowpy/resources/Images/Keyword%20explanations.png)
 
 **Example library** — Browse a categorized collection of fully-commented code examples covering basics, lists, dictionaries, functions, objects, file I/O, and more. Preview the code and open it in a new tab with one click.
 
-![MeadowPy Welcome window](meadowpy/resources/Images/example%20library.png)
-
+![Example library panel showing categories of code samples with a preview pane](meadowpy/resources/Images/example%20library.png)
 
 **Keyboard shortcut reference** — Available under Help, a full table of every shortcut organized by category.
 
@@ -83,7 +120,7 @@ MeadowPy is designed from the ground up for people learning to code.
 - Configurable font, tab width, and word wrap
 
 ### Run & Debug
-- **Run** your script with F5, or dedicated run button
+- **Run** your script with F5, or the dedicated run button
 - **Interactive REPL** with stdin support
 - **Step-through debugger** — set breakpoints (F9), then step over (F10), step into (F11), or step out (Shift+F11)
 - **Variable inspector** — see all local and global variables update in real time as you step through code
@@ -97,8 +134,7 @@ MeadowPy is designed from the ground up for people learning to code.
 - Beginner-friendly error explanations for every issue
 - AI explanations for more complicated problems
 
-![MeadowPy Welcome window](meadowpy/resources/Images/Error%20AI%20tool.png)
-
+![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](meadowpy/resources/Images/Error%20AI%20tool.png)
 
 ### Project Management
 - File explorer sidebar with create, rename, and delete
@@ -121,16 +157,18 @@ Try running `setup.bat` again to reinstall dependencies. If the problem persists
 Open Command Prompt, navigate to the MeadowPy folder, and run `.venv\Scripts\python.exe main.py` to see the error message.
 
 **AI features not working**
-Make sure [Ollama](https://ollama.com/download) is installed and running. MeadowPy connects to it automatically at `localhost:11434`. You need at least one model installed 
+Make sure [Ollama](https://ollama.com/download) is installed and running. MeadowPy connects to it automatically at `localhost:11434`. You need at least one model installed.
 
+## Future Updates / Active Development
 
+I plan to continue improving this IDE regularly. Here are a few features I'm aiming to add in the near future:
 
-## Future Updates
+**LM Studio Integration** — Ollama is currently the only supported option for AI features, but I plan to expand support to LM Studio and potentially other local LLMs in the future.
 
-I plan to continue improving this IDE regularly. Here are a few features I’m aiming to add in the near future:
+**macOS Compatibility** — MeadowPy is currently only available on Windows, but macOS support is planned and coming soon.
 
-**LM Studio Integration** - Ollama is currently the only supported option for AI features, but I plan to expand support to LM Studio and potentially other local LLMs in the future.
+## License
 
-**macOS Compatibility** - MeadowPy is currently only available on Windows, but macOS support is planned and coming soon.
+This project is licensed under the [MIT License](LICENSE).
 
-
+You're free to use, modify, and distribute MeadowPy for personal or commercial purposes. See the `LICENSE` file for full details.
