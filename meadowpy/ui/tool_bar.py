@@ -150,19 +150,19 @@ class ToolBarBuilder:
         self._debug_separator.setVisible(False)
 
         self._window._step_over_action = toolbar.addAction(
-            self._icon("step_over"), "Step Over", lambda: None
+            self._icon("step_over"), "Step Over"
         )
         self._window._step_over_action.setToolTip("Step Over (F10)")
         self._window._step_over_action.setVisible(False)
 
         self._window._step_into_action = toolbar.addAction(
-            self._icon("step_into"), "Step Into", lambda: None
+            self._icon("step_into"), "Step Into"
         )
         self._window._step_into_action.setToolTip("Step Into (F11)")
         self._window._step_into_action.setVisible(False)
 
         self._window._step_out_action = toolbar.addAction(
-            self._icon("step_out"), "Step Out", lambda: None
+            self._icon("step_out"), "Step Out"
         )
         self._window._step_out_action.setToolTip("Step Out (Shift+F11)")
         self._window._step_out_action.setVisible(False)

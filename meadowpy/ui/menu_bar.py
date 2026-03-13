@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
-from PyQt6.QtGui import QKeySequence
+from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenuBar, QMenu
+
+from meadowpy.resources.resource_loader import get_icon_path
 
 
 class MenuBarBuilder:
@@ -106,33 +108,34 @@ class MenuBarBuilder:
     def _build_edit_menu(self, menu_bar: QMenuBar) -> None:
         edit_menu = menu_bar.addMenu("&Edit")
 
+        # Do NOT bind Ctrl+C/V/X/Z/Y/A via setShortcut() here.
+        # Every Qt text widget (QScintilla, QTextBrowser, QPlainTextEdit,
+        # QLineEdit) handles these natively in its own keyPressEvent.
+        # Binding them to window-level QActions hijacks the key before
+        # the focused widget can process it, breaking copy/paste in
+        # non-editor panels.  Menu-click still routes via the handler.
+
         undo = edit_menu.addAction("&Undo")
-        undo.setShortcut(QKeySequence("Ctrl+Z"))
-        undo.triggered.connect(lambda: self._editor_call("undo"))
+        undo.triggered.connect(lambda: self._focused_widget_call("undo"))
 
         redo = edit_menu.addAction("&Redo")
-        redo.setShortcut(QKeySequence("Ctrl+Y"))
-        redo.triggered.connect(lambda: self._editor_call("redo"))
+        redo.triggered.connect(lambda: self._focused_widget_call("redo"))
 
         edit_menu.addSeparator()
 
         cut = edit_menu.addAction("Cu&t")
-        cut.setShortcut(QKeySequence("Ctrl+X"))
-        cut.triggered.connect(lambda: self._editor_call("cut"))
+        cut.triggered.connect(lambda: self._focused_widget_call("cut"))
 
         copy = edit_menu.addAction("&Copy")
-        copy.setShortcut(QKeySequence("Ctrl+C"))
-        copy.triggered.connect(lambda: self._editor_call("copy"))
+        copy.triggered.connect(lambda: self._focused_widget_call("copy"))
 
         paste = edit_menu.addAction("&Paste")
-        paste.setShortcut(QKeySequence("Ctrl+V"))
-        paste.triggered.connect(lambda: self._editor_call("paste"))
+        paste.triggered.connect(lambda: self._focused_widget_call("paste"))
 
         edit_menu.addSeparator()
 
         select_all = edit_menu.addAction("Select &All")
-        select_all.setShortcut(QKeySequence("Ctrl+A"))
-        select_all.triggered.connect(lambda: self._editor_call("selectAll"))
+        select_all.triggered.connect(lambda: self._focused_widget_call("selectAll"))
 
         edit_menu.addSeparator()
 
@@ -216,7 +219,9 @@ class MenuBarBuilder:
 
         run_menu.addSeparator()
 
-        restart_console = run_menu.addAction("Restart Python &Console")
+        _restart_icon_path = get_icon_path("restart")
+        _restart_icon = QIcon(_restart_icon_path) if _restart_icon_path else QIcon()
+        restart_console = run_menu.addAction(_restart_icon, "Restart Python &Console")
         restart_console.triggered.connect(self._window._on_repl_restart)
 
         run_menu.addSeparator()
@@ -300,6 +305,21 @@ class MenuBarBuilder:
 
         about = help_menu.addAction("&About MeadowPy")
         about.triggered.connect(self._window.action_about)
+
+    def _focused_widget_call(self, method_name: str) -> None:
+        """Route an edit command to the widget that currently has focus.
+
+        Works for any Qt text widget (QScintilla, QTextBrowser,
+        QPlainTextEdit, QLineEdit, etc.).  Falls back to the current
+        editor if the focused widget does not support the method.
+        """
+        from PyQt6.QtWidgets import QApplication
+        focus = QApplication.focusWidget()
+        if focus and hasattr(focus, method_name):
+            getattr(focus, method_name)()
+            return
+        # Fallback: try the active code editor
+        self._editor_call(method_name)
 
     def _editor_call(self, method_name: str) -> None:
         """Call a method on the current editor if one exists."""

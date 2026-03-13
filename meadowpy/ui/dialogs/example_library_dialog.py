@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+import html as _html
+
 from meadowpy.resources.example_library import EXAMPLE_CATEGORIES
 
 
@@ -104,6 +106,10 @@ class ExampleLibraryDialog(QDialog):
         self._code_preview.setObjectName("exLibCodePreview")
         self._code_preview.setReadOnly(True)
         self._code_preview.setFont(QFont("Consolas", 10))
+        self._code_preview.document().setDocumentMargin(10)
+        self._code_preview.document().setDefaultStyleSheet(
+            "p { margin: 0; padding: 0; }"
+        )
         preview_layout.addWidget(self._code_preview)
 
         splitter.addWidget(preview_widget)
@@ -177,8 +183,23 @@ class ExampleLibraryDialog(QDialog):
         self._current_code = ex["code"]
         self._preview_title.setText(ex["name"])
         self._preview_desc.setText(ex["desc"])
-        self._code_preview.setPlainText(ex["code"])
+        self._code_preview.setHtml(self._code_to_html(ex["code"]))
         self._open_btn.setEnabled(True)
+
+    @staticmethod
+    def _code_to_html(code: str) -> str:
+        """Convert code to HTML with compact blank-line spacing."""
+        # Strip all blank lines for compact display
+        lines = code.split(chr(10))
+        lines = [l for l in lines if l.strip() != '']
+        code = chr(10).join(lines)
+        escaped = _html.escape(code)
+        return (
+            '<pre style="font-family: Consolas, monospace; font-size: 10pt; '
+            'margin: 0; padding: 0; white-space: pre-wrap;">'
+            + escaped
+            + '</pre>'
+        )
 
     def _clear_preview(self) -> None:
         self._current_code = ""

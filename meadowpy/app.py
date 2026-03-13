@@ -3,9 +3,9 @@
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, QRectF, Qt
-from PyQt6.QtGui import QFont, QIcon, QPainterPath, QRegion
-from PyQt6.QtWidgets import QApplication, QMenu, QWidget
+from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtGui import QFont, QIcon, QKeyEvent, QKeySequence
+from PyQt6.QtWidgets import QApplication, QMenu, QMenuBar, QWidget
 
 from meadowpy.constants import APP_NAME, VERSION
 from meadowpy.core.settings import Settings
@@ -14,40 +14,79 @@ from meadowpy.core.file_manager import FileManager
 from meadowpy.ui.main_window import MainWindow
 from meadowpy.resources.resource_loader import get_icon_path, get_stylesheet
 
-_MENU_RADIUS = 5  # must match QSS border-bottom-*-radius
-
-
-def _rounded_bottom_region(rect: QRectF, r: int) -> QRegion:
-    """Return a QRegion with sharp top corners and rounded bottom corners."""
-    # Use a slightly larger radius for the mask so QSS anti-aliased
-    # border paints fully inside the clipped area.
-    mr = r + 1
-    path = QPainterPath()
-    path.moveTo(rect.topLeft())
-    path.lineTo(rect.topRight())
-    path.lineTo(rect.right(), rect.bottom() - mr)
-    path.arcTo(rect.right() - 2 * mr, rect.bottom() - 2 * mr, 2 * mr, 2 * mr, 0, -90)
-    path.lineTo(rect.left() + mr, rect.bottom())
-    path.arcTo(rect.left(), rect.bottom() - 2 * mr, 2 * mr, 2 * mr, 270, -90)
-    path.closeSubpath()
-    return QRegion(path.toFillPolygon().toPolygon())
+def _is_menubar_menu(menu: QMenu) -> bool:
+    """Return True if *menu* is a direct dropdown of a QMenuBar."""
+    parent = menu.parent()
+    if isinstance(parent, QMenuBar):
+        return True
+    action = menu.menuAction()
+    if action is not None:
+        for widget in action.associatedObjects():
+            if isinstance(widget, QMenuBar):
+                return True
+    return False
 
 
 class _MenuRoundedMaskFilter(QObject):
-    """App-level event filter that clips QMenu windows to rounded bottom corners.
+    """App-level event filter that gives QMenu windows translucent backgrounds.
 
-    On every Resize / Show we apply a ``setMask()`` region so the OS-level
-    window physically has rounded bottom corners instead of a sharp rectangle.
+    This lets QSS border-radius paint smooth anti-aliased corners.
+    Menubar dropdowns get a dynamic property so QSS can flatten the top corners.
     """
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QMenu):
-            etype = event.type()
-            if etype in (QEvent.Type.Show, QEvent.Type.Resize):
-                region = _rounded_bottom_region(
-                    QRectF(obj.rect()), _MENU_RADIUS
-                )
-                obj.setMask(region)
+            if event.type() == QEvent.Type.Show:
+                sharp_top = _is_menubar_menu(obj)
+                obj.setProperty("menubarMenu", sharp_top)
+                obj.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+                obj.style().unpolish(obj)
+                obj.style().polish(obj)
+        return False
+
+
+class _ClipboardShortcutFilter(QObject):
+    """App-level event filter that routes clipboard shortcuts to the focused widget.
+
+    QScintilla handles Ctrl+C/V/X/A internally, but other text widgets
+    (QTextBrowser, QPlainTextEdit, QLineEdit) can have their clipboard
+    shortcuts silently consumed by Qt's shortcut system.  This filter
+    intercepts ShortcutOverride for those keys and accepts the event so
+    the key press always reaches the focused widget's keyPressEvent.
+    """
+
+    _CLIPBOARD_KEYS = frozenset({
+        QKeySequence.StandardKey.Copy,
+        QKeySequence.StandardKey.Cut,
+        QKeySequence.StandardKey.Paste,
+        QKeySequence.StandardKey.SelectAll,
+        QKeySequence.StandardKey.Undo,
+        QKeySequence.StandardKey.Redo,
+    })
+
+    def eventFilter(self, obj, event):
+        etype = event.type()
+        if etype != QEvent.Type.ShortcutOverride:
+            return False
+        if not isinstance(event, QKeyEvent):
+            return False
+
+        # Only act when a non-QScintilla text widget has focus
+        focus = QApplication.focusWidget()
+        if focus is None:
+            return False
+
+        # Let QScintilla handle its own shortcuts
+        from PyQt6.Qsci import QsciScintilla
+        if isinstance(focus, QsciScintilla):
+            return False
+
+        # Check if this is a standard clipboard/edit key
+        for key in self._CLIPBOARD_KEYS:
+            if event.matches(key):
+                event.accept()
+                return True
+
         return False
 
 
@@ -87,6 +126,11 @@ class MeadowPyApp:
         # Clip menus to rounded bottom corners at the OS window level
         self._menu_filter = _MenuRoundedMaskFilter(self._qapp)
         self._qapp.installEventFilter(self._menu_filter)
+
+        # Ensure clipboard shortcuts (Ctrl+C/V/X/A/Z/Y) always reach the
+        # focused text widget instead of being consumed by QActions.
+        self._clipboard_filter = _ClipboardShortcutFilter(self._qapp)
+        self._qapp.installEventFilter(self._clipboard_filter)
 
         # Force Segoe UI on all widgets (QSS overrides QApplication.setFont)
         self._apply_font_to_all()

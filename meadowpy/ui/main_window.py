@@ -1338,6 +1338,7 @@ class MainWindow(QMainWindow):
         """Actually run the linter (called after debounce or on save)."""
         editor = self._tab_manager.current_editor()
         if editor and self._settings.get("editor.linting_enabled"):
+            self._lint_target_editor = editor
             self._lint_runner.run_lint(
                 editor.text(),
                 editor.file_path,
@@ -1346,7 +1347,9 @@ class MainWindow(QMainWindow):
 
     def _on_lint_finished(self, issues: list) -> None:
         """Receive lint results and update UI."""
-        editor = self._tab_manager.current_editor()
+        editor = getattr(self, "_lint_target_editor", None)
+        if editor is None:
+            editor = self._tab_manager.current_editor()
         if editor:
             editor.set_lint_issues(issues)
         self._problems_panel.update_issues(issues)

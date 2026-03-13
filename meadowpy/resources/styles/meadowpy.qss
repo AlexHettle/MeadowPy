@@ -170,11 +170,13 @@ QMenuBar::item:selected {
 QMenu {
     background: #FFFFFF;
     border: 1px solid #DEE2E6;
+    border-radius: 5px;
+    padding: 4px;
+}
+
+QMenu[menubarMenu="true"] {
     border-top-left-radius: 0px;
     border-top-right-radius: 0px;
-    border-bottom-left-radius: 5px;
-    border-bottom-right-radius: 5px;
-    padding: 4px;
 }
 
 QMenu::item {
@@ -210,7 +212,7 @@ QMenu::separator {
 }
 
 #FindReplaceBar QLineEdit:focus {
-    border-color: #A0C0DD;
+    border-color: #2E7D32;
 }
 
 #FindReplaceBar QPushButton {
@@ -235,9 +237,9 @@ QMenu::separator {
 }
 
 #findToggleBtn:checked {
-    background: #A0C0DD;
+    background: #2E7D32;
     color: white;
-    border-color: #005A9E;
+    border-color: #1B5E20;
 }
 
 /* Scrollbars — slim, modern overlay style */
@@ -404,13 +406,13 @@ QDialogButtonBox QPushButton:hover {
 }
 
 QDialogButtonBox QPushButton:default {
-    background: #A0C0DD;
+    background: #2E7D32;
     color: white;
-    border-color: #005A9E;
+    border-color: #1B5E20;
 }
 
 QDialogButtonBox QPushButton:default:hover {
-    background: #005A9E;
+    background: #1B5E20;
 }
 
 /* Input widgets in preferences */
@@ -423,7 +425,7 @@ QSpinBox, QComboBox, QFontComboBox {
 }
 
 QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
-    border-color: #A0C0DD;
+    border-color: #2E7D32;
 }
 
 QCheckBox {
@@ -439,8 +441,8 @@ QCheckBox::indicator {
 }
 
 QCheckBox::indicator:checked {
-    background: #A0C0DD;
-    border-color: #005A9E;
+    background: #2E7D32;
+    border-color: #1B5E20;
 }
 
 /* Symbol Outline Panel */
@@ -789,20 +791,22 @@ QCheckBox::indicator:checked {
 }
 
 #exLibOpenBtn {
-    background: #A0C0DD;
-    color: white;
-    border: 1px solid #005A9E;
+    background: #2E7D32;
+    color: #FFFFFF;
+    border: none;
     border-radius: 4px;
     padding: 6px 16px;
     font-size: 13px;
+    font-weight: bold;
 }
 
 #exLibOpenBtn:hover {
-    background: #005A9E;
+    background: #1B5E20;
 }
 
 #exLibOpenBtn:disabled {
     background: #CCCCCC;
+    color: #999999;
     border-color: #AAAAAA;
 }
 

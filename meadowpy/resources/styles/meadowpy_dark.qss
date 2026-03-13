@@ -179,12 +179,14 @@ QMenuBar::item:selected {
 QMenu {
     background: #2D2D2D;
     border: 1px solid #454545;
-    border-top-left-radius: 0px;
-    border-top-right-radius: 0px;
-    border-bottom-left-radius: 5px;
-    border-bottom-right-radius: 5px;
+    border-radius: 5px;
     padding: 4px;
     color: #CCCCCC;
+}
+
+QMenu[menubarMenu="true"] {
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
 }
 
 QMenu::item {
@@ -225,7 +227,7 @@ QMenu::separator {
 }
 
 #FindReplaceBar QLineEdit:focus {
-    border-color: #2F5C88;
+    border-color: #2F7A44;
 }
 
 #FindReplaceBar QPushButton {
@@ -255,9 +257,9 @@ QMenu::separator {
 }
 
 #findToggleBtn:checked {
-    background: #2F5C88;
+    background: #2F7A44;
     color: white;
-    border-color: #005A9E;
+    border-color: #245F35;
 }
 
 /* Scrollbars — slim, modern overlay style */
@@ -358,13 +360,13 @@ QDialogButtonBox QPushButton:hover {
 }
 
 QDialogButtonBox QPushButton:default {
-    background: #2F5C88;
+    background: #2F7A44;
     color: white;
-    border-color: #005A9E;
+    border-color: #245F35;
 }
 
 QDialogButtonBox QPushButton:default:hover {
-    background: #005A9E;
+    background: #245F35;
 }
 
 /* Input widgets in preferences */
@@ -378,7 +380,7 @@ QSpinBox, QComboBox, QFontComboBox {
 }
 
 QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
-    border-color: #2F5C88;
+    border-color: #2F7A44;
 }
 
 QComboBox::drop-down {
@@ -406,8 +408,8 @@ QCheckBox::indicator {
 }
 
 QCheckBox::indicator:checked {
-    background: #2F5C88;
-    border-color: #005A9E;
+    background: #2F7A44;
+    border-color: #245F35;
 }
 
 QLabel {
@@ -1000,16 +1002,17 @@ QDockWidget::title {
 }
 
 #exLibOpenBtn {
-    background: #0D6EFD;
-    color: white;
-    border: 1px solid #0B5ED7;
+    background: #2F7A44;
+    color: #FFFFFF;
+    border: none;
     border-radius: 4px;
     padding: 6px 16px;
     font-size: 13px;
+    font-weight: bold;
 }
 
 #exLibOpenBtn:hover {
-    background: #0B5ED7;
+    background: #245F35;
 }
 
 #exLibOpenBtn:disabled {
@@ -1119,7 +1122,7 @@ QDockWidget::title {
 #ollamaStatusLabel {
     padding: 0 8px;
     font-size: 12px;
-    color: #CCCCCC;
+    color: white;
 }
 
 #modelSelectorMenu {

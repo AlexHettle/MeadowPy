@@ -61,6 +61,7 @@ class LintWorker(QObject):
             input=self._source,
             capture_output=True,
             text=True,
+            encoding='utf-8',
             timeout=10,
         )
         return self._parse_flake8_output(result.stdout)
@@ -96,6 +97,7 @@ class LintWorker(QObject):
             input=self._source,
             capture_output=True,
             text=True,
+            encoding='utf-8',
             timeout=15,
         )
         return self._parse_pylint_output(result.stdout)
@@ -126,23 +128,27 @@ class LintRunner(QObject):
         self._thread: QThread | None = None
         self._worker: LintWorker | None = None
         self._old_threads: list[QThread] = []
+        self._generation: int = 0
 
     def run_lint(
         self, source_code: str, file_path: str | None, linter: str
     ) -> None:
         """Start a lint run. Cancels any in-progress run."""
         self._cancel_current()
+        self._generation += 1
+        gen = self._generation
 
         self._thread = QThread()
         self._worker = LintWorker(source_code, file_path, linter)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_finished)
+        self._worker.finished.connect(lambda issues, g=gen: self._on_finished(issues, g))
         self._worker.finished.connect(self._thread.quit)
         self._thread.start()
 
-    def _on_finished(self, issues: list) -> None:
-        self.lint_finished.emit(issues)
+    def _on_finished(self, issues: list, generation: int) -> None:
+        if generation == self._generation:
+            self.lint_finished.emit(issues)
 
     def stop(self) -> None:
         """Shut down all threads cleanly (call during app close)."""

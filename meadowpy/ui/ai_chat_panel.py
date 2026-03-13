@@ -3,8 +3,8 @@
 import html
 import re
 
-from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
@@ -62,6 +62,49 @@ class _ChatInput(QPlainTextEdit):
             super().keyPressEvent(event)
 
 
+class _ChatDisplay(QTextBrowser):
+    """QTextBrowser with robust copy / select-all support.
+
+    Provides three layers of copy support:
+    1. ShortcutOverride -- prevents Qt from consuming Ctrl+C/A before
+       the widget sees them.
+    2. keyPressEvent -- explicit copy/selectAll handling as a fallback.
+    3. Context menu -- right-click Copy / Select All / Copy All Chat.
+    """
+
+    def event(self, e) -> bool:
+        if e.type() == QEvent.Type.ShortcutOverride:
+            # ShortcutOverride events are always QKeyEvent instances in Qt.
+            # Guard with isinstance so we never call matches() on a bare QEvent.
+            if isinstance(e, QKeyEvent):
+                if e.matches(QKeySequence.StandardKey.Copy) or                    e.matches(QKeySequence.StandardKey.SelectAll):
+                    e.accept()
+                    return True
+        return super().event(e)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.matches(QKeySequence.StandardKey.Copy):
+            self.copy()
+            return
+        if event.matches(QKeySequence.StandardKey.SelectAll):
+            self.selectAll()
+            return
+        super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event) -> None:
+        """Custom context menu with Copy, Select All, and Copy All Chat."""
+        menu = self.createStandardContextMenu()
+        menu.addSeparator()
+        copy_all = menu.addAction("Copy All Chat")
+        copy_all.triggered.connect(self._copy_all_to_clipboard)
+        menu.exec(event.globalPos())
+
+    def _copy_all_to_clipboard(self) -> None:
+        """Copy all chat text to clipboard."""
+        from PyQt6.QtWidgets import QApplication
+        QApplication.clipboard().setText(self.toPlainText())
+
+
 class AIChatPanel(QDockWidget):
     """Dock widget providing an AI chat interface powered by Ollama."""
 
@@ -89,7 +132,7 @@ class AIChatPanel(QDockWidget):
 
         self._setup_ui()
 
-    # ── UI construction ─────────────────────────────────────────────
+    # -- UI construction ---------------------------------------------
 
     def _setup_ui(self) -> None:
         container = QWidget()
@@ -120,11 +163,18 @@ class AIChatPanel(QDockWidget):
         layout.addWidget(header)
 
         # Chat display
-        self._chat_display = QTextBrowser()
+        self._chat_display = _ChatDisplay()
         self._chat_display.setObjectName("aiChatDisplay")
         self._chat_display.setOpenExternalLinks(False)
         self._chat_display.setOpenLinks(False)  # we handle links ourselves
         self._chat_display.setReadOnly(True)
+        # QTextBrowser defaults to TextBrowserInteraction which omits
+        # TextSelectableByKeyboard — so Ctrl+C / Ctrl+A won't work.
+        # Add it explicitly to enable keyboard copy/select-all.
+        self._chat_display.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
         self._chat_display.setPlaceholderText(
             "Ask a question about your code!\n\n"
             "Try things like:\n"
@@ -166,7 +216,7 @@ class AIChatPanel(QDockWidget):
 
         self.setWidget(container)
 
-    # ── Public API (called by MainWindow) ───────────────────────────
+    # -- Public API (called by MainWindow) ---------------------------
 
     def update_editor_context(
         self,
@@ -298,7 +348,8 @@ class AIChatPanel(QDockWidget):
         self._update_send_btn()
         self._input_area.setFocus()
 
-    # ── Internal ────────────────────────────────────────────────────
+
+    # -- Internal ----------------------------------------------------
 
     def _scroll_to_bottom(self) -> None:
         """Scroll the chat display to the very bottom."""
