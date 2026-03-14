@@ -8,6 +8,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
   <img alt="AI" src="https://img.shields.io/badge/AI-Ollama%20powered-orange">
+  <img alt="Active Development" src="https://img.shields.io/badge/Status-Active%20Development-brightgreen">
 </p>
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
@@ -29,7 +30,8 @@ A beginner-friendly Python IDE with built-in AI assistance, a step-through debug
   - [Code Quality](#code-quality)
   - [Project Management](#project-management)
 - [Troubleshooting](#troubleshooting)
-- [Future Updates](#future-updates)
+- [Roadmap](#roadmap)
+- [Contributing & Feedback](#contributing--feedback)
 - [License](#license)
 
 ---
@@ -110,6 +112,8 @@ MeadowPy is designed from the ground up for people learning to code.
 ## Features
 
 ### Code Editor
+MeadowPy's editor is built to feel familiar from day one — tabbed files, colour-coded syntax, and smart helpers that reduce the small frustrations that slow beginners down.
+
 - Tabbed editing with Python syntax highlighting
 - Auto-completion for Python keywords and built-ins
 - Smart indentation and auto-closing brackets
@@ -120,6 +124,8 @@ MeadowPy is designed from the ground up for people learning to code.
 - Configurable font, tab width, and word wrap
 
 ### Run & Debug
+Running your code is one keypress away. When something goes wrong, the debugger lets you slow everything down and watch your program think — line by line, variable by variable.
+
 - **Run** your script with F5, or the dedicated run button
 - **Interactive REPL** with stdin support
 - **Step-through debugger** — set breakpoints (F9), then step over (F10), step into (F11), or step out (Shift+F11)
@@ -128,6 +134,8 @@ MeadowPy is designed from the ground up for people learning to code.
 - **Call stack viewer** — click any frame to inspect variables at that level
 
 ### Code Quality
+MeadowPy catches mistakes before you run your code, and explains them in terms you can actually act on.
+
 - Real-time linting with flake8 and pylint
 - Lint-on-save option
 - Problems panel with click-to-jump-to-line
@@ -137,6 +145,8 @@ MeadowPy is designed from the ground up for people learning to code.
 ![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](meadowpy/resources/Images/Error%20AI%20tool.png)
 
 ### Project Management
+Whether you're working on a single script or a folder full of files, MeadowPy keeps everything within reach.
+
 - File explorer sidebar with create, rename, and delete
 - Drag and drop file opening
 - Open entire project folders
@@ -159,13 +169,29 @@ Open Command Prompt, navigate to the MeadowPy folder, and run `.venv\Scripts\pyt
 **AI features not working**
 Make sure [Ollama](https://ollama.com/download) is installed and running. MeadowPy connects to it automatically at `localhost:11434`. You need at least one model installed.
 
-## Future Updates / Active Development
+## Roadmap
 
-I plan to continue improving this IDE regularly. Here are a few features I'm aiming to add in the near future:
+MeadowPy is actively developed. Here's what's coming next:
 
-**LM Studio Integration** — Ollama is currently the only supported option for AI features, but I plan to expand support to LM Studio and potentially other local LLMs in the future.
+| Feature | Status |
+|---|---|
+| macOS support | 🔄 In progress |
+| LM Studio integration | 📋 Planned |
+| Integrated terminal panel | 📋 Planned |
+| Plot / output preview | 📋 Planned |
+| Git basics panel | 📋 Planned |
+| More starter project templates | 📋 Planned |
+| More example library entries | 📋 Planned |
 
-**macOS Compatibility** — MeadowPy is currently only available on Windows, but macOS support is planned and coming soon.
+## Contributing & Feedback
+
+MeadowPy is a solo project, but feedback from real users is what shapes it.
+
+- **Found a bug?** [Open an issue](../../issues) with what you were doing and what went wrong.
+- **Have a feature idea?** Open an issue and describe what you'd find useful — especially if you're a beginner who ran into a gap.
+- **Want to contribute code?** Pull requests are welcome. Open an issue first so we can discuss the change.
+
+If MeadowPy helped you learn something, a ⭐ on the repo goes a long way.
 
 ## License
 
