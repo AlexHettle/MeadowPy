@@ -953,38 +953,132 @@ QDockWidget::title {
     background: #1E1E1E;
 }
 
+/* Header banner */
+#exLibHeader {
+    background: #252526;
+}
+
 #exLibTitle {
-    color: #EEEEEE;
+    color: #E0E0E0;
 }
 
 #exLibSubtitle {
-    color: #888888;
+    color: #808080;
 }
 
-#exLibCatList, #exLibExampleList {
+#exLibSep {
+    background: #3C3C3C;
+    border: none;
+}
+
+#exLibVSep {
+    background: #3C3C3C;
+    border: none;
+}
+
+/* Sidebar */
+#exLibSidebar {
     background: #252526;
-    border: 1px solid #3C3C3C;
-    border-radius: 4px;
-    font-size: 13px;
-    color: #CCCCCC;
 }
 
-#exLibCatList::item, #exLibExampleList::item {
-    padding: 6px 8px;
-    border-radius: 3px;
+#exLibCatHeader {
+    color: #808080;
+    letter-spacing: 1px;
 }
 
-#exLibCatList::item:selected, #exLibExampleList::item:selected {
-    background: #37373D;
-    color: #4FC1FF;
+/* Category buttons */
+#exLibCatBtn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
 }
 
-#exLibCatList::item:hover:!selected, #exLibExampleList::item:hover:!selected {
+#exLibCatBtn:hover {
     background: #2A2D2E;
 }
 
+#exLibCatBtn[selected="true"] {
+    background: #37373D;
+    border: 1px solid #4FC1FF;
+}
+
+#exLibCatName {
+    color: #CCCCCC;
+}
+
+#exLibCatBtn[selected="true"] #exLibCatName {
+    color: #4FC1FF;
+}
+
+#exLibCatCount {
+    color: #666666;
+}
+
+/* Content area */
+#exLibContent {
+    background: #1E1E1E;
+}
+
+#exLibExamplesHeader {
+    color: #E0E0E0;
+}
+
+/* Cards scroll area */
+#exLibCardsScroll {
+    background: transparent;
+    border: none;
+}
+
+#exLibCardsWidget {
+    background: transparent;
+}
+
+/* Example cards */
+#exLibExCard {
+    background: #2D2D2D;
+    border: 1px solid #3C3C3C;
+    border-radius: 8px;
+    min-width: 160px;
+    max-width: 200px;
+}
+
+#exLibExCard:hover {
+    background: #333333;
+    border-color: #555555;
+}
+
+#exLibExCard[selected="true"] {
+    background: #2A3A2E;
+    border: 1px solid #2F7A44;
+}
+
+#exLibExCardTitle {
+    color: #E0E0E0;
+}
+
+#exLibExCard[selected="true"] #exLibExCardTitle {
+    color: #6CCF80;
+}
+
+#exLibExCardDesc {
+    color: #888888;
+}
+
+/* Preview area */
+#exLibPreviewFrame {
+    background: #1E1E1E;
+}
+
+#exLibPreviewBar {
+    background: #2D2D2D;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+
 #exLibPreviewTitle {
-    color: #EEEEEE;
+    color: #E0E0E0;
 }
 
 #exLibPreviewDesc {
@@ -992,41 +1086,51 @@ QDockWidget::title {
 }
 
 #exLibCodePreview {
-    background: #1E1E1E;
+    background: #1A1A1A;
     border: 1px solid #3C3C3C;
-    border-radius: 4px;
+    border-top: none;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
     font-family: Consolas, "Courier New", monospace;
     font-size: 13px;
     color: #D4D4D4;
     padding: 8px;
 }
 
+/* Footer */
+#exLibFooter {
+    background: #252526;
+}
+
+#exLibCountLabel {
+    color: #666666;
+}
+
 #exLibOpenBtn {
     background: #2F7A44;
     color: #FFFFFF;
     border: none;
-    border-radius: 4px;
-    padding: 6px 16px;
+    border-radius: 6px;
+    padding: 6px 18px;
     font-size: 13px;
     font-weight: bold;
 }
 
 #exLibOpenBtn:hover {
-    background: #245F35;
+    background: #38934F;
 }
 
 #exLibOpenBtn:disabled {
     background: #3C3C3C;
     color: #666666;
-    border-color: #2E2E2E;
 }
 
 #exLibCloseBtn {
     background: #3C3C3C;
     color: #CCCCCC;
     border: 1px solid #555555;
-    border-radius: 4px;
-    padding: 6px 16px;
+    border-radius: 6px;
+    padding: 6px 18px;
     font-size: 13px;
 }
 
