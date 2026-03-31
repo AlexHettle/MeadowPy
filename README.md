@@ -175,6 +175,7 @@ MeadowPy is actively developed. Here's what's coming next:
 
 | Feature                                   | Status         |
 | ----------------------------------------- | -------------- |
+| More example library entries and library UI rework             | ✅ Completed    |
 | macOS support                             | 🔄 In progress |
 | LM Studio integration                     | 🔄 In progress |
 | Integrated terminal panel                 | 🔄 In progress |
@@ -183,7 +184,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Plot / output preview                     | 📋 Planned     |
 | Git basics panel                          | 📋 Planned     |
 | More starter project templates            | 📋 Planned     |
-| More example library entries and library UI rework             | ✅ Completed    |
 | Claude API integration                    | 📋 Planned     |
 | Enhanced Theming customization            | 📋 Planned     |
 | Improved app setup & first-run experience | 📋 Planned     |
