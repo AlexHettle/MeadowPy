@@ -813,8 +813,8 @@ QCheckBox::indicator:checked {
 }
 
 #welcomeActionBtn:hover {
-    background: #E0E8F0;
-    border-color: #A0C0DD;
+    background: #E8F0E8;
+    border-color: #2E7D32;
 }
 
 #welcomeTemplateCard {
@@ -824,8 +824,8 @@ QCheckBox::indicator:checked {
 }
 
 #welcomeTemplateCard:hover {
-    background: #E8F0FE;
-    border-color: #A0C0DD;
+    background: #E8F0E8;
+    border-color: #2E7D32;
 }
 
 #welcomeCardTitle {

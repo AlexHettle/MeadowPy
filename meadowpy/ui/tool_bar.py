@@ -121,7 +121,7 @@ class ToolBarBuilder:
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
         self._add(toolbar, "new", "Create a new blank file (Ctrl+N)", self._window.action_new_file)
-        self._add(toolbar, "open", "Open an existing file (Ctrl+O)", self._window.action_open_file)
+        self._add(toolbar, "open_file", "Open an existing file (Ctrl+O)", self._window.action_open_file)
         self._add(toolbar, "save", "Save the current file (Ctrl+S)", self._window.action_save)
         toolbar.addSeparator()
         self._add(toolbar, "undo", "Undo last change (Ctrl+Z)", lambda: self._editor_call("undo"))

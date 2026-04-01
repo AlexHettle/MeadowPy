@@ -1012,8 +1012,8 @@ QDockWidget::title {
 }
 
 #welcomeActionBtn:hover {
-    background: #094771;
-    border-color: #2F5C88;
+    background: #2F7A44;
+    border-color: #245F35;
     color: #FFFFFF;
 }
 
@@ -1024,8 +1024,8 @@ QDockWidget::title {
 }
 
 #welcomeTemplateCard:hover {
-    background: #094771;
-    border-color: #2F5C88;
+    background: #2F7A44;
+    border-color: #245F35;
 }
 
 #welcomeCardTitle {
