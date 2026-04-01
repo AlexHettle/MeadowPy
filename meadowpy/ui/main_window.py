@@ -335,6 +335,9 @@ class MainWindow(QMainWindow):
 
         # Wire chat panel → send request
         self._ai_chat_panel.chat_requested.connect(self._on_chat_requested)
+        self._ai_chat_panel.chat_stop_requested.connect(
+            self._ollama_client.cancel_chat
+        )
         self._ai_chat_panel.code_insert_requested.connect(
             self._on_code_insert_requested
         )

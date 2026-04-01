@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
+    QStackedWidget,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -109,6 +110,7 @@ class AIChatPanel(QDockWidget):
     """Dock widget providing an AI chat interface powered by Ollama."""
 
     chat_requested = pyqtSignal(list)  # full message history (list[dict])
+    chat_stop_requested = pyqtSignal()  # request to cancel current stream
     code_insert_requested = pyqtSignal(str)  # code text to insert into editor
 
     def __init__(self, parent=None):
@@ -185,32 +187,56 @@ class AIChatPanel(QDockWidget):
         self._chat_display.anchorClicked.connect(self._on_link_clicked)
         layout.addWidget(self._chat_display, 1)
 
-        # Input area
+        # Input area — text field with button overlaid at bottom-right
         input_container = QWidget()
         input_container.setObjectName("aiChatInputContainer")
-        input_layout = QHBoxLayout(input_container)
-        input_layout.setContentsMargins(6, 6, 6, 6)
-        input_layout.setSpacing(6)
+        input_outer = QVBoxLayout(input_container)
+        input_outer.setContentsMargins(8, 6, 8, 8)
+        input_outer.setSpacing(6)
 
         self._input_area = _ChatInput()
         self._input_area.setObjectName("aiChatInput")
         self._input_area.setPlaceholderText("Ask a question about your code...")
-        self._input_area.setMaximumHeight(80)
+        self._input_area.setMaximumHeight(100)
+        self._input_area.setMinimumHeight(60)
         self._input_area.setToolTip(
             "Type your question here \u2014 press Enter to send, Shift+Enter for a new line"
         )
         self._input_area.submit_pressed.connect(self._on_send)
-        input_layout.addWidget(self._input_area, 1)
+        self._input_area.textChanged.connect(self._update_send_btn)
+        input_outer.addWidget(self._input_area, 1)
+
+        # Button row below the input
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(6)
+
+        self._hint_label = QLabel("Enter to send, Shift+Enter for new line")
+        self._hint_label.setObjectName("aiChatHint")
+        btn_row.addWidget(self._hint_label)
+        btn_row.addStretch()
+
+        self._btn_stack = QStackedWidget()
+        self._btn_stack.setFixedWidth(56)
+        self._btn_stack.setFixedHeight(28)
 
         self._send_btn = QPushButton("Send")
         self._send_btn.setObjectName("aiChatSendBtn")
         self._send_btn.setToolTip("Send your message (Enter)")
-        self._send_btn.setFixedHeight(36)
-        self._send_btn.setFixedWidth(60)
         self._send_btn.setEnabled(False)
         self._send_btn.clicked.connect(self._on_send)
-        self._input_area.textChanged.connect(self._update_send_btn)
-        input_layout.addWidget(self._send_btn, 0, Qt.AlignmentFlag.AlignBottom)
+        self._btn_stack.addWidget(self._send_btn)  # index 0
+
+        self._stop_btn = QPushButton("Stop")
+        self._stop_btn.setObjectName("aiChatStopBtn")
+        self._stop_btn.setToolTip("Stop the AI response")
+        self._stop_btn.clicked.connect(self._on_stop)
+        self._btn_stack.addWidget(self._stop_btn)  # index 1
+
+        self._btn_stack.setCurrentIndex(0)
+        btn_row.addWidget(self._btn_stack)
+
+        input_outer.addLayout(btn_row)
 
         layout.addWidget(input_container)
 
@@ -286,6 +312,7 @@ class AIChatPanel(QDockWidget):
         self._streaming = False
         self._input_area.setEnabled(True)
         self._update_send_btn()
+        self._update_btn_visibility()
         self._input_area.setFocus()
         self._render_chat()
 
@@ -295,6 +322,7 @@ class AIChatPanel(QDockWidget):
         self._streaming = False
         self._input_area.setEnabled(True)
         self._update_send_btn()
+        self._update_btn_visibility()
         self._input_area.setFocus()
 
         # Append a visual error block
@@ -324,6 +352,7 @@ class AIChatPanel(QDockWidget):
         # Set streaming state
         self._streaming = True
         self._send_btn.setEnabled(False)
+        self._update_btn_visibility()
         self._current_assistant_text = ""
 
         # Render so the user sees the message
@@ -346,6 +375,7 @@ class AIChatPanel(QDockWidget):
         self._chat_display.clear()
         self._input_area.setEnabled(True)
         self._update_send_btn()
+        self._update_btn_visibility()
         self._input_area.setFocus()
 
 
@@ -441,6 +471,35 @@ class AIChatPanel(QDockWidget):
         has_text = bool(self._input_area.toPlainText().strip())
         self._send_btn.setEnabled(has_text and not self._streaming)
 
+    def _update_btn_visibility(self) -> None:
+        """Toggle between Send and Stop buttons based on streaming state."""
+        self._btn_stack.setCurrentIndex(1 if self._streaming else 0)
+
+    def _on_stop(self) -> None:
+        """Handle the user pressing Stop."""
+        self.chat_stop_requested.emit()
+
+        # Save whatever partial response was received
+        if self._current_assistant_text:
+            self._messages.append({
+                "role": "assistant",
+                "content": self._current_assistant_text,
+            })
+        self._current_assistant_text = ""
+
+        # Record the stop in chat history
+        self._messages.append({
+            "role": "stopped",
+            "content": "Response stopped by user.",
+        })
+
+        self._streaming = False
+        self._input_area.setEnabled(True)
+        self._update_send_btn()
+        self._update_btn_visibility()
+        self._input_area.setFocus()
+        self._render_chat()
+
     def _on_send(self) -> None:
         """Handle the user pressing Send / Enter."""
         text = self._input_area.toPlainText().strip()
@@ -455,6 +514,7 @@ class AIChatPanel(QDockWidget):
         self._input_area.clear()
         self._streaming = True
         self._send_btn.setEnabled(False)
+        self._update_btn_visibility()
         self._current_assistant_text = ""
 
         # Render immediately so the user sees their message
@@ -511,6 +571,12 @@ class AIChatPanel(QDockWidget):
                     f'<b>Error:</b> <i>{content_html}</i>'
                     f'</div>'
                 )
+            elif role == "stopped":
+                parts.append(
+                    f'<div class="stopped-message">'
+                    f'<i>{html.escape(msg["content"])}</i>'
+                    f'</div>'
+                )
 
         # Append the in-progress assistant text (if streaming)
         if self._streaming and self._current_assistant_text:
@@ -541,6 +607,8 @@ class AIChatPanel(QDockWidget):
             'border-radius: 6px; }'
             '.error-message { margin: 8px 4px; padding: 8px; '
             'color: #E51400; }'
+            '.stopped-message { margin: 4px 4px; padding: 4px 8px; '
+            'color: #999999; font-size: 12px; }'
             '.streaming-indicator { opacity: 0.5; }'
             '.code-block { margin: 6px 0; }'
             '.code-block pre { background: rgba(0,0,0,0.15); }'

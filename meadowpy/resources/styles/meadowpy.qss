@@ -445,6 +445,18 @@ QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
     border-color: #2E7D32;
 }
 
+QComboBox::drop-down {
+    border: none;
+    border-left: 1px solid #CCCCCC;
+    width: 20px;
+}
+
+QComboBox::down-arrow {
+    image: url({{ICONS_DIR}}/arrow_down_dark.svg);
+    width: 10px;
+    height: 10px;
+}
+
 QSpinBox::up-button, QSpinBox::down-button {
     background: #E9ECEF;
     border: none;
@@ -495,7 +507,13 @@ QComboBox QAbstractItemView::item {
     outline: none;
 }
 
+QComboBox QAbstractItemView::item:hover {
+    background: #F0F4F0;
+}
+
 QComboBox QAbstractItemView::item:selected {
+    background: #2E7D32;
+    color: #FFFFFF;
     border-left: 3px solid #2E7D32;
 }
 
@@ -1008,6 +1026,26 @@ QCheckBox::indicator:checked {
     background: #E0E0E0;
 }
 
+/* ===== Search Panel ===== */
+
+#SearchPanel QPushButton {
+    background: #F0F0F0;
+    color: #333333;
+    border: 1px solid #CCCCCC;
+    border-radius: 3px;
+    padding: 4px 12px;
+}
+
+#SearchPanel QPushButton:hover {
+    background: #E0E0E0;
+}
+
+#SearchPanel QPushButton:pressed {
+    background: #2E7D32;
+    color: #FFFFFF;
+    border-color: #1B5E20;
+}
+
 /* ===== Shortcut Reference Dialog v2 ===== */
 
 #ShortcutReferenceDialog {
@@ -1221,7 +1259,7 @@ QCheckBox::indicator:checked {
 }
 
 #aiChatInput:focus {
-    border-color: #1A73E8;
+    border-color: #2E7D32;
 }
 
 #aiChatSendBtn {
@@ -1239,4 +1277,26 @@ QCheckBox::indicator:checked {
 
 #aiChatSendBtn:disabled {
     background: #ADB5BD;
+}
+
+#aiChatStopBtn {
+    background: #D32F2F;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+#aiChatStopBtn:hover {
+    background: #B71C1C;
+}
+
+#aiChatStopBtn:disabled {
+    background: #ADB5BD;
+}
+
+#aiChatHint {
+    color: #999999;
+    font-size: 11px;
 }

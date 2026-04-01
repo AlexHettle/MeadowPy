@@ -438,6 +438,14 @@ QSpinBox::down-arrow {
 
 QComboBox::drop-down {
     border: none;
+    border-left: 1px solid #555555;
+    width: 20px;
+}
+
+QComboBox::down-arrow {
+    image: url({{ICONS_DIR}}/arrow_down.svg);
+    width: 10px;
+    height: 10px;
 }
 
 QComboBox QAbstractItemView {
@@ -455,7 +463,13 @@ QComboBox QAbstractItemView::item {
     outline: none;
 }
 
+QComboBox QAbstractItemView::item:hover {
+    background: #3A3D3A;
+}
+
 QComboBox QAbstractItemView::item:selected {
+    background: #2F7A44;
+    color: #FFFFFF;
     border-left: 3px solid #2F7A44;
 }
 
@@ -709,7 +723,7 @@ QDockWidget::title {
 }
 
 #SearchPanel QPushButton:pressed {
-    background: #2F5C88;
+    background: #2F7A44;
 }
 
 #SearchPanel QCheckBox {
@@ -1429,7 +1443,7 @@ QDockWidget::title {
 }
 
 #aiChatInput:focus {
-    border-color: #007ACC;
+    border-color: #2F7A44;
 }
 
 #aiChatSendBtn {
@@ -1448,4 +1462,27 @@ QDockWidget::title {
 #aiChatSendBtn:disabled {
     background: #555555;
     color: #888888;
+}
+
+#aiChatStopBtn {
+    background: #C44;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+#aiChatStopBtn:hover {
+    background: #A33;
+}
+
+#aiChatStopBtn:disabled {
+    background: #555555;
+    color: #888888;
+}
+
+#aiChatHint {
+    color: #666666;
+    font-size: 11px;
 }

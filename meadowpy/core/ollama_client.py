@@ -79,6 +79,19 @@ class ChatWorker(QObject):
                     pass
                 self._response = None
 
+        except urllib.error.HTTPError as e:
+            # HTTP errors (4xx/5xx) — read the body for details
+            try:
+                body = e.read().decode("utf-8", errors="replace").strip()
+                detail = json.loads(body).get("error", body) if body else ""
+            except Exception:
+                detail = ""
+            if detail:
+                self.chat_error.emit(f"Ollama error ({e.code}): {detail}")
+            else:
+                self.chat_error.emit(
+                    f"Ollama error ({e.code}): {e.reason}"
+                )
         except urllib.error.URLError as e:
             reason = getattr(e, "reason", str(e))
             self.chat_error.emit(f"Connection error: {reason}")
