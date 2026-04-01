@@ -180,9 +180,15 @@ class PreferencesDialog(QDialog):
         form = QFormLayout(page)
 
         # Theme
+        _THEME_DISPLAY = {
+            "default_light": "Light Theme",
+            "default_dark": "Dark Theme",
+        }
         self._theme_combo = QComboBox()
         for theme_name in THEMES:
-            display = theme_name.replace("_", " ").title()
+            display = _THEME_DISPLAY.get(
+                theme_name, theme_name.replace("_", " ").title()
+            )
             self._theme_combo.addItem(display, theme_name)
         current_theme = self._settings.get("editor.theme")
         idx = self._theme_combo.findData(current_theme)

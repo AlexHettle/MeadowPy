@@ -391,6 +391,22 @@ QDialog {
     background: #F8F9FA;
     border: 1px solid #DEE2E6;
     font-size: 13px;
+    outline: none;
+}
+
+#prefsCategory::item {
+    padding: 6px 10px;
+    border-left: 3px solid transparent;
+}
+
+#prefsCategory::item:selected {
+    background: #E8F0E8;
+    color: #333333;
+    border-left: 3px solid #2E7D32;
+}
+
+#prefsCategory::item:hover:!selected {
+    background: #EEF1EE;
 }
 
 QDialogButtonBox QPushButton {
@@ -399,6 +415,7 @@ QDialogButtonBox QPushButton {
     border: 1px solid #CCCCCC;
     border-radius: 4px;
     background: #FFFFFF;
+    outline: none;
 }
 
 QDialogButtonBox QPushButton:hover {
@@ -426,6 +443,70 @@ QSpinBox, QComboBox, QFontComboBox {
 
 QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
     border-color: #2E7D32;
+}
+
+QSpinBox::up-button, QSpinBox::down-button {
+    background: #E9ECEF;
+    border: none;
+    border-left: 1px solid #CCCCCC;
+    width: 20px;
+}
+
+QSpinBox::up-button {
+    border-top-right-radius: 3px;
+    border-bottom: 1px solid #CCCCCC;
+}
+
+QSpinBox::down-button {
+    border-bottom-right-radius: 3px;
+}
+
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background: #DEE2E6;
+}
+
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+    background: #2E7D32;
+}
+
+QSpinBox::up-arrow {
+    image: url({{ICONS_DIR}}/arrow_up_dark.svg);
+    width: 10px;
+    height: 10px;
+}
+
+QSpinBox::down-arrow {
+    image: url({{ICONS_DIR}}/arrow_down_dark.svg);
+    width: 10px;
+    height: 10px;
+}
+
+QComboBox QAbstractItemView {
+    background: #FFFFFF;
+    border: 1px solid #DEE2E6;
+    selection-background-color: #2E7D32;
+    selection-color: #FFFFFF;
+    outline: none;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 4px 8px;
+    border-left: 3px solid transparent;
+    outline: none;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    border-left: 3px solid #2E7D32;
+}
+
+QComboBox QAbstractItemView::item:focus {
+    outline: none;
+    border: none;
+    border-left: 3px solid transparent;
+}
+
+QComboBox QAbstractItemView::item:selected:focus {
+    border-left: 3px solid #2E7D32;
 }
 
 QCheckBox {
@@ -927,7 +1008,7 @@ QCheckBox::indicator:checked {
     background: #E0E0E0;
 }
 
-/* ===== Shortcut Reference Dialog ===== */
+/* ===== Shortcut Reference Dialog v2 ===== */
 
 #ShortcutReferenceDialog {
     background: #FFFFFF;
@@ -941,37 +1022,86 @@ QCheckBox::indicator:checked {
     color: #888888;
 }
 
-#shortcutTable {
-    background: #FFFFFF;
+#shortcutSearch {
+    background: #F8F9FA;
     border: 1px solid #DEE2E6;
-    border-radius: 4px;
+    border-radius: 6px;
+    padding: 8px 12px;
     font-size: 13px;
-    alternate-background-color: #F8F9FA;
-}
-
-#shortcutTable::item {
-    padding: 4px 8px;
-}
-
-#shortcutTable::item:selected {
-    background: #E8F0FE;
     color: #333333;
 }
 
-#shortcutTable QHeaderView::section {
+#shortcutSearch:focus {
+    border-color: #2E7D32;
+}
+
+#shortcutScroll {
+    background: transparent;
+}
+
+#shortcutContainer {
+    background: transparent;
+}
+
+#shortcutCard {
+    background: #FFFFFF;
+    border: 1px solid #DEE2E6;
+    border-radius: 8px;
+}
+
+#shortcutCardHeader {
+    color: #333333;
+    padding: 10px 14px 6px 14px;
+}
+
+#shortcutCardSep {
+    background: #DEE2E6;
+    margin-left: 14px;
+    margin-right: 14px;
+}
+
+#shortcutRow {
+    border-radius: 4px;
+    margin: 1px 6px;
+}
+
+#shortcutRow:hover {
+    background: #F5F7FA;
+}
+
+#shortcutActionLabel {
+    color: #444444;
+    font-size: 13px;
+}
+
+#shortcutKeyBadge {
     background: #F0F0F0;
-    border: none;
-    border-bottom: 1px solid #DEE2E6;
-    padding: 6px 8px;
+    color: #333333;
+    border: 1px solid #CCCCCC;
+    border-bottom: 2px solid #BBBBBB;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: "Consolas", monospace;
     font-size: 12px;
-    font-weight: bold;
+    min-width: 22px;
+}
+
+#shortcutKeyPlus {
+    color: #999999;
+    font-size: 12px;
+}
+
+#shortcutNoResults {
+    color: #999999;
+    font-size: 13px;
+    padding: 20px;
 }
 
 #shortcutCloseBtn {
     background: #F0F0F0;
     border: 1px solid #CCCCCC;
-    border-radius: 4px;
-    padding: 6px 16px;
+    border-radius: 6px;
+    padding: 6px 20px;
     font-size: 13px;
 }
 
