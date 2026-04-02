@@ -1088,7 +1088,7 @@ QDockWidget::title {
 
 #exLibCatBtn[selected="true"] {
     background: #37373D;
-    border: 1px solid #4FC1FF;
+    border: 1px solid #2F7A44;
 }
 
 #exLibCatName {
@@ -1096,7 +1096,7 @@ QDockWidget::title {
 }
 
 #exLibCatBtn[selected="true"] #exLibCatName {
-    color: #4FC1FF;
+    color: #4CAF50;
 }
 
 #exLibCatCount {

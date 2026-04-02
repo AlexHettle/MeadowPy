@@ -97,6 +97,9 @@ class _ExampleCard(QWidget):
         self.setObjectName("exLibExCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._selected = False
+        self.setFixedWidth(160)
+        self.setMinimumHeight(90)
+        self.setMaximumHeight(90)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
@@ -109,6 +112,7 @@ class _ExampleCard(QWidget):
         title_font.setBold(True)
         title.setFont(title_font)
         title.setWordWrap(True)
+        title.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
         description = QLabel(desc)
@@ -117,7 +121,10 @@ class _ExampleCard(QWidget):
         desc_font.setPointSize(9)
         description.setFont(desc_font)
         description.setWordWrap(True)
+        description.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(description)
+
+        layout.addStretch()
 
     def set_selected(self, selected: bool) -> None:
         self._selected = selected
@@ -267,7 +274,7 @@ class ExampleLibraryDialog(QDialog):
         self._cards_scroll.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        self._cards_scroll.setFixedHeight(100)
+        self._cards_scroll.setFixedHeight(110)
 
         self._cards_widget = QWidget()
         self._cards_widget.setObjectName("exLibCardsWidget")
