@@ -10,7 +10,7 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-.venv\Scripts\python.exe main.py
+.venv\Scripts\python.exe -m meadowpy
 if %errorlevel% neq 0 (
     echo.
     echo MeadowPy failed to start. Press any key to close.

@@ -100,7 +100,7 @@ if exist ".venv\Scripts\python.exe" (
 echo  Upgrading pip...
 .venv\Scripts\python.exe -m pip install --upgrade pip -q
 echo  Installing dependencies...
-.venv\Scripts\python.exe -m pip install -r requirements.txt -q
+.venv\Scripts\python.exe -m pip install -r meadowpy\requirements.txt -q
 if %errorlevel% neq 0 (
     echo.
     echo  [ERROR] Failed to install dependencies.
@@ -131,7 +131,7 @@ if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 powershell -NoProfile -Command ^
   "$ws = New-Object -ComObject WScript.Shell;" ^
   "$s = $ws.CreateShortcut('%SCRIPT_DIR%\MeadowPy.lnk');" ^
-  "$s.TargetPath = '%SCRIPT_DIR%\launch.vbs';" ^
+  "$s.TargetPath = '%SCRIPT_DIR%\meadowpy\resources\launch.vbs';" ^
   "$s.WorkingDirectory = '%SCRIPT_DIR%';" ^
   "$s.IconLocation = '%SCRIPT_DIR%\meadowpy\resources\icons\meadowpy.ico,0';" ^
   "$s.Description = 'Launch MeadowPy IDE';" ^
