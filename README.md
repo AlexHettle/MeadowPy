@@ -189,6 +189,8 @@ MeadowPy is actively developed. Here's what's coming next:
 | More starter project templates            | 📋 Planned     |
 | Claude API integration                    | 📋 Planned     |
 | Enhanced Theming customization            | 📋 Planned     |
+| Enhanced AI features/capabilities           | 📋 Planned     |
+
 
 
 ## Contributing & Feedback
