@@ -188,7 +188,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Git basics panel                          | 📋 Planned     |
 | More starter project templates            | 📋 Planned     |
 | Claude API integration                    | 📋 Planned     |
-| Enhanced Theming customization            | 📋 Planned     |
 | Enhanced AI features/capabilities           | 📋 Planned     |
 
 
@@ -201,7 +200,7 @@ MeadowPy is a solo project, but feedback from real users is what shapes it.
 - **Have a feature idea?** Open an issue and describe what you'd find useful — especially if you're a beginner who ran into a gap.
 - **Want to contribute code?** Pull requests are welcome. Open an issue first so we can discuss the change.
 
-If MeadowPy helped you learn something, a ⭐ on the repo goes a long way.
+If MeadowPy helped you learn something or is something you find useful, a ⭐ on the repo goes a long way.
 
 ## License
 
