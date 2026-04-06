@@ -365,6 +365,7 @@ class MainWindow(QMainWindow):
         """Create the lint runner and debounce timer."""
         self._lint_runner = LintRunner(self)
         self._lint_runner.lint_finished.connect(self._on_lint_finished)
+        self._lint_runner.lint_error.connect(self._on_lint_error)
 
         self._lint_timer = QTimer(self)
         self._lint_timer.setSingleShot(True)
@@ -1361,6 +1362,11 @@ class MainWindow(QMainWindow):
         error_count = sum(1 for i in issues if i.severity == "error")
         warning_count = sum(1 for i in issues if i.severity == "warning")
         self._status_bar_manager.update_lint_counts(error_count, warning_count)
+
+    def _on_lint_error(self, message: str) -> None:
+        """Show a linter error (e.g. not installed) in the Problems panel."""
+        self._problems_panel.show_linter_error(message)
+        self._status_bar_manager.update_lint_counts(0, 0)
 
     # --- Ollama AI ---
 

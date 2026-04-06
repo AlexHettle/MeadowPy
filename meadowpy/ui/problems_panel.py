@@ -137,6 +137,20 @@ class ProblemsPanel(QDockWidget):
 
         menu.exec(self._table.viewport().mapToGlobal(pos))
 
+    def show_linter_error(self, message: str) -> None:
+        """Display a linter error (e.g. not installed) in the table."""
+        self._issues.clear()
+        self._table.setRowCount(1)
+        self.setWindowTitle("Problems — Linter Error")
+
+        icon_item = QTableWidgetItem("\u26A0")
+        icon_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._table.setItem(0, 0, icon_item)
+
+        self._table.setItem(0, 1, QTableWidgetItem("—"))
+        self._table.setItem(0, 2, QTableWidgetItem("config"))
+        self._table.setItem(0, 3, QTableWidgetItem(message))
+
     def clear_issues(self) -> None:
         """Clear all issues from the table."""
         self._issues.clear()

@@ -23,6 +23,7 @@ class LintWorker(QObject):
     """Runs linting in a background QThread."""
 
     finished = pyqtSignal(list)  # list[LintIssue]
+    error_occurred = pyqtSignal(str)  # error message for UI
 
     def __init__(self, source_code: str, file_path: str | None, linter: str):
         super().__init__()
@@ -39,11 +40,16 @@ class LintWorker(QObject):
             elif self._linter == "pylint":
                 issues = self._run_pylint()
         except FileNotFoundError:
-            pass  # linter not installed — silently skip
+            self.error_occurred.emit(
+                f"'{self._linter}' is not installed. "
+                f"Install it with: pip install {self._linter}"
+            )
         except subprocess.TimeoutExpired:
-            pass
-        except Exception:
-            pass
+            self.error_occurred.emit(
+                f"'{self._linter}' timed out while analysing this file."
+            )
+        except Exception as exc:
+            self.error_occurred.emit(f"Linter error: {exc}")
         self.finished.emit(issues)
 
     def _run_flake8(self) -> list[LintIssue]:
@@ -64,6 +70,11 @@ class LintWorker(QObject):
             encoding='utf-8',
             timeout=10,
         )
+        if "No module named" in (result.stderr or ""):
+            self.error_occurred.emit(
+                "'flake8' is not installed. Install it with: pip install flake8"
+            )
+            return []
         return self._parse_flake8_output(result.stdout)
 
     def _parse_flake8_output(self, output: str) -> list[LintIssue]:
@@ -100,6 +111,11 @@ class LintWorker(QObject):
             encoding='utf-8',
             timeout=15,
         )
+        if "No module named" in (result.stderr or ""):
+            self.error_occurred.emit(
+                "'pylint' is not installed. Install it with: pip install pylint"
+            )
+            return []
         return self._parse_pylint_output(result.stdout)
 
     def _parse_pylint_output(self, output: str) -> list[LintIssue]:
@@ -122,6 +138,7 @@ class LintRunner(QObject):
     """Manages asynchronous linting via a worker thread."""
 
     lint_finished = pyqtSignal(list)  # list[LintIssue]
+    lint_error = pyqtSignal(str)  # error message for UI
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -143,6 +160,7 @@ class LintRunner(QObject):
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(lambda issues, g=gen: self._on_finished(issues, g))
+        self._worker.error_occurred.connect(self.lint_error.emit)
         self._worker.finished.connect(self._thread.quit)
         self._thread.start()
 
