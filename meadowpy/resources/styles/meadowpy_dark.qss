@@ -565,17 +565,32 @@ QMessageBox QPushButton:hover {
 }
 
 #explorerTree::item {
-    padding: 3px 4px;
-    border-radius: 3px;
+    padding: 4px 6px 4px 4px;
+    border: none;
+    border-left: 2px solid transparent;
+    margin: 0px;
+    outline: none;
 }
 
-#explorerTree::item:selected {
-    background: #094771;
-    color: #FFFFFF;
+#explorerTree:focus {
+    outline: none;
 }
 
 #explorerTree::item:hover:!selected {
-    background: #2A2D2E;
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+#explorerTree::item:selected {
+    background: rgba(255, 255, 255, 0.08);
+    color: #FFFFFF;
+    border-left: 2px solid #2F7A44;
+}
+
+#explorerTree::item:selected:!active {
+    background: rgba(255, 255, 255, 0.06);
+    color: #CCCCCC;
+    border-left: 2px solid #2F7A44;
 }
 
 #explorerTree::branch:has-children:!has-siblings:closed,
@@ -671,9 +686,32 @@ QDockWidget::title {
     gridline-color: #2D2D2D;
 }
 
+#problemsTable::item {
+    padding: 4px 6px 4px 4px;
+    border: none;
+    border-left: 2px solid transparent;
+    outline: none;
+}
+
+#problemsTable:focus {
+    outline: none;
+}
+
+#problemsTable::item:hover:!selected {
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
 #problemsTable::item:selected {
-    background: #094771;
+    background: rgba(255, 255, 255, 0.08);
     color: #FFFFFF;
+    border-left: 2px solid #2F7A44;
+}
+
+#problemsTable::item:selected:!active {
+    background: rgba(255, 255, 255, 0.06);
+    color: #CCCCCC;
+    border-left: 2px solid #2F7A44;
 }
 
 #problemsTable QHeaderView::section {

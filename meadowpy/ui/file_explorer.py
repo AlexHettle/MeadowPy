@@ -6,6 +6,8 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QSortFilterProxyModel
 from PyQt6.QtGui import QAction, QFileSystemModel
 from PyQt6.QtWidgets import (
+    QStyle,
+    QStyledItemDelegate,
     QDockWidget,
     QHBoxLayout,
     QInputDialog,
@@ -25,6 +27,14 @@ _HIDDEN_NAMES = {
     "node_modules", ".mypy_cache", ".pytest_cache", ".eggs",
 }
 _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
+
+
+class _NoFocusDelegate(QStyledItemDelegate):
+    """Suppresses the dotted focus rectangle on items."""
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        option.state &= ~QStyle.StateFlag.State_HasFocus
 
 
 class _FilteredFileSystemModel(QSortFilterProxyModel):
@@ -111,6 +121,7 @@ class FileExplorerPanel(QDockWidget):
         self._tree.setDragEnabled(True)
         self._tree.setDragDropMode(QTreeView.DragDropMode.DragOnly)
         self._tree.doubleClicked.connect(self._on_double_clicked)
+        self._tree.setItemDelegate(_NoFocusDelegate(self._tree))
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self._tree)
