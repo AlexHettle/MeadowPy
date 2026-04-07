@@ -3,8 +3,8 @@
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QSortFilterProxyModel
-from PyQt6.QtGui import QAction, QFileSystemModel
+from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent
+from PyQt6.QtGui import QAction, QFileSystemModel, QKeyEvent
 from PyQt6.QtWidgets import (
     QStyle,
     QStyledItemDelegate,
@@ -122,6 +122,7 @@ class FileExplorerPanel(QDockWidget):
         self._tree.setDragDropMode(QTreeView.DragDropMode.DragOnly)
         self._tree.doubleClicked.connect(self._on_double_clicked)
         self._tree.setItemDelegate(_NoFocusDelegate(self._tree))
+        self._tree.installEventFilter(self)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self._tree)
@@ -212,6 +213,29 @@ class FileExplorerPanel(QDockWidget):
     @property
     def root_path(self) -> str | None:
         return self._root_path
+
+    # ── Keyboard handling ────────────────────────────────────────────────
+
+    def eventFilter(self, obj, event):
+        """Handle Enter/Return on the tree to open files or toggle folders."""
+        if obj is self._tree and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                proxy_index = self._tree.currentIndex()
+                if proxy_index.isValid() and self._proxy and self._fs_model:
+                    source_index = self._proxy.mapToSource(proxy_index)
+                    if self._fs_model.isDir(source_index):
+                        # Toggle expand/collapse for folders
+                        if self._tree.isExpanded(proxy_index):
+                            self._tree.collapse(proxy_index)
+                        else:
+                            self._tree.expand(proxy_index)
+                    else:
+                        # Open the file
+                        file_path = self._fs_model.filePath(source_index)
+                        self.file_selected.emit(file_path)
+                return True
+        return super().eventFilter(obj, event)
 
     # ── Slots ───────────────────────────────────────────────────────────
 
