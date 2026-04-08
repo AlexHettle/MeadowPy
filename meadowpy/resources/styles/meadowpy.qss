@@ -572,17 +572,32 @@ QCheckBox::indicator:checked {
 }
 
 #symbolTree::item {
-    padding: 3px 4px;
-    border-radius: 3px;
+    padding: 4px 6px 4px 4px;
+    border: none;
+    border-left: 2px solid transparent;
+    margin: 0px;
+    outline: none;
 }
 
-#symbolTree::item:selected {
-    background: #E8F0FE;
-    color: #1A73E8;
+#symbolTree:focus {
+    outline: none;
 }
 
 #symbolTree::item:hover:!selected {
-    background: #F0F0F0;
+    background: rgba(0, 0, 0, 0.04);
+    border-left: 2px solid rgba(0, 0, 0, 0.06);
+}
+
+#symbolTree::item:selected {
+    background: rgba(0, 0, 0, 0.07);
+    color: #1B1B1B;
+    border-left: 2px solid #2E7D32;
+}
+
+#symbolTree::item:selected:!active {
+    background: rgba(0, 0, 0, 0.05);
+    color: #333333;
+    border-left: 2px solid #2E7D32;
 }
 
 /* Problems Panel */
@@ -1082,6 +1097,41 @@ QCheckBox::indicator:checked {
     background: #2E7D32;
     color: #FFFFFF;
     border-color: #1B5E20;
+}
+
+#searchResultsTree {
+    background: #FFFFFF;
+    border: none;
+    font-size: 13px;
+}
+
+#searchResultsTree::item {
+    padding: 4px 6px 4px 4px;
+    border: none;
+    border-left: 2px solid transparent;
+    margin: 0px;
+    outline: none;
+}
+
+#searchResultsTree:focus {
+    outline: none;
+}
+
+#searchResultsTree::item:hover:!selected {
+    background: rgba(0, 0, 0, 0.04);
+    border-left: 2px solid rgba(0, 0, 0, 0.06);
+}
+
+#searchResultsTree::item:selected {
+    background: rgba(0, 0, 0, 0.07);
+    color: #1B1B1B;
+    border-left: 2px solid #2E7D32;
+}
+
+#searchResultsTree::item:selected:!active {
+    background: rgba(0, 0, 0, 0.05);
+    color: #333333;
+    border-left: 2px solid #2E7D32;
 }
 
 /* ===== Shortcut Reference Dialog v2 ===== */
