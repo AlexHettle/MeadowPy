@@ -203,6 +203,7 @@ class MenuBarBuilder:
 
         search = self._window._search_panel.toggleViewAction()
         search.setText("&Search Panel")
+        search.setShortcut(QKeySequence("Ctrl+Shift+J"))
         view_menu.addAction(search)
 
     def _build_run_menu(self, menu_bar: QMenuBar) -> None:

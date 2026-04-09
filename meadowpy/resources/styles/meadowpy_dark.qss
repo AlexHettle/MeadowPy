@@ -195,7 +195,7 @@ QMenu::item {
 }
 
 QMenu::item:selected {
-    background: #094771;
+    background: #3C3C3C;
     color: #FFFFFF;
 }
 
@@ -823,6 +823,16 @@ QDockWidget::title {
     background: rgba(255, 255, 255, 0.06);
     color: #CCCCCC;
     border-left: 2px solid #2F7A44;
+}
+
+#searchResultsTree::branch:has-children:!has-siblings:closed,
+#searchResultsTree::branch:closed:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_closed.svg);
+}
+
+#searchResultsTree::branch:open:has-children:!has-siblings,
+#searchResultsTree::branch:open:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_open.svg);
 }
 
 /* ===== Watch Panel ===== */

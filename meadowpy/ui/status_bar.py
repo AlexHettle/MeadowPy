@@ -89,10 +89,14 @@ class StatusBarManager:
         else:
             parts = []
             if errors:
-                parts.append(f"\u2716 {errors}")
+                parts.append(
+                    f'<span style="color:#F44747;">\u2716</span> {errors}'
+                )
             if warnings:
-                parts.append(f"\u26A0 {warnings}")
-            self._lint_label.setText("  ".join(parts))
+                parts.append(
+                    f'<span style="color:#CCA700;">\u26A0</span> {warnings}'
+                )
+            self._lint_label.setText("&nbsp;&nbsp;".join(parts))
 
     def update_debug_state(self, state) -> None:
         """Update the debug state label in the status bar."""

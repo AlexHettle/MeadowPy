@@ -45,6 +45,7 @@ SHORTCUTS = [
     ("View", "Symbol Outline", "Ctrl+Shift+O"),
     ("View", "Problems Panel", "Ctrl+Shift+M"),
     ("View", "Output Panel", "Ctrl+`"),
+    ("View", "Search Panel", "Ctrl+Shift+J"),
 
     ("Run", "Run File", "F5"),
     ("Run", "Run Selection / Line", "Shift+F5"),

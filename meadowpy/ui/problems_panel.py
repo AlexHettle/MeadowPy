@@ -1,6 +1,7 @@
 """Problems panel — shows linting issues with click-to-navigate."""
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDockWidget,
     QHeaderView,
@@ -102,8 +103,14 @@ class ProblemsPanel(QDockWidget):
 
         for row, issue in enumerate(issues):
             # Severity indicator
-            icon_text = "\u2716" if issue.severity == "error" else "\u26A0"
+            if issue.severity == "error":
+                icon_text = "\u2716"
+                icon_color = QColor("#F44747")  # red
+            else:
+                icon_text = "\u26A0"
+                icon_color = QColor("#CCA700")  # amber/yellow
             severity_item = QTableWidgetItem(icon_text)
+            severity_item.setForeground(icon_color)
             severity_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 0, severity_item)
 
@@ -155,6 +162,7 @@ class ProblemsPanel(QDockWidget):
         self.setWindowTitle("Problems — Linter Error")
 
         icon_item = QTableWidgetItem("\u26A0")
+        icon_item.setForeground(QColor("#CCA700"))
         icon_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setItem(0, 0, icon_item)
 

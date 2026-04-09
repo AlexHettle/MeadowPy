@@ -185,8 +185,8 @@ QMenu::item {
 }
 
 QMenu::item:selected {
-    background: #E8F0FE;
-    color: #1A73E8;
+    background: #D4D4D4;
+    color: #333333;
 }
 
 QMenu::separator {
@@ -1132,6 +1132,16 @@ QCheckBox::indicator:checked {
     background: rgba(0, 0, 0, 0.05);
     color: #333333;
     border-left: 2px solid #2E7D32;
+}
+
+#searchResultsTree::branch:has-children:!has-siblings:closed,
+#searchResultsTree::branch:closed:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_closed_light.svg);
+}
+
+#searchResultsTree::branch:open:has-children:!has-siblings,
+#searchResultsTree::branch:open:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_open_light.svg);
 }
 
 /* ===== Shortcut Reference Dialog v2 ===== */
