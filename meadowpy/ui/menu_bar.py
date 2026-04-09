@@ -174,8 +174,11 @@ class MenuBarBuilder:
 
         view_menu.addSeparator()
 
-        word_wrap = view_menu.addAction("Toggle &Word Wrap")
+        word_wrap = view_menu.addAction("&Word Wrap")
+        word_wrap.setCheckable(True)
+        word_wrap.setChecked(self._window._settings.get("editor.word_wrap", False))
         word_wrap.triggered.connect(self._window.action_toggle_word_wrap)
+        self._window._word_wrap_action = word_wrap
 
         view_menu.addSeparator()
 

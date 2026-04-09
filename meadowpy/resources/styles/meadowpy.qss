@@ -424,17 +424,30 @@ QDialog {
     background: #EEF1EE;
 }
 
-QDialogButtonBox QPushButton {
-    min-width: 80px;
+QPushButton {
     padding: 6px 16px;
     border: 1px solid #CCCCCC;
     border-radius: 4px;
     background: #FFFFFF;
+    color: #333333;
+    min-height: 24px;
     outline: none;
 }
 
-QDialogButtonBox QPushButton:hover {
+QPushButton:hover {
     background: #E9ECEF;
+}
+
+QPushButton:focus {
+    border-color: #2E7D32;
+}
+
+QPushButton:pressed {
+    background: #DEE2E6;
+}
+
+QDialogButtonBox QPushButton {
+    min-width: 80px;
 }
 
 QDialogButtonBox QPushButton:default {
@@ -445,6 +458,22 @@ QDialogButtonBox QPushButton:default {
 
 QDialogButtonBox QPushButton:default:hover {
     background: #1B5E20;
+}
+
+/* Global input styling */
+QLineEdit {
+    border: 1px solid #CCCCCC;
+    border-radius: 3px;
+    padding: 4px 8px;
+    background: #FFFFFF;
+    color: #333333;
+    min-height: 24px;
+    selection-background-color: #2E7D32;
+    selection-color: #FFFFFF;
+}
+
+QLineEdit:focus {
+    border-color: #2E7D32;
 }
 
 /* Input widgets in preferences */
@@ -1192,7 +1221,7 @@ QCheckBox::indicator:checked {
 
 #shortcutCardSep {
     background: #DEE2E6;
-    margin-left: 14px;
+    margin-left: 28px;
     margin-right: 14px;
 }
 

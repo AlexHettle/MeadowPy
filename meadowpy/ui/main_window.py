@@ -634,6 +634,8 @@ class MainWindow(QMainWindow):
         )
         editor.setWrapMode(new_mode)
         self._settings.set("editor.word_wrap", not current)
+        if hasattr(self, "_word_wrap_action"):
+            self._word_wrap_action.setChecked(not current)
 
     def action_toggle_output_panel(self) -> None:
         """Show the output panel and raise it (used by Run actions)."""
