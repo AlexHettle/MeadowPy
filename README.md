@@ -181,8 +181,8 @@ MeadowPy is actively developed. Here's what's coming next:
 | LM Studio integration                     | 🔄 In progress |
 | Integrated terminal panel                 | 🔄 In progress |
 | improved styling cohesion                 | 🔄 In progress |
-| Global search and replace | 📋 Planned     |
-| Keyboard shortcut editor | 📋 Planned     |
+| Global search and replace | 🔄 In progres     |
+| Keyboard shortcut editor | 🔄 In progress     |
 | Improved syntax highlighting | 📋 Planned     |
 | Custom theming options | 📋 Planned     |
 | Plot / output preview                     | 📋 Planned     |
