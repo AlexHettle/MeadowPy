@@ -1394,6 +1394,7 @@ QCheckBox::indicator:checked {
     color: #FFFFFF;
     border: none;
     border-radius: 6px;
+    padding: 4px 10px;
     font-weight: bold;
     font-size: 13px;
 }
@@ -1411,6 +1412,7 @@ QCheckBox::indicator:checked {
     color: #FFFFFF;
     border: none;
     border-radius: 6px;
+    padding: 4px 10px;
     font-weight: bold;
     font-size: 13px;
 }

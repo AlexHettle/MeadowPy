@@ -217,19 +217,24 @@ class AIChatPanel(QDockWidget):
         btn_row.addStretch()
 
         self._btn_stack = QStackedWidget()
-        self._btn_stack.setFixedWidth(56)
-        self._btn_stack.setFixedHeight(28)
+        self._btn_stack.setFixedWidth(76)
+        # The stack needs a couple of extra pixels beyond the button's
+        # own natural height so Qt has room to render the bottom rounded
+        # corners of the QPushButton (otherwise they get drawn flat).
+        self._btn_stack.setFixedHeight(36)
 
         self._send_btn = QPushButton("Send")
         self._send_btn.setObjectName("aiChatSendBtn")
         self._send_btn.setToolTip("Send your message (Enter)")
         self._send_btn.setEnabled(False)
+        self._send_btn.setMinimumHeight(32)
         self._send_btn.clicked.connect(self._on_send)
         self._btn_stack.addWidget(self._send_btn)  # index 0
 
         self._stop_btn = QPushButton("Stop")
         self._stop_btn.setObjectName("aiChatStopBtn")
         self._stop_btn.setToolTip("Stop the AI response")
+        self._stop_btn.setMinimumHeight(32)
         self._stop_btn.clicked.connect(self._on_stop)
         self._btn_stack.addWidget(self._stop_btn)  # index 1
 
