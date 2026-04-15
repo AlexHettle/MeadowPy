@@ -178,13 +178,13 @@ MeadowPy is actively developed. Here's what's coming next:
 | More example library entries and library UI rework             | ✅ Completed    |
 | Improved app setup & first-run experience | ✅ Completed     |
 | More starter project templates            | ✅ Completed    |
+| Custom theming options | ✅ Completed     |
 | macOS support                             | 🔄 In progress |
 | LM Studio integration                     | 🔄 In progress |
 | Integrated terminal panel                 | 🔄 In progress |
 | improved styling cohesion                 | 🔄 In progress |
 | Global search and replace | 🔄 In progres     |
 | Keyboard shortcut editor | 🔄 In progress     |
-| Custom theming options | 🔄 In progress     |
 | Improved syntax highlighting | 📋 Planned     |
 | Plot / output preview                     | 📋 Planned     |
 | Git basics panel                          | 📋 Planned     |
