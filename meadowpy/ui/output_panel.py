@@ -44,6 +44,14 @@ class _HeaderGlowPainter(QObject):
         self._entries.append(entry)
         button.installEventFilter(self)
 
+    def set_button_color(self, button, color: QColor) -> None:
+        """Update the glow color for an already-registered button."""
+        for entry in self._entries:
+            if entry["btn"] is button:
+                entry["color"] = QColor(color)
+                self._surface.update()
+                return
+
     def eventFilter(self, obj, event):
         etype = event.type()
 
@@ -379,6 +387,10 @@ class OutputPanel(QDockWidget):
 
     def set_max_lines(self, max_lines: int) -> None:
         self._max_lines = max_lines
+
+    def update_accent_color(self, hex_color: str) -> None:
+        """Refresh the Run button's glow color (called on theme change)."""
+        self._header_glow.set_button_color(self._run_btn, QColor(hex_color))
 
     def update_font(self, family: str, size: int) -> None:
         """Update the monospace font for output and input."""

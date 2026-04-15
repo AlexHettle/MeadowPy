@@ -82,9 +82,20 @@ DEFAULT_DARK = EditorTheme(
 THEMES: dict[str, EditorTheme] = {
     "default_light": DEFAULT_LIGHT,
     "default_dark": DEFAULT_DARK,
+    # "custom" is registered so it appears in the Preferences combo.
+    # Its actual editor colors are resolved at runtime via get_theme(),
+    # which delegates to DEFAULT_DARK or DEFAULT_LIGHT based on the
+    # user's `editor.custom_theme.base` setting.
+    "custom": DEFAULT_DARK,
 }
 
 
-def get_theme(name: str) -> EditorTheme:
-    """Return the named theme, falling back to default_light."""
+def get_theme(name: str, custom_base: str = "dark") -> EditorTheme:
+    """Return the named theme, falling back to default_light.
+
+    When ``name == "custom"`` the returned theme mirrors either
+    ``DEFAULT_DARK`` or ``DEFAULT_LIGHT`` depending on ``custom_base``.
+    """
+    if name == "custom":
+        return DEFAULT_DARK if (custom_base or "dark").lower() == "dark" else DEFAULT_LIGHT
     return THEMES.get(name, DEFAULT_LIGHT)

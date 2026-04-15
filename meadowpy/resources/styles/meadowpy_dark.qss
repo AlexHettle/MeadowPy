@@ -75,12 +75,12 @@ QTabBar::tab {
 
 QTabBar::tab:selected {
     background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0,
-        stop:0 #383838, stop:1 #2F7A44);
+        stop:0 #383838, stop:1 {{ACCENT}});
     color: #FFFFFF;
-    border-left: 1px solid #2F7A44;
-    border-top: 1px solid #2F7A44;
-    border-right: 1px solid #2F7A44;
-    border-bottom: 2px solid #2F7A44;
+    border-left: 1px solid {{ACCENT}};
+    border-top: 1px solid {{ACCENT}};
+    border-right: 1px solid {{ACCENT}};
+    border-bottom: 2px solid {{ACCENT}};
     padding-top: 6px;
     padding-right: 14px;
 }
@@ -100,7 +100,7 @@ QTabBar::tab:only-one {
 }
 
 QTabBar::tab:selected:only-one {
-    border-right: 2px solid #2F7A44;
+    border-right: 2px solid {{ACCENT}};
 }
 
 
@@ -140,7 +140,7 @@ QToolBar QToolButton#debugButton:pressed {
 
 /* Status Bar */
 QStatusBar {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: white;
     border-top: none;
     min-height: 24px;
@@ -227,7 +227,7 @@ QMenu::separator {
 }
 
 #FindReplaceBar QLineEdit:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 #FindReplaceBar QPushButton {
@@ -257,9 +257,9 @@ QMenu::separator {
 }
 
 #findToggleBtn:checked {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: white;
-    border-color: #245F35;
+    border-color: {{ACCENT_HOVER}};
 }
 
 /* Scrollbars — slim, modern overlay style */
@@ -355,7 +355,7 @@ QDialog {
 #prefsCategory::item:selected {
     background: #2A2D2E;
     color: #EEEEEE;
-    border-left: 3px solid #2F7A44;
+    border-left: 3px solid {{ACCENT}};
 }
 
 #prefsCategory::item:hover:!selected {
@@ -377,7 +377,7 @@ QPushButton:hover {
 }
 
 QPushButton:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 QPushButton:pressed {
@@ -389,13 +389,13 @@ QDialogButtonBox QPushButton {
 }
 
 QDialogButtonBox QPushButton:default {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: white;
-    border-color: #245F35;
+    border-color: {{ACCENT_HOVER}};
 }
 
 QDialogButtonBox QPushButton:default:hover {
-    background: #245F35;
+    background: {{ACCENT_HOVER}};
 }
 
 /* Global input styling */
@@ -406,12 +406,12 @@ QLineEdit {
     background: #3C3C3C;
     color: #CCCCCC;
     min-height: 24px;
-    selection-background-color: #2F7A44;
+    selection-background-color: {{ACCENT}};
     selection-color: #FFFFFF;
 }
 
 QLineEdit:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 /* Input widgets in preferences */
@@ -425,7 +425,7 @@ QSpinBox, QComboBox, QFontComboBox {
 }
 
 QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 QSpinBox::up-button, QSpinBox::down-button {
@@ -449,7 +449,7 @@ QSpinBox::up-button:hover, QSpinBox::down-button:hover {
 }
 
 QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
-    background: #2F7A44;
+    background: {{ACCENT}};
 }
 
 QSpinBox::up-arrow {
@@ -480,7 +480,7 @@ QComboBox QAbstractItemView {
     background: #2D2D2D;
     border: 1px solid #454545;
     color: #CCCCCC;
-    selection-background-color: #2F7A44;
+    selection-background-color: {{ACCENT}};
     selection-color: #FFFFFF;
     outline: none;
 }
@@ -496,9 +496,9 @@ QComboBox QAbstractItemView::item:hover {
 }
 
 QComboBox QAbstractItemView::item:selected {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: #FFFFFF;
-    border-left: 3px solid #2F7A44;
+    border-left: 3px solid {{ACCENT}};
 }
 
 QComboBox QAbstractItemView::item:focus {
@@ -508,7 +508,7 @@ QComboBox QAbstractItemView::item:focus {
 }
 
 QComboBox QAbstractItemView::item:selected:focus {
-    border-left: 3px solid #2F7A44;
+    border-left: 3px solid {{ACCENT}};
 }
 
 QCheckBox {
@@ -525,8 +525,26 @@ QCheckBox::indicator {
 }
 
 QCheckBox::indicator:checked {
-    background: #2F7A44;
-    border-color: #245F35;
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
+}
+
+QRadioButton {
+    spacing: 8px;
+    color: #CCCCCC;
+}
+
+QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #555555;
+    border-radius: 8px;
+    background: #3C3C3C;
+}
+
+QRadioButton::indicator:checked {
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
 }
 
 QLabel {
@@ -612,13 +630,13 @@ QMessageBox QPushButton:hover {
 #explorerTree::item:selected {
     background: rgba(255, 255, 255, 0.08);
     color: #FFFFFF;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #explorerTree::item:selected:!active {
     background: rgba(255, 255, 255, 0.06);
     color: #CCCCCC;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #explorerTree::branch:has-children:!has-siblings:closed,
@@ -692,13 +710,13 @@ QDockWidget::title {
 #symbolTree::item:selected {
     background: rgba(255, 255, 255, 0.08);
     color: #FFFFFF;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #symbolTree::item:selected:!active {
     background: rgba(255, 255, 255, 0.06);
     color: #CCCCCC;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 /* Problems Panel */
@@ -748,13 +766,13 @@ QDockWidget::title {
 #problemsTable::item:selected {
     background: rgba(255, 255, 255, 0.08);
     color: #FFFFFF;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #problemsTable::item:selected:!active {
     background: rgba(255, 255, 255, 0.06);
     color: #CCCCCC;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #problemsTable QHeaderView::section {
@@ -788,7 +806,7 @@ QDockWidget::title {
 }
 
 #SearchPanel QLineEdit:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 #SearchPanel QPushButton {
@@ -804,7 +822,7 @@ QDockWidget::title {
 }
 
 #SearchPanel QPushButton:pressed {
-    background: #2F7A44;
+    background: {{ACCENT}};
 }
 
 #SearchPanel QCheckBox {
@@ -844,13 +862,13 @@ QDockWidget::title {
 #searchResultsTree::item:selected {
     background: rgba(255, 255, 255, 0.08);
     color: #FFFFFF;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #searchResultsTree::item:selected:!active {
     background: rgba(255, 255, 255, 0.06);
     color: #CCCCCC;
-    border-left: 2px solid #2F7A44;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #searchResultsTree::branch:has-children:!has-siblings:closed,
@@ -1043,14 +1061,14 @@ QDockWidget::title {
 }
 
 #replPrompt {
-    color: #6A9955;
+    color: {{ACCENT_BRIGHT}};
     font-weight: bold;
     font-family: Consolas, "Courier New", monospace;
     font-size: 13px;
 }
 
 #replRunBtn {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 4px;
@@ -1059,7 +1077,7 @@ QDockWidget::title {
 }
 
 #replRunBtn:hover {
-    background: #245F35;
+    background: {{ACCENT_HOVER}};
 }
 
 #outputInput {
@@ -1118,8 +1136,8 @@ QDockWidget::title {
 }
 
 #welcomeActionBtn:hover {
-    background: #2F7A44;
-    border-color: #245F35;
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
     color: #FFFFFF;
 }
 
@@ -1130,8 +1148,8 @@ QDockWidget::title {
 }
 
 #welcomeTemplateCard:hover {
-    background: #2F7A44;
-    border-color: #245F35;
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
 }
 
 #welcomeCardTitle {
@@ -1194,7 +1212,7 @@ QDockWidget::title {
 
 #exLibCatBtn[selected="true"] {
     background: #37373D;
-    border: 1px solid #2F7A44;
+    border: 1px solid {{ACCENT}};
 }
 
 #exLibCatName {
@@ -1202,7 +1220,7 @@ QDockWidget::title {
 }
 
 #exLibCatBtn[selected="true"] #exLibCatName {
-    color: #4CAF50;
+    color: {{ACCENT_BRIGHT}};
 }
 
 #exLibCatCount {
@@ -1244,7 +1262,7 @@ QDockWidget::title {
 
 #exLibExCard[selected="true"] {
     background: #2A3A2E;
-    border: 1px solid #2F7A44;
+    border: 1px solid {{ACCENT}};
 }
 
 #exLibExCardTitle {
@@ -1252,7 +1270,7 @@ QDockWidget::title {
 }
 
 #exLibExCard[selected="true"] #exLibExCardTitle {
-    color: #6CCF80;
+    color: {{ACCENT_BRIGHT}};
 }
 
 #exLibExCardDesc {
@@ -1302,7 +1320,7 @@ QDockWidget::title {
 }
 
 #exLibOpenBtn {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 6px;
@@ -1312,7 +1330,7 @@ QDockWidget::title {
 }
 
 #exLibOpenBtn:hover {
-    background: #38934F;
+    background: {{ACCENT_HOVER_BRIGHT}};
 }
 
 #exLibOpenBtn:disabled {
@@ -1357,7 +1375,7 @@ QDockWidget::title {
 }
 
 #shortcutSearch:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 #shortcutScroll {
@@ -1549,11 +1567,11 @@ QDockWidget::title {
 }
 
 #aiChatInput:focus {
-    border-color: #2F7A44;
+    border-color: {{ACCENT}};
 }
 
 #aiChatSendBtn {
-    background: #2F7A44;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 6px;
@@ -1563,7 +1581,7 @@ QDockWidget::title {
 }
 
 #aiChatSendBtn:hover {
-    background: #245F35;
+    background: {{ACCENT_HOVER}};
 }
 
 #aiChatSendBtn:disabled {

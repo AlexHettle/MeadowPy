@@ -14,7 +14,12 @@ from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.linter import LintRunner
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
-from meadowpy.resources.resource_loader import get_icon_path, get_stylesheet
+from meadowpy.resources.resource_loader import (
+    get_icon_path,
+    get_stylesheet,
+    run_button_accent_hex,
+    theme_is_dark,
+)
 from meadowpy.ui.tab_manager import TabManager, DockTabGradientFilter
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.tool_bar import ToolBarBuilder
@@ -74,6 +79,16 @@ class MainWindow(QMainWindow):
         self._create_find_replace_bar()
         self._connect_signals()
         self._restore_state()
+
+        # Apply the current theme's accent to the Run button glows. Light/Dark
+        # themes pass through the original green; Custom passes the user's
+        # chosen accent color.
+        initial_accent = run_button_accent_hex(
+            self._settings.get("editor.theme"),
+            self._settings.get("editor.custom_theme.accent"),
+        )
+        self._toolbar_builder.update_accent_color(initial_accent)
+        self._output_panel.update_accent_color(initial_accent)
 
         # Defer initial outline/lint refresh until after the window is shown,
         # because isVisible() returns False during __init__.
@@ -440,7 +455,10 @@ class MainWindow(QMainWindow):
                 self._tab_manager.setCurrentIndex(i)
                 return
 
-        is_dark = "dark" in (self._settings.get("editor.theme") or "")
+        is_dark = theme_is_dark(
+            self._settings.get("editor.theme"),
+            self._settings.get("editor.custom_theme.base"),
+        )
         welcome = self._tab_manager.show_welcome_tab(is_dark=is_dark)
         welcome.action_new_file.connect(self._welcome_new_file)
         welcome.action_open_file.connect(self.action_open_file)
@@ -1280,12 +1298,31 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self, key: str, value) -> None:
         """Re-apply settings to all open editors when a setting changes."""
-        # Swap app-wide stylesheet when theme changes
-        if key == "editor.theme":
+        # Swap app-wide stylesheet when theme OR any custom-theme setting changes
+        theme_keys = (
+            "editor.theme",
+            "editor.custom_theme.base",
+            "editor.custom_theme.accent",
+        )
+        if key in theme_keys:
             app = QApplication.instance()
             if app:
-                app.setStyleSheet(get_stylesheet(value))
+                app.setStyleSheet(get_stylesheet(
+                    self._settings.get("editor.theme"),
+                    custom_base=self._settings.get("editor.custom_theme.base"),
+                    custom_accent=self._settings.get("editor.custom_theme.accent"),
+                ))
             self._tab_manager.update_theme()
+            # Re-tint the "Run" button glow in the toolbar & output panel to
+            # match the current theme's accent (only Custom theme changes it).
+            accent = run_button_accent_hex(
+                self._settings.get("editor.theme"),
+                self._settings.get("editor.custom_theme.accent"),
+            )
+            if hasattr(self, "_toolbar_builder"):
+                self._toolbar_builder.update_accent_color(accent)
+            if hasattr(self, "_output_panel"):
+                self._output_panel.update_accent_color(accent)
 
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)

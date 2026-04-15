@@ -48,7 +48,10 @@ class EditorConfigurator:
 
     @staticmethod
     def _apply_caret(editor: QsciScintilla, settings: Settings) -> None:
-        theme = get_theme(settings.get("editor.theme"))
+        theme = get_theme(
+            settings.get("editor.theme"),
+            custom_base=settings.get("editor.custom_theme.base"),
+        )
         editor.setCaretLineVisible(settings.get("editor.highlight_current_line"))
         editor.setCaretLineBackgroundColor(QColor(theme.caret_line_background))
         editor.setCaretWidth(2)
@@ -70,7 +73,10 @@ class EditorConfigurator:
 
     @staticmethod
     def _apply_margins(editor: QsciScintilla, settings: Settings) -> None:
-        theme = get_theme(settings.get("editor.theme"))
+        theme = get_theme(
+            settings.get("editor.theme"),
+            custom_base=settings.get("editor.custom_theme.base"),
+        )
 
         if settings.get("editor.show_line_numbers"):
             editor.setMarginType(0, QsciScintilla.MarginType.NumberMargin)
@@ -87,7 +93,10 @@ class EditorConfigurator:
 
     @staticmethod
     def _apply_lexer(editor: QsciScintilla, settings: Settings) -> None:
-        theme = get_theme(settings.get("editor.theme"))
+        theme = get_theme(
+            settings.get("editor.theme"),
+            custom_base=settings.get("editor.custom_theme.base"),
+        )
 
         lexer = QsciLexerPython(editor)
         lexer.setDefaultFont(editor.font())
@@ -149,7 +158,10 @@ class EditorConfigurator:
     @staticmethod
     def _apply_breakpoint_margin(editor: QsciScintilla, settings: Settings) -> None:
         """Configure margin 2 as the breakpoint gutter."""
-        theme = get_theme(settings.get("editor.theme"))
+        theme = get_theme(
+            settings.get("editor.theme"),
+            custom_base=settings.get("editor.custom_theme.base"),
+        )
 
         # Margin 2: narrow symbol margin for breakpoint dots
         editor.setMarginType(2, QsciScintilla.MarginType.SymbolMargin)
@@ -170,7 +182,10 @@ class EditorConfigurator:
 
     @staticmethod
     def _apply_folding(editor: QsciScintilla, settings: Settings) -> None:
-        theme = get_theme(settings.get("editor.theme"))
+        theme = get_theme(
+            settings.get("editor.theme"),
+            custom_base=settings.get("editor.custom_theme.base"),
+        )
 
         if settings.get("editor.code_folding"):
             editor.setFolding(QsciScintilla.FoldStyle.BoxedTreeFoldStyle, 1)

@@ -21,6 +21,11 @@ DEFAULT_SETTINGS = {
     "editor.brace_matching": True,
     "editor.code_folding": True,
     "editor.theme": "default_dark",
+    # When editor.theme == "custom", these determine the appearance:
+    #   base   — which template to render ("light" or "dark")
+    #   accent — the hex accent color that replaces the default green
+    "editor.custom_theme.base": "dark",
+    "editor.custom_theme.accent": "#3B82F6",
     "window.geometry": None,
     "window.state": "AAAA/wAAAAD9AAAAAgAAAAAAAAE9AAADGfwCAAAAAvsAAAAYAEYAaQBsAGUARQB4AHAAbABvAHIAZQByAQAAAEgAAAFyAAAAgwD////7AAAAFgBPAHUAdABwAHUAdABQAGEAbgBlAGwBAAABvQAAAaQAAACzAP///wAAAAEAAAEgAAADGfwCAAAAA/wAAABIAAABdwAAAIgBAAAi+gAAAAEBAAAAAvsAAAAaAFAAcgBvAGIAbABlAG0AcwBQAGEAbgBlAGwBAAAAAP////8AAABIAP////sAAAAaAFMAeQBtAGIAbwBsAE8AdQB0AGwAaQBuAGUBAAAFCgAAAPYAAABIAP////wAAAHCAAABnwAAAQoBAAAi+gAAAAABAAAAAvsAAAAWAEEASQBDAGgAYQB0AFAAYQBuAGUAbAEAAATgAAABIAAAAKgA////+wAAABYAUwBlAGEAcgBjAGgAUABhAG4AZQBsAQAAAAD/////AAAAzwD////8AAAAzgAAAK0AAAAAAP////r/////AQAAAAP7AAAAFABXAGEAdABjAGgAUABhAG4AZQBsAAAAAAD/////AAAAbgD////7AAAAHABDAGEAbABsAFMAdABhAGMAawBQAGEAbgBlAGwAAAAAAP////8AAABIAP////sAAAAiAFYAYQByAGkAYQBiAGwAZQBJAG4AcwBwAGUAYwB0AG8AcgAAAAAA/////wAAAEgA////AAADnQAAAxkAAAAEAAAABAAAAAgAAAAI/AAAAAEAAAACAAAAAQAAABYATQBhAGkAbgBUAG8AbwBsAEIAYQByAQAAAAD/////AAAAAAAAAAA=",
     "window.recent_files": [],

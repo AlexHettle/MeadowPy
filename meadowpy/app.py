@@ -111,7 +111,11 @@ class MeadowPyApp:
 
         # Load stylesheet based on saved theme
         theme_name = self._settings.get("editor.theme")
-        stylesheet = get_stylesheet(theme_name)
+        stylesheet = get_stylesheet(
+            theme_name,
+            custom_base=self._settings.get("editor.custom_theme.base"),
+            custom_accent=self._settings.get("editor.custom_theme.accent"),
+        )
         if stylesheet:
             self._qapp.setStyleSheet(stylesheet)
 

@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QTabWidget, QTabBar, QMessageBox, QToolButton, QAppl
 
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
+from meadowpy.resources.resource_loader import lighten_color, theme_is_dark
 from meadowpy.ui.welcome_widget import WelcomeWidget
 
 # ── Shared gradient constants (must match QSS values) ──────────────────
@@ -39,11 +40,28 @@ def _paint_tab_gradient(tab_bar: QTabBar, settings) -> None:
         return
 
     rect = tab_bar.tabRect(idx)
-    theme = settings.get("editor.theme")
-    is_dark = "dark" in (theme or "")
+    theme = settings.get("editor.theme") or ""
+    custom_base = settings.get("editor.custom_theme.base")
+    is_dark = theme_is_dark(theme, custom_base)
     bar_bg = _DARK_BAR_BG if is_dark else _LIGHT_BAR_BG
-    tab_stops = _DARK_TAB_STOPS if is_dark else _LIGHT_TAB_STOPS
-    accent = _DARK_ACCENT if is_dark else _LIGHT_ACCENT
+
+    # Custom theme: derive tab colors from the user's accent. Built-in
+    # Light/Dark themes continue to use their hand-tuned green gradients.
+    if theme == "custom":
+        accent_hex = settings.get("editor.custom_theme.accent") or "#3B82F6"
+        # Dark base ends on the saturated accent; light base ends on a
+        # pale tint so the tab stays legible against the light UI.
+        if is_dark:
+            tab_end = accent_hex
+            tab_start = "#383838"
+        else:
+            tab_end = lighten_color(accent_hex, 0.40, 0.75)
+            tab_start = "#E0E0E0"
+        tab_stops = [(tab_start, 0.0), (tab_end, 1.0)]
+        accent = QColor(accent_hex)
+    else:
+        tab_stops = _DARK_TAB_STOPS if is_dark else _LIGHT_TAB_STOPS
+        accent = _DARK_ACCENT if is_dark else _LIGHT_ACCENT
 
     painter = QPainter(tab_bar)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -219,7 +237,10 @@ class _GradientTabBar(QTabBar):
         if total_width <= visible_width:
             return  # all tabs fit, no scrollbar needed
 
-        is_dark = "dark" in self._settings.get("editor.theme", "default_dark")
+        is_dark = theme_is_dark(
+            self._settings.get("editor.theme") or "default_dark",
+            self._settings.get("editor.custom_theme.base"),
+        )
 
         h = self._SCROLLBAR_H
         bar_y = self.height() - h
@@ -297,7 +318,9 @@ class TabManager(QTabWidget):
     def _set_close_button(self, index: int, editor: CodeEditor) -> None:
         """Add a styled close button that tracks its editor widget."""
         theme = self._settings.get("editor.theme")
-        is_dark = "dark" in (theme or "")
+        is_dark = theme_is_dark(
+            theme, self._settings.get("editor.custom_theme.base")
+        )
         color = "#FFFFFF" if is_dark else "#000000"
         hover_color = "#CCCCCC" if is_dark else "#333333"
         hover_bg = "rgba(255,255,255,0.1)" if is_dark else "rgba(0,0,0,0.08)"
@@ -414,7 +437,9 @@ class TabManager(QTabWidget):
     def update_theme(self) -> None:
         """Called when the theme changes to refresh close button colors."""
         theme = self._settings.get("editor.theme")
-        is_dark = "dark" in (theme or "")
+        is_dark = theme_is_dark(
+            theme, self._settings.get("editor.custom_theme.base")
+        )
         color = "#FFFFFF" if is_dark else "#000000"
         hover_color = "#CCCCCC" if is_dark else "#333333"
         hover_bg = "rgba(255,255,255,0.1)" if is_dark else "rgba(0,0,0,0.08)"
@@ -459,7 +484,9 @@ class TabManager(QTabWidget):
     def _set_welcome_close_button(self, index: int, widget) -> None:
         """Add a styled close button for the welcome tab."""
         theme = self._settings.get("editor.theme")
-        is_dark = "dark" in (theme or "")
+        is_dark = theme_is_dark(
+            theme, self._settings.get("editor.custom_theme.base")
+        )
         color = "#FFFFFF" if is_dark else "#000000"
         hover_color = "#CCCCCC" if is_dark else "#333333"
         hover_bg = "rgba(255,255,255,0.1)" if is_dark else "rgba(0,0,0,0.08)"

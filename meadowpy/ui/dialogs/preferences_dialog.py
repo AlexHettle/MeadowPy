@@ -2,11 +2,13 @@
 
 from typing import Any
 
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
     QStackedWidget, QDialogButtonBox, QWidget, QFormLayout,
     QSpinBox, QCheckBox, QComboBox, QFontComboBox, QLineEdit,
-    QAbstractItemView,
+    QAbstractItemView, QColorDialog, QPushButton, QRadioButton,
+    QButtonGroup, QLabel,
 )
 
 from meadowpy.core.settings import Settings
@@ -183,6 +185,7 @@ class PreferencesDialog(QDialog):
         _THEME_DISPLAY = {
             "default_light": "Light Theme",
             "default_dark": "Dark Theme",
+            "custom": "Custom Theme",
         }
         self._theme_combo = QComboBox()
         for theme_name in THEMES:
@@ -195,9 +198,65 @@ class PreferencesDialog(QDialog):
         if idx >= 0:
             self._theme_combo.setCurrentIndex(idx)
         self._theme_combo.currentIndexChanged.connect(
-            lambda i: self._stage("editor.theme", self._theme_combo.itemData(i))
+            lambda i: self._on_theme_changed(self._theme_combo.itemData(i))
         )
         form.addRow("Theme:", self._theme_combo)
+
+        # ── Custom-theme controls (shown only when "Custom" is selected) ──
+        self._custom_theme_container = QWidget()
+        custom_layout = QFormLayout(self._custom_theme_container)
+        custom_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Base: Light or Dark
+        base_row = QHBoxLayout()
+        base_row.setContentsMargins(0, 0, 0, 0)
+        self._custom_base_group = QButtonGroup(self)
+        self._custom_base_dark = QRadioButton("Dark")
+        self._custom_base_light = QRadioButton("Light")
+        self._custom_base_group.addButton(self._custom_base_dark)
+        self._custom_base_group.addButton(self._custom_base_light)
+        base_row.addWidget(self._custom_base_dark)
+        base_row.addWidget(self._custom_base_light)
+        base_row.addStretch()
+        if (self._settings.get("editor.custom_theme.base") or "dark").lower() == "light":
+            self._custom_base_light.setChecked(True)
+        else:
+            self._custom_base_dark.setChecked(True)
+        self._custom_base_dark.toggled.connect(
+            lambda v: v and self._stage("editor.custom_theme.base", "dark")
+        )
+        self._custom_base_light.toggled.connect(
+            lambda v: v and self._stage("editor.custom_theme.base", "light")
+        )
+        base_container = QWidget()
+        base_container.setLayout(base_row)
+        custom_layout.addRow("Base:", base_container)
+
+        # Accent color picker
+        accent_row = QHBoxLayout()
+        accent_row.setContentsMargins(0, 0, 0, 0)
+        # Use a QLabel so the native button frame doesn't fight the
+        # border-radius at the corners. Fixed square keeps the rounded
+        # corners symmetric.
+        self._accent_swatch = QLabel()
+        self._accent_swatch.setFixedSize(22, 22)
+        self._accent_hex_label = QLabel()
+        self._pick_accent_btn = QPushButton("Pick color\u2026")
+        self._pick_accent_btn.clicked.connect(self._on_pick_accent)
+        accent_row.addWidget(self._accent_swatch)
+        accent_row.addWidget(self._accent_hex_label)
+        accent_row.addStretch()
+        accent_row.addWidget(self._pick_accent_btn)
+        accent_container = QWidget()
+        accent_container.setLayout(accent_row)
+        custom_layout.addRow("Accent:", accent_container)
+
+        self._refresh_accent_swatch(
+            self._settings.get("editor.custom_theme.accent") or "#3B82F6"
+        )
+
+        form.addRow("", self._custom_theme_container)
+        self._custom_theme_container.setVisible(current_theme == "custom")
 
         # Show line numbers
         self._line_numbers = QCheckBox("Show line numbers")
@@ -396,6 +455,39 @@ class PreferencesDialog(QDialog):
     def _stage(self, key: str, value: Any) -> None:
         """Stage a change to be applied later."""
         self._pending_changes[key] = value
+
+    def _on_theme_changed(self, theme_name: str) -> None:
+        """React to the theme combo: stage the change, toggle custom controls."""
+        self._stage("editor.theme", theme_name)
+        self._custom_theme_container.setVisible(theme_name == "custom")
+
+    def _on_pick_accent(self) -> None:
+        """Open a color picker and stage the chosen accent."""
+        current_hex = (
+            self._pending_changes.get("editor.custom_theme.accent")
+            or self._settings.get("editor.custom_theme.accent")
+            or "#3B82F6"
+        )
+        color = QColorDialog.getColor(
+            QColor(current_hex), self, "Pick accent color"
+        )
+        if color.isValid():
+            hex_value = "#{:02X}{:02X}{:02X}".format(
+                color.red(), color.green(), color.blue()
+            )
+            self._stage("editor.custom_theme.accent", hex_value)
+            self._refresh_accent_swatch(hex_value)
+
+    def _refresh_accent_swatch(self, hex_value: str) -> None:
+        """Paint the swatch with the given hex and update its label."""
+        self._accent_swatch.setStyleSheet(
+            "QLabel {"
+            f"    background: {hex_value};"
+            "    border: 1px solid #888;"
+            "    border-radius: 4px;"
+            "}"
+        )
+        self._accent_hex_label.setText(hex_value)
 
     def _apply(self) -> None:
         """Apply pending changes to settings."""

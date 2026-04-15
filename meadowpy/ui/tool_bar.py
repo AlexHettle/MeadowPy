@@ -35,6 +35,14 @@ class ToolbarGlowPainter(QObject):
         self._entries.append(entry)
         button.installEventFilter(self)
 
+    def set_button_color(self, button, color: QColor) -> None:
+        """Update the glow color for an already-registered button."""
+        for entry in self._entries:
+            if entry["btn"] is button:
+                entry["color"] = QColor(color)
+                self._toolbar.update()
+                return
+
     # ── event filter ────────────────────────────────────────────
     def eventFilter(self, obj, event):
         etype = event.type()
@@ -172,10 +180,18 @@ class ToolBarBuilder:
         self._glow.add_button(run_btn, QColor("#4CAF50"))    # green
         self._glow.add_button(stop_btn, QColor("#E51400"))   # red
         self._glow.add_button(debug_btn, QColor("#FF9800"))  # orange
+        # Remember the run button so its glow can be re-tinted when the
+        # user switches to a custom theme with a different accent colour.
+        self._run_btn = run_btn
 
         self._window._debug_separator = self._debug_separator
         self._window.addToolBar(toolbar)
         return toolbar
+
+    def update_accent_color(self, hex_color: str) -> None:
+        """Refresh the Run button's glow color (called on theme change)."""
+        if getattr(self, "_run_btn", None) and getattr(self, "_glow", None):
+            self._glow.set_button_color(self._run_btn, QColor(hex_color))
 
     def _add(self, toolbar: QToolBar, icon_name: str, tooltip: str, callback) -> None:
         action = toolbar.addAction(self._icon(icon_name), tooltip.split(" (")[0], callback)

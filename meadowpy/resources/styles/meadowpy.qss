@@ -69,12 +69,12 @@ QTabBar::tab {
 
 QTabBar::tab:selected {
     background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0,
-        stop:0 #E0E0E0, stop:1 #A0D4AD);
+        stop:0 #E0E0E0, stop:1 {{ACCENT_TINT}});
     color: #333333;
-    border-left: 1px solid #A0D4AD;
-    border-top: 1px solid #A0D4AD;
-    border-right: 1px solid #A0D4AD;
-    border-bottom: 2px solid #A0D4AD;
+    border-left: 1px solid {{ACCENT_TINT}};
+    border-top: 1px solid {{ACCENT_TINT}};
+    border-right: 1px solid {{ACCENT_TINT}};
+    border-bottom: 2px solid {{ACCENT_TINT}};
     padding-top: 6px;
     padding-right: 14px;
 }
@@ -94,7 +94,7 @@ QTabBar::tab:only-one {
 }
 
 QTabBar::tab:selected:only-one {
-    border-right: 2px solid #A0D4AD;
+    border-right: 2px solid {{ACCENT_TINT}};
 }
 
 
@@ -134,7 +134,7 @@ QToolBar QToolButton#debugButton:pressed {
 
 /* Status Bar */
 QStatusBar {
-    background: #A0D4AD;
+    background: {{ACCENT_TINT}};
     color: white;
     border-top: none;
     min-height: 24px;
@@ -212,7 +212,7 @@ QMenu::separator {
 }
 
 #FindReplaceBar QLineEdit:focus {
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 #FindReplaceBar QPushButton {
@@ -237,9 +237,9 @@ QMenu::separator {
 }
 
 #findToggleBtn:checked {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: white;
-    border-color: #1B5E20;
+    border-color: {{ACCENT_HOVER}};
 }
 
 /* Scrollbars — slim, modern overlay style */
@@ -362,13 +362,13 @@ QScrollBar::sub-page:horizontal {
 #explorerTree::item:selected {
     background: rgba(0, 0, 0, 0.07);
     color: #1B1B1B;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #explorerTree::item:selected:!active {
     background: rgba(0, 0, 0, 0.05);
     color: #333333;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #explorerTree::branch:has-children:!has-siblings:closed,
@@ -402,6 +402,12 @@ QDialog {
     background: #FFFFFF;
 }
 
+/* Colour picker — give the popup a light-grey background so the empty
+   white Custom-Color cells are clearly outlined against it. */
+QColorDialog {
+    background: #DEDEDE;
+}
+
 #prefsCategory {
     background: #F8F9FA;
     border: 1px solid #DEE2E6;
@@ -417,7 +423,7 @@ QDialog {
 #prefsCategory::item:selected {
     background: #E8F0E8;
     color: #333333;
-    border-left: 3px solid #2E7D32;
+    border-left: 3px solid {{ACCENT}};
 }
 
 #prefsCategory::item:hover:!selected {
@@ -439,7 +445,7 @@ QPushButton:hover {
 }
 
 QPushButton:focus {
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 QPushButton:pressed {
@@ -451,13 +457,13 @@ QDialogButtonBox QPushButton {
 }
 
 QDialogButtonBox QPushButton:default {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: white;
-    border-color: #1B5E20;
+    border-color: {{ACCENT_HOVER}};
 }
 
 QDialogButtonBox QPushButton:default:hover {
-    background: #1B5E20;
+    background: {{ACCENT_HOVER}};
 }
 
 /* Global input styling */
@@ -468,12 +474,12 @@ QLineEdit {
     background: #FFFFFF;
     color: #333333;
     min-height: 24px;
-    selection-background-color: #2E7D32;
+    selection-background-color: {{ACCENT}};
     selection-color: #FFFFFF;
 }
 
 QLineEdit:focus {
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 /* Input widgets in preferences */
@@ -486,7 +492,7 @@ QSpinBox, QComboBox, QFontComboBox {
 }
 
 QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 QComboBox::drop-down {
@@ -522,7 +528,7 @@ QSpinBox::up-button:hover, QSpinBox::down-button:hover {
 }
 
 QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
-    background: #2E7D32;
+    background: {{ACCENT}};
 }
 
 QSpinBox::up-arrow {
@@ -540,7 +546,7 @@ QSpinBox::down-arrow {
 QComboBox QAbstractItemView {
     background: #FFFFFF;
     border: 1px solid #DEE2E6;
-    selection-background-color: #2E7D32;
+    selection-background-color: {{ACCENT}};
     selection-color: #FFFFFF;
     outline: none;
 }
@@ -556,9 +562,9 @@ QComboBox QAbstractItemView::item:hover {
 }
 
 QComboBox QAbstractItemView::item:selected {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: #FFFFFF;
-    border-left: 3px solid #2E7D32;
+    border-left: 3px solid {{ACCENT}};
 }
 
 QComboBox QAbstractItemView::item:focus {
@@ -568,7 +574,7 @@ QComboBox QAbstractItemView::item:focus {
 }
 
 QComboBox QAbstractItemView::item:selected:focus {
-    border-left: 3px solid #2E7D32;
+    border-left: 3px solid {{ACCENT}};
 }
 
 QCheckBox {
@@ -584,8 +590,26 @@ QCheckBox::indicator {
 }
 
 QCheckBox::indicator:checked {
-    background: #2E7D32;
-    border-color: #1B5E20;
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
+}
+
+QRadioButton {
+    spacing: 8px;
+    color: #212529;
+}
+
+QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #CCCCCC;
+    border-radius: 8px;
+    background: #FFFFFF;
+}
+
+QRadioButton::indicator:checked {
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
 }
 
 /* Symbol Outline Panel */
@@ -620,13 +644,13 @@ QCheckBox::indicator:checked {
 #symbolTree::item:selected {
     background: rgba(0, 0, 0, 0.07);
     color: #1B1B1B;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #symbolTree::item:selected:!active {
     background: rgba(0, 0, 0, 0.05);
     color: #333333;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 /* Problems Panel */
@@ -666,13 +690,13 @@ QCheckBox::indicator:checked {
 #problemsTable::item:selected {
     background: rgba(0, 0, 0, 0.07);
     color: #1B1B1B;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #problemsTable::item:selected:!active {
     background: rgba(0, 0, 0, 0.05);
     color: #333333;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #problemsTable QHeaderView::section {
@@ -821,14 +845,14 @@ QCheckBox::indicator:checked {
 }
 
 #replPrompt {
-    color: #2E7D32;
+    color: {{ACCENT}};
     font-weight: bold;
     font-family: Consolas, "Courier New", monospace;
     font-size: 13px;
 }
 
 #replRunBtn {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 4px;
@@ -837,7 +861,7 @@ QCheckBox::indicator:checked {
 }
 
 #replRunBtn:hover {
-    background: #1B5E20;
+    background: {{ACCENT_HOVER}};
 }
 
 #outputInput {
@@ -896,7 +920,7 @@ QCheckBox::indicator:checked {
 
 #welcomeActionBtn:hover {
     background: #E8F0E8;
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 #welcomeTemplateCard {
@@ -907,7 +931,7 @@ QCheckBox::indicator:checked {
 
 #welcomeTemplateCard:hover {
     background: #E8F0E8;
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 #welcomeCardTitle {
@@ -970,7 +994,7 @@ QCheckBox::indicator:checked {
 
 #exLibCatBtn[selected="true"] {
     background: #E8F0E8;
-    border: 1px solid #2E7D32;
+    border: 1px solid {{ACCENT}};
 }
 
 #exLibCatName {
@@ -978,7 +1002,7 @@ QCheckBox::indicator:checked {
 }
 
 #exLibCatBtn[selected="true"] #exLibCatName {
-    color: #2E7D32;
+    color: {{ACCENT}};
 }
 
 #exLibCatCount {
@@ -1020,7 +1044,7 @@ QCheckBox::indicator:checked {
 
 #exLibExCard[selected="true"] {
     background: #F0F8F1;
-    border: 1px solid #2E7D32;
+    border: 1px solid {{ACCENT}};
 }
 
 #exLibExCardTitle {
@@ -1028,7 +1052,7 @@ QCheckBox::indicator:checked {
 }
 
 #exLibExCard[selected="true"] #exLibExCardTitle {
-    color: #2E7D32;
+    color: {{ACCENT}};
 }
 
 #exLibExCardDesc {
@@ -1078,7 +1102,7 @@ QCheckBox::indicator:checked {
 }
 
 #exLibOpenBtn {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 6px;
@@ -1088,7 +1112,7 @@ QCheckBox::indicator:checked {
 }
 
 #exLibOpenBtn:hover {
-    background: #1B5E20;
+    background: {{ACCENT_HOVER}};
 }
 
 #exLibOpenBtn:disabled {
@@ -1123,9 +1147,9 @@ QCheckBox::indicator:checked {
 }
 
 #SearchPanel QPushButton:pressed {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: #FFFFFF;
-    border-color: #1B5E20;
+    border-color: {{ACCENT_HOVER}};
 }
 
 #searchResultsTree {
@@ -1154,13 +1178,13 @@ QCheckBox::indicator:checked {
 #searchResultsTree::item:selected {
     background: rgba(0, 0, 0, 0.07);
     color: #1B1B1B;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #searchResultsTree::item:selected:!active {
     background: rgba(0, 0, 0, 0.05);
     color: #333333;
-    border-left: 2px solid #2E7D32;
+    border-left: 2px solid {{ACCENT}};
 }
 
 #searchResultsTree::branch:has-children:!has-siblings:closed,
@@ -1197,7 +1221,7 @@ QCheckBox::indicator:checked {
 }
 
 #shortcutSearch:focus {
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 #shortcutScroll {
@@ -1386,11 +1410,11 @@ QCheckBox::indicator:checked {
 }
 
 #aiChatInput:focus {
-    border-color: #2E7D32;
+    border-color: {{ACCENT}};
 }
 
 #aiChatSendBtn {
-    background: #2E7D32;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 6px;
@@ -1400,7 +1424,7 @@ QCheckBox::indicator:checked {
 }
 
 #aiChatSendBtn:hover {
-    background: #1B5E20;
+    background: {{ACCENT_HOVER}};
 }
 
 #aiChatSendBtn:disabled {
