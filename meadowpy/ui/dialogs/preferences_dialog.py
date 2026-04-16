@@ -2,12 +2,11 @@
 
 from typing import Any
 
-from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
     QStackedWidget, QDialogButtonBox, QWidget, QFormLayout,
     QSpinBox, QCheckBox, QComboBox, QFontComboBox, QLineEdit,
-    QAbstractItemView, QColorDialog, QPushButton, QRadioButton,
+    QAbstractItemView, QPushButton, QRadioButton,
     QButtonGroup, QLabel,
 )
 
@@ -462,19 +461,17 @@ class PreferencesDialog(QDialog):
         self._custom_theme_container.setVisible(theme_name == "custom")
 
     def _on_pick_accent(self) -> None:
-        """Open a color picker and stage the chosen accent."""
+        """Open the custom colour picker and stage the chosen accent."""
+        from meadowpy.ui.dialogs.accent_color_picker import AccentColorPickerDialog
+
         current_hex = (
             self._pending_changes.get("editor.custom_theme.accent")
             or self._settings.get("editor.custom_theme.accent")
             or "#3B82F6"
         )
-        color = QColorDialog.getColor(
-            QColor(current_hex), self, "Pick accent color"
-        )
-        if color.isValid():
-            hex_value = "#{:02X}{:02X}{:02X}".format(
-                color.red(), color.green(), color.blue()
-            )
+        dlg = AccentColorPickerDialog(current_hex, self)
+        if dlg.exec() == AccentColorPickerDialog.DialogCode.Accepted:
+            hex_value = dlg.selected_hex()
             self._stage("editor.custom_theme.accent", hex_value)
             self._refresh_accent_swatch(hex_value)
 
