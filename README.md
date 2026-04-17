@@ -173,23 +173,34 @@ Make sure [Ollama](https://ollama.com/download) is installed and running. Meadow
 
 MeadowPy is actively developed. Here's what's coming next:
 
-| Feature                                   | Status         |
-| ----------------------------------------- | -------------- |
-| More example library entries and library UI rework             | ✅ Completed    |
-| Improved app setup & first-run experience | ✅ Completed     |
-| More starter project templates            | ✅ Completed    |
-| Custom theming options | ✅ Completed     |
-| macOS support                             | 🔄 In progress |
-| LM Studio integration                     | 🔄 In progress |
-| Integrated terminal panel                 | 🔄 In progress |
-| improved styling cohesion                 | 🔄 In progress |
-| Global search and replace | 🔄 In progres     |
-| Keyboard shortcut editor | 🔄 In progress     |
-| Improved syntax highlighting | 📋 Planned     |
-| Plot / output preview                     | 📋 Planned     |
-| Git basics panel                          | 📋 Planned     |
-| Claude API integration                    | 📋 Planned     |
-| Enhanced AI features/capabilities           | 📋 Planned     |
+| Feature                                            | Status         |
+| -------------------------------------------------- | -------------- |
+| More example library entries and library UI rework | ✅ Completed    |
+| Improved app setup & first-run experience          | ✅ Completed    |
+| More starter project templates                     | ✅ Completed    |
+| Custom theming options                             | ✅ Completed    |
+| macOS support                                      | 🔄 In progress |
+| LM Studio integration                              | 🔄 In progress |
+| Integrated terminal panel                          | 🔄 In progress |
+| Improved styling cohesion                          | 🔄 In progress |
+| Global search and replace                          | 🔄 In progress |
+| Keyboard shortcut editor                           | 🔄 In progress |
+| Improved syntax highlighting                       | 📋 Planned     |
+| Plot / output preview                              | 📋 Planned     |
+| Git basics panel                                   | 📋 Planned     |
+| Claude API integration                             | 📋 Planned     |
+| Enhanced AI features/capabilities                  | 📋 Planned     |
+| Comment / uncomment toggle (Ctrl+/)                | 📋 Planned     |
+| Multi-cursor editing                               | 📋 Planned     |
+| Snippet / template expansion (e.g. `for`+Tab)      | 📋 Planned     |
+| Clickable tracebacks in output panel               | 📋 Planned     |
+| Hover docstring & signature tooltips               | 📋 Planned     |
+| Quick-fix lightbulb (auto-import, unused var, …)   | 📋 Planned     |
+| Breadcrumb navigation bar (file › class › method)  | 📋 Planned     |
+| Inline rename refactoring                          | 📋 Planned     |
+| Inline debug variable values                       | 📋 Planned     |
+| Large-file safeguard (warn / lazy-load >10 MB)     | 📋 Planned     |
+| Panel jump shortcuts (Ctrl+1/2/3 …)                | 📋 Planned     |
 
 
 
