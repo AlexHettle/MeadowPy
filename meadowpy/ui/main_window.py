@@ -20,7 +20,7 @@ from meadowpy.resources.resource_loader import (
     run_button_accent_hex,
     theme_is_dark,
 )
-from meadowpy.ui.tab_manager import TabManager, DockTabGradientFilter
+from meadowpy.ui.tab_manager import TabManager
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.tool_bar import ToolBarBuilder
 from meadowpy.ui.status_bar import StatusBarManager
@@ -428,20 +428,10 @@ class MainWindow(QMainWindow):
             self._refresh_symbol_outline(editor)
             self._do_lint()
             self._update_interpreter_label()
-        self._setup_dock_tab_gradients()
         self._ollama_client.start()
         # Start the interactive Python console
         if self._settings.get("repl.auto_start"):
             self._start_repl()
-
-    def _setup_dock_tab_gradients(self) -> None:
-        """Install gradient top-border painting on dock-widget tab bars."""
-        from PyQt6.QtWidgets import QTabBar as _QTabBar
-        self._dock_tab_filter = DockTabGradientFilter(self._settings, self)
-        editor_bar = self._tab_manager.tabBar()
-        for tab_bar in self.findChildren(_QTabBar):
-            if tab_bar is not editor_bar:
-                tab_bar.installEventFilter(self._dock_tab_filter)
 
     # ── Welcome screen ─────────────────────────────────────────────
 

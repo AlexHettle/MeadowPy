@@ -14,7 +14,7 @@ QMainWindow::separator {
     background: #F0F0F0;
 }
 
-/* Tab Widget — Editor Tabs */
+/* Tab Widget — Editor Tabs (V2) */
 QTabWidget::pane {
     border: none;
     background: #FFFFFF;
@@ -22,7 +22,7 @@ QTabWidget::pane {
 }
 
 QTabBar {
-    background: #F0F0F0;
+    background: #ECECEC;
     qproperty-drawBase: 0;
 }
 
@@ -36,7 +36,7 @@ QTabBar::tear {
 }
 
 QTabBar QToolButton {
-    background: #F0F0F0;
+    background: #ECECEC;
     border: none;
     width: 0px;
     height: 0px;
@@ -53,48 +53,25 @@ QTabBar QToolButton::right-arrow {
 }
 
 QTabBar::tab {
-    background: #E0E0E0;
+    background: transparent;
     border: none;
-    border-left: 2px solid transparent;
-    border-right: 1px solid #D4D4D4;
-    margin-left: 1px;
-    margin-right: 1px;
-    padding: 8px 16px 8px 10px;
-    min-width: 90px;
-    color: #888888;
+    border-top: 2px solid transparent;
+    padding: 7px 10px 7px 14px;
+    min-width: 100px;
+    color: #616161;
     font-size: 13px;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+}
+
+QTabBar::tab:hover:!selected {
+    background: #E4E4E4;
+    color: #1F1F1F;
 }
 
 QTabBar::tab:selected {
     background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0,
-        stop:0 #E0E0E0, stop:1 {{ACCENT}});
-    color: #333333;
-    border-left: 1px solid {{ACCENT}};
-    border-top: 1px solid {{ACCENT}};
-    border-right: 1px solid {{ACCENT}};
-    border-bottom: 2px solid {{ACCENT}};
-    padding-top: 6px;
-    padding-right: 14px;
-}
-
-QTabBar::tab:hover:!selected {
-    background: #E2E2E2;
-    color: #555555;
-}
-
-QTabBar::tab:first:!selected {
-    border-left: none;
-}
-
-/* Dock widget tabs (Problems, Output, Outline, etc.) */
-QTabBar::tab:only-one {
-    border-right: none;
-}
-
-QTabBar::tab:selected:only-one {
-    border-right: 2px solid {{ACCENT}};
+        stop:0 #FFFFFF, stop:0.55 #FFFFFF, stop:1 {{ACCENT}});
+    color: #1F1F1F;
+    border-top: 2px solid {{ACCENT}};
 }
 
 
