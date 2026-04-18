@@ -69,12 +69,12 @@ QTabBar::tab {
 
 QTabBar::tab:selected {
     background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0,
-        stop:0 #E0E0E0, stop:1 {{ACCENT_TINT}});
+        stop:0 #E0E0E0, stop:1 {{ACCENT}});
     color: #333333;
-    border-left: 1px solid {{ACCENT_TINT}};
-    border-top: 1px solid {{ACCENT_TINT}};
-    border-right: 1px solid {{ACCENT_TINT}};
-    border-bottom: 2px solid {{ACCENT_TINT}};
+    border-left: 1px solid {{ACCENT}};
+    border-top: 1px solid {{ACCENT}};
+    border-right: 1px solid {{ACCENT}};
+    border-bottom: 2px solid {{ACCENT}};
     padding-top: 6px;
     padding-right: 14px;
 }
@@ -94,7 +94,7 @@ QTabBar::tab:only-one {
 }
 
 QTabBar::tab:selected:only-one {
-    border-right: 2px solid {{ACCENT_TINT}};
+    border-right: 2px solid {{ACCENT}};
 }
 
 
@@ -134,7 +134,7 @@ QToolBar QToolButton#debugButton:pressed {
 
 /* Status Bar */
 QStatusBar {
-    background: {{ACCENT_TINT}};
+    background: {{ACCENT}};
     color: white;
     border-top: none;
     min-height: 24px;

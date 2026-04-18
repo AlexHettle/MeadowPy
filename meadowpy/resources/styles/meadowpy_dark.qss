@@ -1067,7 +1067,7 @@ QDockWidget::title {
     font-size: 13px;
 }
 
-#replRunBtn {
+#OutputPanel #replRunBtn {
     background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
@@ -1076,7 +1076,7 @@ QDockWidget::title {
     font-weight: bold;
 }
 
-#replRunBtn:hover {
+#OutputPanel #replRunBtn:hover {
     background: {{ACCENT_HOVER}};
 }
 
