@@ -4,11 +4,12 @@ import shutil
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent
-from PyQt6.QtGui import QAction, QFileSystemModel, QKeyEvent
+from PyQt6.QtGui import QAction, QFileSystemModel, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (
     QStyle,
     QStyledItemDelegate,
     QDockWidget,
+    QFileIconProvider,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -20,6 +21,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from meadowpy.resources.resource_loader import get_icon_path, load_tinted_icon
+
 
 # ── Hidden names / suffixes filtered from the tree ──────────────────────
 _HIDDEN_NAMES = {
@@ -27,6 +30,40 @@ _HIDDEN_NAMES = {
     "node_modules", ".mypy_cache", ".pytest_cache", ".eggs",
 }
 _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
+
+
+class _ExplorerIconProvider(QFileIconProvider):
+    """Supplies custom folder/file icons for the explorer tree.
+
+    Folder color follows the current accent color; file icons are themed
+    to light/dark for legibility.
+    """
+
+    def __init__(self, accent: str, is_dark: bool):
+        super().__init__()
+        self._folder: QIcon = QIcon()
+        self._file_generic: QIcon = QIcon()
+        self._file_python: QIcon = QIcon()
+        self.rebuild(accent, is_dark)
+
+    def rebuild(self, accent: str, is_dark: bool) -> None:
+        self._folder = load_tinted_icon("folder_closed", accent)
+        file_color = "#C8C8C8" if is_dark else "#6B6B6B"
+        self._file_generic = load_tinted_icon("file_generic", file_color)
+        self._file_python = load_tinted_icon("file_python", file_color)
+
+    def icon(self, arg):  # type: ignore[override]
+        if isinstance(arg, QFileIconProvider.IconType):
+            if arg == QFileIconProvider.IconType.Folder:
+                return self._folder
+            return self._file_generic
+        # QFileInfo
+        if arg.isDir():
+            return self._folder
+        suffix = arg.suffix().lower()
+        if suffix == "py":
+            return self._file_python
+        return self._file_generic
 
 
 class _NoFocusDelegate(QStyledItemDelegate):
@@ -76,6 +113,7 @@ class FileExplorerPanel(QDockWidget):
         self._root_path: str | None = None
         self._fs_model: QFileSystemModel | None = None
         self._proxy: _FilteredFileSystemModel | None = None
+        self._icon_provider: _ExplorerIconProvider | None = None
 
         self._setup_ui()
 
@@ -165,6 +203,8 @@ class FileExplorerPanel(QDockWidget):
         if self._fs_model is None:
             self._fs_model = QFileSystemModel(self)
             self._fs_model.setReadOnly(True)
+            if self._icon_provider is not None:
+                self._fs_model.setIconProvider(self._icon_provider)
 
             self._proxy = _FilteredFileSystemModel(self)
             self._proxy.setSourceModel(self._fs_model)
@@ -213,6 +253,19 @@ class FileExplorerPanel(QDockWidget):
     @property
     def root_path(self) -> str | None:
         return self._root_path
+
+    def apply_icon_theme(self, accent: str, is_dark: bool) -> None:
+        """Build (or rebuild) the custom icon provider with the given accent."""
+        if self._icon_provider is None:
+            self._icon_provider = _ExplorerIconProvider(accent, is_dark)
+        else:
+            self._icon_provider.rebuild(accent, is_dark)
+        if self._fs_model is not None:
+            self._fs_model.setIconProvider(self._icon_provider)
+            # Force the view to repaint by nudging the root
+            root = self._tree.rootIndex()
+            if root.isValid():
+                self._tree.viewport().update()
 
     # ── Keyboard handling ────────────────────────────────────────────────
 

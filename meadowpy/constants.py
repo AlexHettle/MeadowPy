@@ -1,7 +1,7 @@
 """Application-wide constants and default settings."""
 
 APP_NAME = "MeadowPy"
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 CONFIG_DIR_NAME = ".meadowpy"
 SETTINGS_FILENAME = "settings.json"
 RECENT_FILES_MAX = 15

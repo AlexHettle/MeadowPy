@@ -15,6 +15,7 @@ from meadowpy.core.linter import LintRunner
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
 from meadowpy.resources.resource_loader import (
+    current_accent_hex,
     get_icon_path,
     get_stylesheet,
     run_button_accent_hex,
@@ -116,12 +117,26 @@ class MainWindow(QMainWindow):
         self._tab_manager = TabManager(self._settings, self)
         self.setCentralWidget(self._tab_manager)
 
+    def _apply_explorer_icon_theme(self) -> None:
+        """Push the current accent + base to the file explorer's icon provider."""
+        if not hasattr(self, "_file_explorer"):
+            return
+        theme = self._settings.get("editor.theme")
+        custom_base = self._settings.get("editor.custom_theme.base")
+        accent = current_accent_hex(
+            theme, custom_base, self._settings.get("editor.custom_theme.accent")
+        )
+        self._file_explorer.apply_icon_theme(
+            accent, theme_is_dark(theme, custom_base)
+        )
+
     def _create_file_explorer(self) -> None:
         """Create the file explorer dock widget on the left side."""
         self._file_explorer = FileExplorerPanel(self)
         self.addDockWidget(
             Qt.DockWidgetArea.LeftDockWidgetArea, self._file_explorer
         )
+        self._apply_explorer_icon_theme()
 
         # Restore last project folder if it still exists
         project_folder = self._settings.get("general.project_folder")
@@ -1303,6 +1318,7 @@ class MainWindow(QMainWindow):
                     custom_accent=self._settings.get("editor.custom_theme.accent"),
                 ))
             self._tab_manager.update_theme()
+            self._apply_explorer_icon_theme()
             # Re-tint the "Run" button glow in the toolbar & output panel to
             # match the current theme's accent (only Custom theme changes it).
             accent = run_button_accent_hex(

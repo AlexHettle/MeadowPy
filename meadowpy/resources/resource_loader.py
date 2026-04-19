@@ -32,6 +32,38 @@ def get_icon_path(name: str) -> str:
     return ""
 
 
+def load_tinted_icon(name: str, color: str, size: int = 16):
+    """Render a ``{{COLOR}}``-templated SVG into a QIcon at the given color.
+
+    Returns an empty ``QIcon`` if the named icon isn't found on disk.
+
+    The pixmap is rendered at 2× the requested size so Qt can downscale
+    smoothly when the view's icon slot is smaller, yielding crisper edges
+    than a 1× render.
+    """
+    from PyQt6.QtCore import QByteArray, QSize, Qt
+    from PyQt6.QtGui import QIcon, QPainter, QPixmap
+    from PyQt6.QtSvg import QSvgRenderer
+
+    svg_path = _RESOURCES_DIR / "icons" / f"{name}.svg"
+    if not svg_path.exists():
+        return QIcon()
+
+    svg_data = svg_path.read_text(encoding="utf-8").replace("{{COLOR}}", color)
+    renderer = QSvgRenderer(QByteArray(svg_data.encode("utf-8")))
+
+    render_size = size * 2
+    pixmap = QPixmap(QSize(render_size, render_size))
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(painter)
+    painter.end()
+    pixmap.setDevicePixelRatio(2.0)
+    return QIcon(pixmap)
+
+
 def get_font_path(name: str) -> str:
     """Return the full path to a font file, or empty string if not found."""
     path = _RESOURCES_DIR / "fonts" / name
@@ -142,6 +174,18 @@ def _resolve_accent_shades(
         "ACCENT_BRIGHT":       _DEFAULT_LIGHT_BRIGHT,
         "ACCENT_HOVER_BRIGHT": _DEFAULT_LIGHT_HOVER_BRIGHT,
     }
+
+
+def current_accent_hex(
+    theme_name: str,
+    custom_base: str = "dark",
+    custom_accent: Optional[str] = None,
+) -> str:
+    """Return the base ``ACCENT`` hex used by the current theme."""
+    if theme_name == "custom" and custom_accent:
+        return custom_accent
+    is_dark = theme_is_dark(theme_name, custom_base)
+    return _DEFAULT_DARK_ACCENT if is_dark else _DEFAULT_LIGHT_ACCENT
 
 
 def run_button_accent_hex(
