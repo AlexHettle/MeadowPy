@@ -3,19 +3,26 @@
 import html
 import re
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QKeyEvent, QKeySequence
+from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QKeyEvent, QTextDocument
 from PyQt6.QtWidgets import (
+    QApplication,
     QDockWidget,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QStackedWidget,
-    QTextBrowser,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
+
+from meadowpy.resources.resource_loader import load_tinted_icon
 
 # Matches fenced code blocks:  ```lang\n...\n```  or  ```\n...\n```
 # Allows optional spaces/tabs after the language name, and \r\n line endings.
@@ -63,47 +70,192 @@ class _ChatInput(QPlainTextEdit):
             super().keyPressEvent(event)
 
 
-class _ChatDisplay(QTextBrowser):
-    """QTextBrowser with robust copy / select-all support.
+class _Bubble(QFrame):
+    """A single chat bubble — QFrame + QLabel styled via QSS for rounded corners."""
 
-    Provides three layers of copy support:
-    1. ShortcutOverride -- prevents Qt from consuming Ctrl+C/A before
-       the widget sees them.
-    2. keyPressEvent -- explicit copy/selectAll handling as a fallback.
-    3. Context menu -- right-click Copy / Select All / Copy All Chat.
+    link_clicked = pyqtSignal(str)  # raw href string
+
+    def __init__(self, role: str, parent=None):
+        super().__init__(parent)
+        # role: "user" or "ai" — drives objectName for QSS styling
+        self.setObjectName("chatBubbleUser" if role == "user" else "chatBubbleAi")
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 9, 12, 9)
+        layout.setSpacing(0)
+
+        self._label = QLabel()
+        self._label.setTextFormat(Qt.TextFormat.RichText)
+        self._label.setWordWrap(True)
+        self._label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.LinksAccessibleByMouse
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
+        self._label.setOpenExternalLinks(False)
+        self._label.linkActivated.connect(self.link_clicked.emit)
+        layout.addWidget(self._label)
+
+    def set_html(self, html_content: str) -> None:
+        self._label.setText(html_content)
+
+    def html(self) -> str:
+        return self._label.text()
+
+    def plain_text(self) -> str:
+        doc = QTextDocument()
+        doc.setHtml(self._label.text())
+        return doc.toPlainText()
+
+
+class _ChatView(QScrollArea):
+    """Scrollable message list. Bubbles are aligned left (AI) or right (user).
+
+    Resize-aware: each bubble's maximum width is recalculated to a percentage
+    of the viewport width so messages wrap nicely without filling the pane.
     """
 
-    def event(self, e) -> bool:
-        if e.type() == QEvent.Type.ShortcutOverride:
-            # ShortcutOverride events are always QKeyEvent instances in Qt.
-            # Guard with isinstance so we never call matches() on a bare QEvent.
-            if isinstance(e, QKeyEvent):
-                if e.matches(QKeySequence.StandardKey.Copy) or                    e.matches(QKeySequence.StandardKey.SelectAll):
-                    e.accept()
-                    return True
-        return super().event(e)
+    link_clicked = pyqtSignal(str)  # forwarded from any bubble
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.matches(QKeySequence.StandardKey.Copy):
-            self.copy()
+    _BUBBLE_WIDTH_RATIO = 0.78
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("aiChatView")
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+
+        self._rows: list[QWidget] = []
+
+        inner = QWidget()
+        inner.setObjectName("aiChatViewInner")
+        self._inner_layout = QVBoxLayout(inner)
+        self._inner_layout.setContentsMargins(10, 10, 10, 10)
+        self._inner_layout.setSpacing(4)
+
+        self._placeholder = QLabel(
+            "Ask a question about your code!\n\n"
+            "Try things like:\n"
+            "  \u2022 \"What is a class?\"\n"
+            "  \u2022 \"How do I create a list?\"\n"
+            "  \u2022 \"Explain the for loop\""
+        )
+        self._placeholder.setObjectName("aiChatPlaceholder")
+        self._placeholder.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._placeholder.setWordWrap(True)
+        self._inner_layout.addWidget(self._placeholder)
+        self._inner_layout.addStretch(1)
+
+        self.setWidget(inner)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._on_context_menu)
+
+    # -- Bubble API ---------------------------------------------------
+
+    def clear(self) -> None:
+        for row in self._rows:
+            row.deleteLater()
+        self._rows.clear()
+        self._placeholder.setVisible(True)
+
+    def add_bubble(self, role: str, html_content: str) -> _Bubble:
+        """Append a bubble aligned by role and return it."""
+        bubble = _Bubble(role)
+        bubble.set_html(html_content)
+        bubble.link_clicked.connect(self.link_clicked.emit)
+        self._append_row(bubble, align=("right" if role == "user" else "left"))
+        self._constrain_widths()
+        return bubble
+
+    def add_centered(self, html_content: str, object_name: str) -> QLabel:
+        """Add a centered label without a bubble (used for errors / stopped)."""
+        lbl = QLabel()
+        lbl.setObjectName(object_name)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lbl.setWordWrap(True)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
+        lbl.setText(html_content)
+        self._append_row(lbl, align="center")
+        return lbl
+
+    def scroll_to_bottom(self) -> None:
+        sb = self.verticalScrollBar()
+        sb.setValue(sb.maximum())
+
+    def is_at_bottom(self, slack: int = 20) -> bool:
+        sb = self.verticalScrollBar()
+        return sb.value() >= sb.maximum() - slack
+
+    def get_all_plain_text(self) -> str:
+        """Concatenate all message text (used by Copy All)."""
+        pieces: list[str] = []
+        for row in self._rows:
+            lay = row.layout()
+            for i in range(lay.count()):
+                w = lay.itemAt(i).widget()
+                if isinstance(w, _Bubble):
+                    pieces.append(w.plain_text())
+                elif isinstance(w, QLabel):
+                    doc = QTextDocument()
+                    doc.setHtml(w.text())
+                    pieces.append(doc.toPlainText())
+        return "\n\n".join(p for p in pieces if p)
+
+    # -- Internal ------------------------------------------------------
+
+    def _append_row(self, widget: QWidget, align: str) -> None:
+        self._placeholder.setVisible(False)
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(0)
+
+        if align == "right":
+            row_layout.addStretch(1)
+            row_layout.addWidget(widget)
+        elif align == "left":
+            row_layout.addWidget(widget)
+            row_layout.addStretch(1)
+        else:  # center
+            row_layout.addStretch(1)
+            row_layout.addWidget(widget)
+            row_layout.addStretch(1)
+
+        # Insert before the trailing stretch in the inner layout
+        self._inner_layout.insertWidget(self._inner_layout.count() - 1, row)
+        self._rows.append(row)
+
+    def _constrain_widths(self) -> None:
+        vw = self.viewport().width()
+        if vw <= 0:
             return
-        if event.matches(QKeySequence.StandardKey.SelectAll):
-            self.selectAll()
-            return
-        super().keyPressEvent(event)
+        # Subtract inner left+right margins (20) so bubbles don't touch edges
+        max_w = max(120, int((vw - 20) * self._BUBBLE_WIDTH_RATIO))
+        for row in self._rows:
+            lay = row.layout()
+            for i in range(lay.count()):
+                w = lay.itemAt(i).widget()
+                if isinstance(w, _Bubble):
+                    w.setMaximumWidth(max_w)
 
-    def contextMenuEvent(self, event) -> None:
-        """Custom context menu with Copy, Select All, and Copy All Chat."""
-        menu = self.createStandardContextMenu()
-        menu.addSeparator()
-        copy_all = menu.addAction("Copy All Chat")
-        copy_all.triggered.connect(self._copy_all_to_clipboard)
-        menu.exec(event.globalPos())
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._constrain_widths()
 
-    def _copy_all_to_clipboard(self) -> None:
-        """Copy all chat text to clipboard."""
-        from PyQt6.QtWidgets import QApplication
-        QApplication.clipboard().setText(self.toPlainText())
+    def _on_context_menu(self, pos) -> None:
+        menu = QMenu(self)
+        act_copy_all = menu.addAction("Copy All Chat")
+        chosen = menu.exec(self.viewport().mapToGlobal(pos))
+        if chosen is act_copy_all:
+            QApplication.clipboard().setText(self.get_all_plain_text())
 
 
 class AIChatPanel(QDockWidget):
@@ -126,6 +278,8 @@ class AIChatPanel(QDockWidget):
         self._streaming = False
         self._current_assistant_text = ""
         self._code_blocks: list[str] = []  # extracted code blocks for insert
+        self._accent_hex = "#2F7A44"
+        self._is_dark_theme = True
 
         # Context-aware help: current file info appended to system prompt
         self._context_file: str = ""   # e.g. "calculator.py"
@@ -142,50 +296,53 @@ class AIChatPanel(QDockWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header
+        # Header — brand icon + title on the left, status + model + clear on the right
         header = QWidget()
         header.setObjectName("aiChatHeader")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(8, 6, 8, 6)
+        header_layout.setContentsMargins(10, 8, 8, 8)
+        header_layout.setSpacing(8)
 
-        self._model_label = QLabel("No model selected")
+        self._brand_icon = QLabel()
+        self._brand_icon.setObjectName("aiChatBrandIcon")
+        self._brand_icon.setFixedSize(16, 16)
+        header_layout.addWidget(self._brand_icon)
+
+        self._title_label = QLabel("AI Assistant")
+        self._title_label.setObjectName("aiChatTitleLabel")
+        header_layout.addWidget(self._title_label)
+
+        header_layout.addStretch()
+
+        self._status_dot = QLabel()
+        self._status_dot.setObjectName("aiChatStatusDot")
+        self._status_dot.setFixedSize(8, 8)
+        header_layout.addWidget(self._status_dot)
+
+        self._model_label = QLabel("ollama")
         self._model_label.setObjectName("aiChatModelLabel")
         self._model_label.setToolTip("Currently selected Ollama AI model")
         header_layout.addWidget(self._model_label)
 
-        header_layout.addStretch()
-
-        self._clear_btn = QPushButton("Clear")
+        self._clear_btn = QToolButton()
         self._clear_btn.setObjectName("aiChatClearBtn")
+        self._clear_btn.setText("\u2715")
         self._clear_btn.setToolTip("Clear the conversation and start fresh")
-        self._clear_btn.setFixedHeight(24)
+        self._clear_btn.setFixedSize(22, 22)
+        self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._clear_btn.clicked.connect(self.clear_chat)
         header_layout.addWidget(self._clear_btn)
 
         layout.addWidget(header)
 
-        # Chat display
-        self._chat_display = _ChatDisplay()
-        self._chat_display.setObjectName("aiChatDisplay")
-        self._chat_display.setOpenExternalLinks(False)
-        self._chat_display.setOpenLinks(False)  # we handle links ourselves
-        self._chat_display.setReadOnly(True)
-        # QTextBrowser defaults to TextBrowserInteraction which omits
-        # TextSelectableByKeyboard — so Ctrl+C / Ctrl+A won't work.
-        # Add it explicitly to enable keyboard copy/select-all.
-        self._chat_display.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextBrowserInteraction
-            | Qt.TextInteractionFlag.TextSelectableByKeyboard
-        )
-        self._chat_display.setPlaceholderText(
-            "Ask a question about your code!\n\n"
-            "Try things like:\n"
-            '  \u2022 "What is a class?"\n'
-            '  \u2022 "How do I create a list?"\n'
-            '  \u2022 "Explain the for loop"'
-        )
-        self._chat_display.anchorClicked.connect(self._on_link_clicked)
-        layout.addWidget(self._chat_display, 1)
+        # Default visual state — will be refreshed when theme/connection info arrives
+        self._set_status_dot(False)
+        self._refresh_brand_icon()
+
+        # Chat view — bubble-based message list
+        self._chat_view = _ChatView()
+        self._chat_view.link_clicked.connect(self._on_link_clicked_str)
+        layout.addWidget(self._chat_view, 1)
 
         # Input area — text field with button overlaid at bottom-right
         input_container = QWidget()
@@ -284,11 +441,11 @@ class AIChatPanel(QDockWidget):
         return "".join(parts)
 
     def set_model_name(self, model: str) -> None:
-        """Update the model label in the header."""
+        """Update the model label in the header: ``ollama \u00B7 modelname``."""
         if model:
-            self._model_label.setText(f"Model: {model}")
+            self._model_label.setText(f"ollama \u00B7 {model}")
         else:
-            self._model_label.setText("No model selected")
+            self._model_label.setText("ollama")
 
     def set_connected(self, connected: bool) -> None:
         """Enable / disable input based on connection state."""
@@ -297,8 +454,30 @@ class AIChatPanel(QDockWidget):
             self._send_btn.setEnabled(False)
         else:
             self._update_send_btn()
+        self._set_status_dot(connected)
         if not connected:
-            self._model_label.setText("Ollama")
+            self._model_label.setText("ollama")
+
+    def apply_accent(self, accent_hex: str, is_dark: bool = True) -> None:
+        """Update accent-tinted visuals (sparkle, status dot, bubbles) to theme."""
+        self._accent_hex = accent_hex
+        self._is_dark_theme = is_dark
+        self._refresh_brand_icon()
+        connected = self._input_area.isEnabled()
+        self._set_status_dot(connected)
+        # Re-render chat so bubble colors follow the theme
+        self._render_chat()
+
+    def _refresh_brand_icon(self) -> None:
+        icon = load_tinted_icon("ai_sparkle", self._accent_hex, size=16)
+        pix = icon.pixmap(16, 16)
+        self._brand_icon.setPixmap(pix)
+
+    def _set_status_dot(self, connected: bool) -> None:
+        color = self._accent_hex if connected else "#6B6B6B"
+        self._status_dot.setStyleSheet(
+            f"background: {color}; border-radius: 4px;"
+        )
 
     def append_token(self, token: str) -> None:
         """Append a single streamed token to the current assistant message."""
@@ -377,7 +556,7 @@ class AIChatPanel(QDockWidget):
         self._code_blocks.clear()
         self._current_assistant_text = ""
         self._streaming = False
-        self._chat_display.clear()
+        self._chat_view.clear()
         self._input_area.setEnabled(True)
         self._update_send_btn()
         self._update_btn_visibility()
@@ -387,12 +566,12 @@ class AIChatPanel(QDockWidget):
     # -- Internal ----------------------------------------------------
 
     def _scroll_to_bottom(self) -> None:
-        """Scroll the chat display to the very bottom."""
-        sb = self._chat_display.verticalScrollBar()
-        sb.setValue(sb.maximum())
+        """Scroll the chat view to the very bottom."""
+        self._chat_view.scroll_to_bottom()
 
-    def _on_link_clicked(self, url: QUrl) -> None:
-        """Handle clicks on custom links (e.g. Insert Code buttons)."""
+    def _on_link_clicked_str(self, href: str) -> None:
+        """Handle bubble-label clicks — href is a raw string from QLabel."""
+        url = QUrl(href)
         if url.scheme() == "meadowpy" and url.host() == "insert-code":
             try:
                 idx = int(url.path().lstrip("/"))
@@ -540,96 +719,45 @@ class AIChatPanel(QDockWidget):
             self._messages.pop(0)
 
     def _render_chat(self) -> None:
-        """Re-render the full chat HTML from message history."""
+        """Rebuild the bubble list from message history."""
         # Reset code block index — blocks are re-collected during rendering
         self._code_blocks.clear()
 
-        parts: list[str] = []
+        at_bottom = self._chat_view.is_at_bottom()
+        self._chat_view.clear()
 
         for msg in self._messages:
             role = msg["role"]
 
             if role == "user":
-                content_html = html.escape(msg["content"]).replace(
-                    "\n", "<br>"
-                )
-                parts.append(
-                    f'<div class="user-message">'
-                    f'<b>You:</b><br>{content_html}'
-                    f'</div>'
-                )
+                content_html = html.escape(msg["content"]).replace("\n", "<br>")
+                self._chat_view.add_bubble("user", content_html)
             elif role == "assistant":
                 content_html = self._format_content_html(
                     msg["content"], allow_insert=True
                 )
-                parts.append(
-                    f'<div class="assistant-message">'
-                    f'<b>AI:</b><br>{content_html}'
-                    f'</div>'
-                )
+                self._chat_view.add_bubble("ai", content_html)
             elif role == "error":
-                content_html = html.escape(msg["content"]).replace(
-                    "\n", "<br>"
-                )
-                parts.append(
-                    f'<div class="error-message">'
-                    f'<b>Error:</b> <i>{content_html}</i>'
-                    f'</div>'
+                content_html = html.escape(msg["content"]).replace("\n", "<br>")
+                self._chat_view.add_centered(
+                    f"<i>{content_html}</i>", "aiChatErrorLabel"
                 )
             elif role == "stopped":
-                parts.append(
-                    f'<div class="stopped-message">'
-                    f'<i>{html.escape(msg["content"])}</i>'
-                    f'</div>'
+                self._chat_view.add_centered(
+                    f"<i>{html.escape(msg['content'])}</i>", "aiChatStoppedLabel"
                 )
 
         # Append the in-progress assistant text (if streaming)
         if self._streaming and self._current_assistant_text:
-            # No insert buttons while still streaming
             content_html = self._format_content_html(
                 self._current_assistant_text, allow_insert=False
             )
-            parts.append(
-                f'<div class="assistant-message">'
-                f'<b>AI:</b><br>{content_html}'
-                f'<span class="streaming-indicator"> \u2588</span>'
-                f'</div>'
-            )
+            content_html += '<span style="opacity: 0.55;"> \u2588</span>'
+            self._chat_view.add_bubble("ai", content_html)
         elif self._streaming:
-            # Waiting for first token
-            parts.append(
-                f'<div class="assistant-message">'
-                f'<b>AI:</b> <span class="streaming-indicator">'
-                f'Thinking\u2026</span>'
-                f'</div>'
+            self._chat_view.add_bubble(
+                "ai", '<span style="opacity: 0.6;">Thinking\u2026</span>',
             )
-
-        full_html = (
-            '<style>'
-            '.user-message { margin: 8px 4px; padding: 8px; '
-            'border-radius: 6px; }'
-            '.assistant-message { margin: 8px 4px; padding: 8px; '
-            'border-radius: 6px; }'
-            '.error-message { margin: 8px 4px; padding: 8px; '
-            'color: #E51400; }'
-            '.stopped-message { margin: 4px 4px; padding: 4px 8px; '
-            'color: #999999; font-size: 12px; }'
-            '.streaming-indicator { opacity: 0.5; }'
-            '.code-block { margin: 6px 0; }'
-            '.code-block pre { background: rgba(0,0,0,0.15); }'
-            '</style>'
-            + "\n".join(parts)
-        )
-
-        # Preserve scroll position if user scrolled up.
-        # During streaming always auto-scroll to the bottom.
-        scrollbar = self._chat_display.verticalScrollBar()
-        at_bottom = scrollbar.value() >= scrollbar.maximum() - 20
-
-        self._chat_display.setHtml(full_html)
 
         if at_bottom or self._streaming:
-            # Defer scroll to after Qt recalculates the layout,
-            # because setHtml() resets the scrollbar and the new
-            # maximum isn't available until the next event-loop tick.
             QTimer.singleShot(0, self._scroll_to_bottom)

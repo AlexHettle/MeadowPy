@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="{{COLOR}}">
+  <path d="M8 1.5 L9.2 6.8 L14.5 8 L9.2 9.2 L8 14.5 L6.8 9.2 L1.5 8 L6.8 6.8 Z"/>
+  <path d="M13 1 L13.35 2.4 L14.75 2.75 L13.35 3.1 L13 4.5 L12.65 3.1 L11.25 2.75 L12.65 2.4 Z" opacity="0.65"/>
+</svg>

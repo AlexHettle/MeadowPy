@@ -358,9 +358,18 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self._symbol_outline, self._ai_chat_panel)
         self._ai_chat_panel.hide()  # hidden by default, toggled from View menu
 
-        # Set initial model name
+        # Set initial model name, accent, and connection state
         model = self._settings.get("ollama.selected_model") or ""
         self._ai_chat_panel.set_model_name(model)
+        theme = self._settings.get("editor.theme")
+        custom_base = self._settings.get("editor.custom_theme.base")
+        self._ai_chat_panel.apply_accent(
+            current_accent_hex(
+                theme, custom_base,
+                self._settings.get("editor.custom_theme.accent"),
+            ),
+            theme_is_dark(theme, custom_base),
+        )
         self._ai_chat_panel.set_connected(self._ollama_client.is_connected)
 
         # Wire chat panel → send request
@@ -1319,6 +1328,16 @@ class MainWindow(QMainWindow):
                 ))
             self._tab_manager.update_theme()
             self._apply_explorer_icon_theme()
+            if hasattr(self, "_ai_chat_panel"):
+                theme_name = self._settings.get("editor.theme")
+                base = self._settings.get("editor.custom_theme.base")
+                self._ai_chat_panel.apply_accent(
+                    current_accent_hex(
+                        theme_name, base,
+                        self._settings.get("editor.custom_theme.accent"),
+                    ),
+                    theme_is_dark(theme_name, base),
+                )
             # Re-tint the "Run" button glow in the toolbar & output panel to
             # match the current theme's accent (only Custom theme changes it).
             accent = run_button_accent_hex(
