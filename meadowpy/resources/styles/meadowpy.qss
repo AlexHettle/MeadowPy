@@ -292,12 +292,30 @@ QScrollBar::sub-page:horizontal {
 
 /* ===== File Explorer Panel ===== */
 #FileExplorer {
-    background: #F8F9FA;
+    background: #E5E7EB;
+}
+
+#explorerContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #explorerTitleBar {
-    background: #F8F9FA;
-    border-bottom: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#explorerTitleSeparator {
+    background: #E5E7EB;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
 }
 
 #explorerTitleLabel {

@@ -132,14 +132,15 @@ class FileExplorerPanel(QDockWidget):
 
     def _setup_ui(self) -> None:
         # -- custom dock title bar ("EXPLORER" + action buttons) ---------
-        title_bar = QWidget()
+        title_bar = QFrame()
         title_bar.setObjectName("explorerTitleBar")
-        title_bar.setFixedHeight(32)
+        title_bar.setFrameShape(QFrame.Shape.NoFrame)
+        title_bar.setFixedHeight(40)
         t_layout = QHBoxLayout(title_bar)
-        t_layout.setContentsMargins(10, 0, 4, 0)
+        t_layout.setContentsMargins(10, 2, 4, 8)
         t_layout.setSpacing(2)
 
-        title_label = QLabel("EXPLORER")
+        title_label = QLabel("File Explorer")
         title_label.setObjectName("explorerTitleLabel")
         t_layout.addWidget(title_label)
         t_layout.addStretch()
@@ -156,14 +157,30 @@ class FileExplorerPanel(QDockWidget):
         self._menu_btn.setMenu(menu)
         t_layout.addWidget(self._menu_btn)
 
+        # Custom title bar is set as the dock's title bar so the dock
+        # remains draggable via this widget. The border is split between
+        # this frame (top/left/right) and the content frame below
+        # (left/right/bottom) so together they form one continuous outline.
         self.setTitleBarWidget(title_bar)
         self._title_bar = title_bar
 
-        # -- main container ---------------------------------------------
-        container = QWidget()
+        # -- main container (content frame with left/right/bottom border) ─
+        container = QFrame()
+        container.setObjectName("explorerContainer")
+        container.setFrameShape(QFrame.Shape.NoFrame)
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        # Small bottom padding so the tree's square corners don't cover
+        # the container's rounded bottom corners.
+        layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
+
+        # 1px separator under the title bar (plain widget borders don't
+        # render reliably in QSS, so we use a dedicated thin widget).
+        separator = QFrame()
+        separator.setObjectName("explorerTitleSeparator")
+        separator.setFixedHeight(1)
+        separator.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(separator)
 
         # -- folder info row (folder name + PROJECT badge) --------------
         folder_row = QWidget()

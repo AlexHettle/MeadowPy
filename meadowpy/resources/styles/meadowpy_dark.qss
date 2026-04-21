@@ -559,12 +559,30 @@ QMessageBox QPushButton:hover {
 
 /* ===== File Explorer Panel ===== */
 #FileExplorer {
-    background: #252526;
+    background: #3C3C3C;
+}
+
+#explorerContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #explorerTitleBar {
-    background: #252526;
-    border-bottom: 1px solid #2A2A2A;
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#explorerTitleSeparator {
+    background: #3C3C3C;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
 }
 
 #explorerTitleLabel {
