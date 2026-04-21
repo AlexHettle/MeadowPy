@@ -562,17 +562,47 @@ QMessageBox QPushButton:hover {
     background: #252526;
 }
 
-#explorerHeader {
-    background: #2D2D2D;
-    border-bottom: 1px solid #3C3C3C;
+#explorerTitleBar {
+    background: #252526;
+    border-bottom: 1px solid #2A2A2A;
 }
 
-#explorerFolderLabel {
+#explorerTitleLabel {
     color: #CCCCCC;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
-    padding: 0 4px;
+    letter-spacing: 1px;
 }
+
+QToolButton#explorerTitleButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+QToolButton#explorerTitleButton:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+QToolButton#explorerTitleButton:pressed {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+QToolButton#explorerTitleButton::menu-indicator {
+    image: none;
+    width: 0;
+    height: 0;
+}
+
+#explorerFolderRow {
+    background: #1E1E1E;
+    border: none;
+}
+
+/* #explorerProjectBadge is styled at runtime via apply_icon_theme() so
+   its colors track the current accent (including custom themes). */
 
 #explorerEmptyLabel {
     color: #666666;

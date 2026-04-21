@@ -295,17 +295,47 @@ QScrollBar::sub-page:horizontal {
     background: #F8F9FA;
 }
 
-#explorerHeader {
-    background: #F0F0F0;
-    border-bottom: 1px solid #DEE2E6;
+#explorerTitleBar {
+    background: #F8F9FA;
+    border-bottom: 1px solid #E5E7EB;
 }
 
-#explorerFolderLabel {
-    color: #333333;
-    font-size: 12px;
+#explorerTitleLabel {
+    color: #4B5563;
+    font-size: 11px;
     font-weight: bold;
-    padding: 0 4px;
+    letter-spacing: 1px;
 }
+
+QToolButton#explorerTitleButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+QToolButton#explorerTitleButton:hover {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.10);
+}
+
+QToolButton#explorerTitleButton:pressed {
+    background: rgba(0, 0, 0, 0.10);
+}
+
+QToolButton#explorerTitleButton::menu-indicator {
+    image: none;
+    width: 0;
+    height: 0;
+}
+
+#explorerFolderRow {
+    background: #FFFFFF;
+    border: none;
+}
+
+/* #explorerProjectBadge is styled at runtime via apply_icon_theme() so
+   its colors track the current accent (including custom themes). */
 
 #explorerEmptyLabel {
     color: #999999;

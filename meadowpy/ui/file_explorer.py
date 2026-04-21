@@ -3,13 +3,14 @@
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent, QSize
 from PyQt6.QtGui import QAction, QFileSystemModel, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (
     QStyle,
     QStyledItemDelegate,
     QDockWidget,
     QFileIconProvider,
+    QFrame,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -21,7 +22,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from meadowpy.resources.resource_loader import get_icon_path, load_tinted_icon
+from meadowpy.resources.resource_loader import (
+    darken_color,
+    get_icon_path,
+    lighten_color,
+    load_tinted_icon,
+)
 
 
 # ── Hidden names / suffixes filtered from the tree ──────────────────────
@@ -114,39 +120,67 @@ class FileExplorerPanel(QDockWidget):
         self._fs_model: QFileSystemModel | None = None
         self._proxy: _FilteredFileSystemModel | None = None
         self._icon_provider: _ExplorerIconProvider | None = None
+        self._title_icon_color: str = "#C8C8C8"
+        # Paths the user has expanded but whose children are still being
+        # fetched asynchronously — we re-expand with animation once loaded.
+        self._pending_anim_paths: set[str] = set()
+        self._suppress_expand_handler: bool = False
 
         self._setup_ui()
 
     # ── UI construction ─────────────────────────────────────────────────
 
     def _setup_ui(self) -> None:
+        # -- custom dock title bar ("EXPLORER" + action buttons) ---------
+        title_bar = QWidget()
+        title_bar.setObjectName("explorerTitleBar")
+        title_bar.setFixedHeight(32)
+        t_layout = QHBoxLayout(title_bar)
+        t_layout.setContentsMargins(10, 0, 4, 0)
+        t_layout.setSpacing(2)
+
+        title_label = QLabel("EXPLORER")
+        title_label.setObjectName("explorerTitleLabel")
+        t_layout.addWidget(title_label)
+        t_layout.addStretch()
+
+        self._new_file_btn = self._make_icon_button("New File")
+        self._new_file_btn.clicked.connect(self._on_title_new_file)
+        t_layout.addWidget(self._new_file_btn)
+
+        self._menu_btn = self._make_icon_button("More Actions")
+        self._menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(self._menu_btn)
+        menu.addAction("Collapse All", self.collapse_all)
+        menu.addAction("Refresh", self.refresh)
+        self._menu_btn.setMenu(menu)
+        t_layout.addWidget(self._menu_btn)
+
+        self.setTitleBarWidget(title_bar)
+        self._title_bar = title_bar
+
+        # -- main container ---------------------------------------------
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # -- header bar --------------------------------------------------
-        header = QWidget()
-        header.setObjectName("explorerHeader")
-        header.setFixedHeight(30)
-        h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(8, 0, 4, 0)
-        h_layout.setSpacing(2)
+        # -- folder info row (folder name + PROJECT badge) --------------
+        folder_row = QWidget()
+        folder_row.setObjectName("explorerFolderRow")
+        folder_row.setFixedHeight(44)
+        f_layout = QHBoxLayout(folder_row)
+        f_layout.setContentsMargins(10, 10, 10, 6)
+        f_layout.setSpacing(8)
 
-        self._folder_label = QLabel("No folder opened")
-        self._folder_label.setObjectName("explorerFolderLabel")
-        h_layout.addWidget(self._folder_label)
-        h_layout.addStretch()
+        f_layout.addStretch()
 
-        self._collapse_btn = self._make_button("\u25B4", "Collapse All")
-        self._collapse_btn.clicked.connect(self.collapse_all)
-        h_layout.addWidget(self._collapse_btn)
+        self._project_badge = QLabel("")
+        self._project_badge.setObjectName("explorerProjectBadge")
+        self._project_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        f_layout.addWidget(self._project_badge)
 
-        self._refresh_btn = self._make_button("\u21BB", "Refresh")
-        self._refresh_btn.clicked.connect(self.refresh)
-        h_layout.addWidget(self._refresh_btn)
-
-        layout.addWidget(header)
+        layout.addWidget(folder_row)
 
         # -- tree view ---------------------------------------------------
         self._tree = QTreeView()
@@ -159,6 +193,7 @@ class FileExplorerPanel(QDockWidget):
         self._tree.setDragEnabled(True)
         self._tree.setDragDropMode(QTreeView.DragDropMode.DragOnly)
         self._tree.doubleClicked.connect(self._on_double_clicked)
+        self._tree.expanded.connect(self._on_item_expanded)
         self._tree.setItemDelegate(_NoFocusDelegate(self._tree))
         self._tree.installEventFilter(self)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -173,25 +208,100 @@ class FileExplorerPanel(QDockWidget):
         layout.addWidget(self._empty_label)
 
         self._tree.hide()
-        header.hide()
-        self._header = header
+        folder_row.hide()
+        self._folder_row = folder_row
 
         self.setWidget(container)
+        self._refresh_title_icons()
 
     @staticmethod
-    def _make_button(text: str, tooltip: str) -> QToolButton:
+    def _make_icon_button(tooltip: str) -> QToolButton:
         btn = QToolButton()
-        btn.setText(text)
+        btn.setObjectName("explorerTitleButton")
         btn.setToolTip(tooltip)
         btn.setAutoRaise(True)
-        btn.setFixedSize(24, 24)
-        btn.setStyleSheet(
-            "QToolButton { border: 1px solid transparent; border-radius: 3px;"
-            " padding: 2px; font-size: 14px; color: #CCCCCC; }"
-            " QToolButton:hover { background: rgba(128,128,128,0.2);"
-            " border-color: rgba(128,128,128,0.3); color: #FFFFFF; }"
-        )
+        btn.setFixedSize(26, 26)
+        btn.setIconSize(QSize(16, 16))
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
         return btn
+
+    def _refresh_title_icons(self) -> None:
+        """(Re)paint the title-bar icons in the current theme color."""
+        color = self._title_icon_color
+        if hasattr(self, "_new_file_btn"):
+            self._new_file_btn.setIcon(load_tinted_icon("new_file_tinted", color))
+        if hasattr(self, "_menu_btn"):
+            self._menu_btn.setIcon(load_tinted_icon("chevron_down_tinted", color))
+
+    def _on_title_new_file(self) -> None:
+        if not self._root_path:
+            return
+        self._action_new_file(Path(self._root_path))
+
+    # ── First-expand animation fix ──────────────────────────────────────
+    #
+    # QFileSystemModel fetches each directory's contents lazily on a worker
+    # thread. If the user expands a folder before its contents have been
+    # loaded, QTreeView's animation captures an empty "after" state and
+    # the animation is effectively skipped — the children then pop in
+    # abruptly when ``directoryLoaded`` fires later.
+    #
+    # Strategy: eagerly pre-fetch one level ahead. Whenever a directory
+    # finishes loading, we call ``fetchMore`` on each of its subdirectories
+    # so their contents are cached before the user can click them. When
+    # the user then expands a folder, ``rowCount`` already returns the
+    # real child count and the animation runs correctly.
+    #
+    # As a safety net, if a user expands a directory before its cache is
+    # populated, we collapse silently, wait for the load, and re-expand.
+
+    def _prefetch_subdirs(self, source_parent_index: QModelIndex) -> None:
+        if not self._fs_model:
+            return
+        row_count = self._fs_model.rowCount(source_parent_index)
+        for row in range(row_count):
+            child = self._fs_model.index(row, 0, source_parent_index)
+            if self._fs_model.isDir(child) and self._fs_model.canFetchMore(child):
+                self._fs_model.fetchMore(child)
+
+    def _on_item_expanded(self, proxy_index: QModelIndex) -> None:
+        if self._suppress_expand_handler or not self._fs_model or not self._proxy:
+            return
+        source_index = self._proxy.mapToSource(proxy_index)
+
+        # Pre-fetch grandchildren so the NEXT expand down also animates.
+        self._prefetch_subdirs(source_index)
+
+        # Fallback: if this folder's own contents aren't cached yet, the
+        # animation we just ran was a no-op. Collapse silently, fetch,
+        # and re-expand once loaded.
+        if self._fs_model.canFetchMore(source_index) or self._fs_model.rowCount(source_index) == 0:
+            if self._fs_model.hasChildren(source_index):
+                path = self._fs_model.filePath(source_index)
+                self._pending_anim_paths.add(path)
+                self._suppress_expand_handler = True
+                self._tree.collapse(proxy_index)
+                self._suppress_expand_handler = False
+                self._fs_model.fetchMore(source_index)
+
+    def _on_directory_loaded(self, path: str) -> None:
+        if not self._fs_model or not self._proxy:
+            return
+
+        # Eager look-ahead: when any directory loads, pre-fetch each of
+        # its subdirectories so the user's first expand there will animate.
+        source_index = self._fs_model.index(path)
+        if source_index.isValid():
+            self._prefetch_subdirs(source_index)
+
+        # If this load fulfils a pending re-expand, animate it now.
+        if path in self._pending_anim_paths:
+            self._pending_anim_paths.discard(path)
+            proxy_index = self._proxy.mapFromSource(source_index)
+            if proxy_index.isValid():
+                # Delay to the next event-loop tick so Qt finishes processing
+                # the preceding collapse before we trigger the animated expand.
+                QTimer.singleShot(0, lambda idx=proxy_index: self._tree.expand(idx))
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -205,6 +315,7 @@ class FileExplorerPanel(QDockWidget):
             self._fs_model.setReadOnly(True)
             if self._icon_provider is not None:
                 self._fs_model.setIconProvider(self._icon_provider)
+            self._fs_model.directoryLoaded.connect(self._on_directory_loaded)
 
             self._proxy = _FilteredFileSystemModel(self)
             self._proxy.setSourceModel(self._fs_model)
@@ -223,14 +334,15 @@ class FileExplorerPanel(QDockWidget):
         # Sort alphabetically, folders first (default QFileSystemModel behaviour)
         self._tree.sortByColumn(0, Qt.SortOrder.AscendingOrder)
 
-        # Update header label
-        self._folder_label.setText(Path(folder_path).name)
-        self._folder_label.setToolTip(folder_path)
+        # Update pill badge
+        folder_name = Path(folder_path).name
+        self._project_badge.setText(folder_name.upper())
+        self._project_badge.setToolTip(folder_path)
 
         # Switch from empty state to tree
         self._empty_label.hide()
         self._tree.show()
-        self._header.show()
+        self._folder_row.show()
 
     def collapse_all(self) -> None:
         """Collapse every expanded node."""
@@ -266,6 +378,36 @@ class FileExplorerPanel(QDockWidget):
             root = self._tree.rootIndex()
             if root.isValid():
                 self._tree.viewport().update()
+
+        # Retint the title-bar action icons to match the theme.
+        self._title_icon_color = "#C8C8C8" if is_dark else "#6B6B6B"
+        self._refresh_title_icons()
+
+        # Re-style the PROJECT pill badge so its background/border/text
+        # track the current accent (including custom themes).
+        self._apply_badge_style(accent, is_dark)
+
+    def _apply_badge_style(self, accent: str, is_dark: bool) -> None:
+        if is_dark:
+            bg = darken_color(accent, 0.30)
+            text = lighten_color(accent, 0.25, 1.0)
+            border = darken_color(accent, 0.10)
+        else:
+            bg = lighten_color(accent, 0.42, 0.75)
+            text = darken_color(accent, 0.08)
+            border = lighten_color(accent, 0.20, 0.85)
+        self._project_badge.setStyleSheet(
+            "#explorerProjectBadge {"
+            f" color: {text};"
+            f" background: {bg};"
+            f" border: 1px solid {border};"
+            " border-radius: 4px;"
+            " padding: 1px 7px;"
+            " font-size: 10px;"
+            " font-weight: bold;"
+            " letter-spacing: 0.5px;"
+            "}"
+        )
 
     # ── Keyboard handling ────────────────────────────────────────────────
 

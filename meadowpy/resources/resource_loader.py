@@ -61,7 +61,20 @@ def load_tinted_icon(name: str, color: str, size: int = 16):
     renderer.render(painter)
     painter.end()
     pixmap.setDevicePixelRatio(2.0)
-    return QIcon(pixmap)
+
+    # Explicitly register the same pixmap for every mode so Qt doesn't
+    # auto-generate a greyed-out variant (e.g. when a tree item is
+    # selected or a button is hovered).
+    icon = QIcon()
+    for mode in (
+        QIcon.Mode.Normal,
+        QIcon.Mode.Active,
+        QIcon.Mode.Selected,
+        QIcon.Mode.Disabled,
+    ):
+        for state in (QIcon.State.On, QIcon.State.Off):
+            icon.addPixmap(pixmap, mode, state)
+    return icon
 
 
 def get_font_path(name: str) -> str:
