@@ -846,13 +846,41 @@ QRadioButton::indicator:checked {
 /* ===== Output Panel ===== */
 
 #OutputPanel {
-    background: #F8F9FA;
-    border-top: 1px solid #DEE2E6;
+    background: #E5E7EB;  /* border-color matte so rounded corners blend */
 }
 
-#outputHeader {
-    background: #F0F0F0;
-    border-bottom: 1px solid #DEE2E6;
+#outputTitleBar {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#outputTitleLabel {
+    color: #1F2937;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#outputTitleBar QLabel {
+    color: #1F2937;
+}
+
+#outputTitleSeparator {
+    background: #E5E7EB;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#outputContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #outputText {

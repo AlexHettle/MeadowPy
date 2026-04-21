@@ -1049,22 +1049,46 @@ QDockWidget::title {
 /* ===== Output Panel ===== */
 
 #OutputPanel {
-    background: #252526;
-    border-top: 1px solid #3C3C3C;
+    background: #3C3C3C;  /* border-color matte so rounded corners blend */
 }
 
 #OutputPanel QWidget {
-    background: #252526;
+    background: #1E1E1E;
     color: #CCCCCC;
 }
 
-#outputHeader {
-    background: #2D2D2D;
-    border-bottom: 1px solid #3C3C3C;
+#outputTitleBar {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
 }
 
-#outputHeader QLabel {
+#outputTitleLabel {
     color: #CCCCCC;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#outputTitleBar QLabel {
+    color: #CCCCCC;
+}
+
+#outputTitleSeparator {
+    background: #3C3C3C;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#outputContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #outputText {

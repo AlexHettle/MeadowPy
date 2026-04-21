@@ -7,6 +7,7 @@ from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QRadialGradient, QTextC
 from PyQt6.QtWidgets import (
     QApplication,
     QDockWidget,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -153,16 +154,21 @@ class OutputPanel(QDockWidget):
     # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        # -- custom dock title bar ("Output" + action buttons) ----------
+        # Mirrors the File Explorer panel: a QFrame title bar with the
+        # panel name on the left and the toolbar buttons on the right,
+        # installed via setTitleBarWidget so the dock stays draggable.
+        title_bar = QFrame()
+        title_bar.setObjectName("outputTitleBar")
+        title_bar.setFrameShape(QFrame.Shape.NoFrame)
+        title_bar.setFixedHeight(40)
+        header_layout = QHBoxLayout(title_bar)
+        header_layout.setContentsMargins(10, 2, 6, 8)
+        header_layout.setSpacing(2)
 
-        # --- Header toolbar ---
-        header = QWidget()
-        header.setObjectName("outputHeader")
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(8, 4, 8, 4)
+        title_label = QLabel("Output")
+        title_label.setObjectName("outputTitleLabel")
+        header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
@@ -218,7 +224,7 @@ class OutputPanel(QDockWidget):
             header_layout.addWidget(btn)
 
         # Glow painter for run/stop/restart buttons
-        self._header_glow = _HeaderGlowPainter(header, header)
+        self._header_glow = _HeaderGlowPainter(title_bar, title_bar)
         self._header_glow.add_button(self._run_btn, QColor("#4CAF50"))           # green
         self._header_glow.add_button(self._stop_btn, QColor("#E51400"))          # red
         self._header_glow.add_button(self._restart_repl_btn, QColor("#FF9800"))  # orange
@@ -239,7 +245,26 @@ class OutputPanel(QDockWidget):
         header_layout.addWidget(self._fix_separator)
         header_layout.addWidget(self._fix_btn)
 
-        layout.addWidget(header)
+        # Install the title bar as the dock's draggable title bar widget.
+        self.setTitleBarWidget(title_bar)
+        self._title_bar = title_bar
+
+        # -- main container (rounded bottom corners, border l/r/bottom) -
+        container = QFrame()
+        container.setObjectName("outputContainer")
+        container.setFrameShape(QFrame.Shape.NoFrame)
+        layout = QVBoxLayout(container)
+        # Small bottom padding so the input area's square corners don't
+        # cover the container's rounded bottom corners.
+        layout.setContentsMargins(0, 0, 0, 6)
+        layout.setSpacing(0)
+
+        # 1px separator under the title bar.
+        separator = QFrame()
+        separator.setObjectName("outputTitleSeparator")
+        separator.setFixedHeight(1)
+        separator.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(separator)
 
         # --- Output text area ---
         self._output_text = QPlainTextEdit()
@@ -260,16 +285,22 @@ class OutputPanel(QDockWidget):
         self._input_area = QWidget()
         self._input_area.setObjectName("outputInputArea")
         input_layout = QHBoxLayout(self._input_area)
-        input_layout.setContentsMargins(8, 4, 8, 4)
+        input_layout.setContentsMargins(8, 6, 8, 6)
+        input_layout.setSpacing(6)
+        input_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
+        # Prompt label is kept (for echoing the current prompt to the
+        # output area on submit) but no longer shown in the UI — the
+        # input line takes over that space.
         self._prompt_label = QLabel(">>>")
         self._prompt_label.setObjectName("replPrompt")
         self._prompt_label.setFont(font)
-        input_layout.addWidget(self._prompt_label)
+        self._prompt_label.hide()
 
         self._input_line = QLineEdit()
         self._input_line.setObjectName("outputInput")
         self._input_line.setFont(font)
+        self._input_line.setFixedHeight(28)
         self._input_line.setPlaceholderText("Type Python here...")
         self._input_line.setToolTip(
             "Type Python commands here (press Enter to run, "
@@ -282,6 +313,7 @@ class OutputPanel(QDockWidget):
         self._send_btn = QPushButton("Run")
         self._send_btn.setObjectName("replRunBtn")
         self._send_btn.setToolTip("Run the command (Enter)")
+        self._send_btn.setFixedHeight(28)
         self._send_btn.clicked.connect(self._on_input_submitted)
         input_layout.addWidget(self._send_btn)
 
