@@ -4,7 +4,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDockWidget,
+    QFrame,
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
     QMenu,
     QStyle,
     QStyledItemDelegate,
@@ -43,10 +46,38 @@ class ProblemsPanel(QDockWidget):
         self._setup_ui()
 
     def _setup_ui(self) -> None:
-        container = QWidget()
+        # -- custom dock title bar -------------------------------------
+        # Same pattern as File Explorer / Output / AI Chat / Search.
+        title_bar = QFrame()
+        title_bar.setObjectName("problemsTitleBar")
+        title_bar.setFrameShape(QFrame.Shape.NoFrame)
+        title_bar.setFixedHeight(40)
+        title_layout = QHBoxLayout(title_bar)
+        title_layout.setContentsMargins(10, 2, 6, 8)
+        title_layout.setSpacing(6)
+
+        self._title_label = QLabel("Problems")
+        self._title_label.setObjectName("problemsTitleLabel")
+        title_layout.addWidget(self._title_label)
+        title_layout.addStretch()
+
+        self.setTitleBarWidget(title_bar)
+        self._title_bar = title_bar
+
+        # -- main container (rounded bottom corners, border l/r/bottom) -
+        container = QFrame()
+        container.setObjectName("problemsContainer")
+        container.setFrameShape(QFrame.Shape.NoFrame)
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
+
+        # 1px separator under the title bar.
+        separator = QFrame()
+        separator.setObjectName("problemsTitleSeparator")
+        separator.setFixedHeight(1)
+        separator.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(separator)
 
         # Table
         self._table = QTableWidget()
@@ -97,9 +128,11 @@ class ProblemsPanel(QDockWidget):
                 parts.append(
                     f"{warning_count} warning{'s' if warning_count != 1 else ''}"
                 )
-            self.setWindowTitle(f"Problems — {', '.join(parts)}")
+            title = f"Problems — {', '.join(parts)}"
         else:
-            self.setWindowTitle("Problems")
+            title = "Problems"
+        self.setWindowTitle(title)
+        self._title_label.setText(title)
 
         for row, issue in enumerate(issues):
             # Severity indicator
@@ -159,7 +192,9 @@ class ProblemsPanel(QDockWidget):
         """Display a linter error (e.g. not installed) in the table."""
         self._issues.clear()
         self._table.setRowCount(1)
-        self.setWindowTitle("Problems — Linter Error")
+        title = "Problems — Linter Error"
+        self.setWindowTitle(title)
+        self._title_label.setText(title)
 
         icon_item = QTableWidgetItem("\u26A0")
         icon_item.setForeground(QColor("#CCA700"))
@@ -175,3 +210,4 @@ class ProblemsPanel(QDockWidget):
         self._issues.clear()
         self._table.setRowCount(0)
         self.setWindowTitle("Problems")
+        self._title_label.setText("Problems")

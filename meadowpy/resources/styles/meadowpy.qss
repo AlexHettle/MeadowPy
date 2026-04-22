@@ -685,13 +685,42 @@ QRadioButton::indicator:checked {
 
 /* Problems Panel */
 #ProblemsPanel {
-    background: #F8F9FA;
-    border-top: 1px solid #DEE2E6;
+    background: #E5E7EB;  /* border-color matte so rounded corners blend */
 }
 
-#problemsHeader {
-    background: #F0F0F0;
-    border-bottom: 1px solid #DEE2E6;
+#ProblemsPanel QWidget {
+    background: #FFFFFF;
+    color: #1F2937;
+}
+
+#problemsTitleBar {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#problemsTitleLabel {
+    color: #1F2937;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#problemsTitleSeparator {
+    background: #E5E7EB;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#problemsContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #problemsTable {
@@ -730,9 +759,10 @@ QRadioButton::indicator:checked {
 }
 
 #problemsTable QHeaderView::section {
-    background: #F5F5F5;
+    background: #FFFFFF;
     border: none;
-    border-bottom: 1px solid #DEE2E6;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
     padding: 4px 8px;
     font-size: 11px;
     font-weight: bold;

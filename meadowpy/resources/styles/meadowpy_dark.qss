@@ -751,22 +751,42 @@ QDockWidget::title {
 
 /* Problems Panel */
 #ProblemsPanel {
-    background: #252526;
-    border-top: 1px solid #3C3C3C;
+    background: #3C3C3C;  /* border-color matte so rounded corners blend */
 }
 
 #ProblemsPanel QWidget {
-    background: #252526;
+    background: #1E1E1E;
     color: #CCCCCC;
 }
 
-#problemsHeader {
-    background: #2D2D2D;
-    border-bottom: 1px solid #3C3C3C;
+#problemsTitleBar {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
 }
 
-#problemsHeader QLabel {
+#problemsTitleLabel {
     color: #CCCCCC;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#problemsTitleSeparator {
+    background: #3C3C3C;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#problemsContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #problemsTable {
@@ -806,9 +826,10 @@ QDockWidget::title {
 }
 
 #problemsTable QHeaderView::section {
-    background: #2D2D2D;
+    background: #1E1E1E;
     color: #CCCCCC;
     border: none;
+    border-top: 1px solid #3C3C3C;
     border-bottom: 1px solid #3C3C3C;
     padding: 4px 8px;
     font-size: 11px;
