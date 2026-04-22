@@ -1415,9 +1415,31 @@ QRadioButton::indicator:checked {
 
 /* ===== AI Chat Panel ===== */
 
-#aiChatHeader {
+#AIChatPanel {
+    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+}
+
+#aiChatTitleBar {
     background: #FFFFFF;
-    border-bottom: 1px solid #E4E4E4;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#aiChatTitleSeparator {
+    background: #E5E7EB;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#aiChatContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #aiChatView, #aiChatViewInner {

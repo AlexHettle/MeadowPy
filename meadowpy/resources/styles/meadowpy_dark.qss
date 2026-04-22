@@ -1568,9 +1568,31 @@ QDockWidget::title {
 
 /* ===== AI Chat Panel ===== */
 
-#aiChatHeader {
+#AIChatPanel {
+    background: #3C3C3C;  /* border-color matte so rounded corners blend */
+}
+
+#aiChatTitleBar {
     background: #1E1E1E;
-    border-bottom: 1px solid #2D2D2D;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#aiChatTitleSeparator {
+    background: #3C3C3C;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#aiChatContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #aiChatView, #aiChatViewInner {

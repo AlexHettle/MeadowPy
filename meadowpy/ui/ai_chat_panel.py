@@ -291,16 +291,17 @@ class AIChatPanel(QDockWidget):
     # -- UI construction ---------------------------------------------
 
     def _setup_ui(self) -> None:
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # Header — brand icon + title on the left, status + model + clear on the right
-        header = QWidget()
-        header.setObjectName("aiChatHeader")
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(10, 8, 8, 8)
+        # -- custom dock title bar --------------------------------------
+        # Mirrors File Explorer / Output panels: a QFrame title bar
+        # installed as the dock's title widget (keeping the dock draggable)
+        # with rounded top corners + border-top/left/right. The content
+        # below lives in a QFrame container with matching bottom styling.
+        title_bar = QFrame()
+        title_bar.setObjectName("aiChatTitleBar")
+        title_bar.setFrameShape(QFrame.Shape.NoFrame)
+        title_bar.setFixedHeight(40)
+        header_layout = QHBoxLayout(title_bar)
+        header_layout.setContentsMargins(10, 2, 6, 8)
         header_layout.setSpacing(8)
 
         self._brand_icon = QLabel()
@@ -333,7 +334,25 @@ class AIChatPanel(QDockWidget):
         self._clear_btn.clicked.connect(self.clear_chat)
         header_layout.addWidget(self._clear_btn)
 
-        layout.addWidget(header)
+        self.setTitleBarWidget(title_bar)
+        self._title_bar = title_bar
+
+        # -- main container (rounded bottom corners, border l/r/bottom) -
+        container = QFrame()
+        container.setObjectName("aiChatContainer")
+        container.setFrameShape(QFrame.Shape.NoFrame)
+        layout = QVBoxLayout(container)
+        # Bottom padding so inner widgets' square corners don't cover
+        # the container's rounded bottom corners.
+        layout.setContentsMargins(0, 0, 0, 6)
+        layout.setSpacing(0)
+
+        # 1px separator under the title bar.
+        separator = QFrame()
+        separator.setObjectName("aiChatTitleSeparator")
+        separator.setFixedHeight(1)
+        separator.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(separator)
 
         # Default visual state — will be refreshed when theme/connection info arrives
         self._set_status_dot(False)
