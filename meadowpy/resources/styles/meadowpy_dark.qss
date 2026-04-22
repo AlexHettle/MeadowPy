@@ -704,13 +704,42 @@ QDockWidget::title {
 
 /* Symbol Outline Panel */
 #SymbolOutline {
-    background: #252526;
-    border-left: 1px solid #3C3C3C;
+    background: #3C3C3C;  /* border-color matte so rounded corners blend */
 }
 
 #SymbolOutline QWidget {
-    background: #252526;
+    background: #1E1E1E;
     color: #CCCCCC;
+}
+
+#outlineTitleBar {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#outlineTitleLabel {
+    color: #CCCCCC;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#outlineTitleSeparator {
+    background: #3C3C3C;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#outlineContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #symbolTree {
@@ -747,6 +776,16 @@ QDockWidget::title {
     background: rgba(255, 255, 255, 0.06);
     color: #CCCCCC;
     border-left: 2px solid {{ACCENT}};
+}
+
+#symbolTree::branch:has-children:!has-siblings:closed,
+#symbolTree::branch:closed:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_closed.svg);
+}
+
+#symbolTree::branch:open:has-children:!has-siblings,
+#symbolTree::branch:open:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_open.svg);
 }
 
 /* Problems Panel */

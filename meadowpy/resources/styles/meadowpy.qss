@@ -644,8 +644,42 @@ QRadioButton::indicator:checked {
 
 /* Symbol Outline Panel */
 #SymbolOutline {
-    background: #F8F9FA;
-    border-left: 1px solid #DEE2E6;
+    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+}
+
+#SymbolOutline QWidget {
+    background: #FFFFFF;
+    color: #1F2937;
+}
+
+#outlineTitleBar {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#outlineTitleLabel {
+    color: #1F2937;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#outlineTitleSeparator {
+    background: #E5E7EB;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#outlineContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #symbolTree {
@@ -681,6 +715,16 @@ QRadioButton::indicator:checked {
     background: rgba(0, 0, 0, 0.05);
     color: #333333;
     border-left: 2px solid {{ACCENT}};
+}
+
+#symbolTree::branch:has-children:!has-siblings:closed,
+#symbolTree::branch:closed:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_closed_light.svg);
+}
+
+#symbolTree::branch:open:has-children:!has-siblings,
+#symbolTree::branch:open:has-children:has-siblings {
+    image: url({{ICONS_DIR}}/branch_open_light.svg);
 }
 
 /* Problems Panel */

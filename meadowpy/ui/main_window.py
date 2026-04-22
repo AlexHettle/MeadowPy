@@ -118,17 +118,18 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._tab_manager)
 
     def _apply_explorer_icon_theme(self) -> None:
-        """Push the current accent + base to the file explorer's icon provider."""
-        if not hasattr(self, "_file_explorer"):
-            return
+        """Push the current accent + base to the file explorer's icon
+        provider, and keep the symbol outline's glyph color in sync."""
         theme = self._settings.get("editor.theme")
         custom_base = self._settings.get("editor.custom_theme.base")
         accent = current_accent_hex(
             theme, custom_base, self._settings.get("editor.custom_theme.accent")
         )
-        self._file_explorer.apply_icon_theme(
-            accent, theme_is_dark(theme, custom_base)
-        )
+        is_dark = theme_is_dark(theme, custom_base)
+        if hasattr(self, "_file_explorer"):
+            self._file_explorer.apply_icon_theme(accent, is_dark)
+        if hasattr(self, "_symbol_outline"):
+            self._symbol_outline.apply_icon_theme(accent, is_dark)
 
     def _create_file_explorer(self) -> None:
         """Create the file explorer dock widget on the left side."""
@@ -165,6 +166,9 @@ class MainWindow(QMainWindow):
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self._symbol_outline
         )
+        # Push the current accent color so class/function glyphs are
+        # tinted immediately on startup (not just after a theme change).
+        self._apply_explorer_icon_theme()
         if not self._settings.get("editor.show_symbol_outline"):
             self._symbol_outline.hide()
         self._symbol_outline.navigate_to_line.connect(self._on_outline_navigate)
