@@ -818,13 +818,42 @@ QDockWidget::title {
 /* ===== Search Panel ===== */
 
 #SearchPanel {
-    background: #252526;
-    border-top: 1px solid #3C3C3C;
+    background: #3C3C3C;  /* border-color matte so rounded corners blend */
 }
 
 #SearchPanel QWidget {
-    background: #252526;
+    background: #1E1E1E;
     color: #CCCCCC;
+}
+
+#searchTitleBar {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#searchTitleLabel {
+    color: #CCCCCC;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#searchTitleSeparator {
+    background: #3C3C3C;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#searchContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 #SearchPanel QLineEdit {
@@ -837,6 +866,41 @@ QDockWidget::title {
 
 #SearchPanel QLineEdit:focus {
     border-color: {{ACCENT}};
+}
+
+/* Match the Output panel's input styling — higher specificity
+   (#SearchPanel prefix) so it wins over the generic QLineEdit rule. */
+#SearchPanel #searchInput {
+    background: #1E1E1E;
+    color: #CCCCCC;
+    border: 1px solid #555555;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+#SearchPanel #searchInput:focus {
+    border-color: {{ACCENT}};
+}
+
+/* Accent-filled action button, matching the Output panel's Run button */
+#SearchPanel #searchRunBtn {
+    background: {{ACCENT}};
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 14px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+#SearchPanel #searchRunBtn:hover {
+    background: {{ACCENT_HOVER}};
+}
+
+#SearchPanel #searchRunBtn:disabled {
+    background: #555555;
+    color: #888888;
 }
 
 #SearchPanel QPushButton {
@@ -858,6 +922,25 @@ QDockWidget::title {
 #SearchPanel QCheckBox {
     color: #CCCCCC;
     spacing: 4px;
+    padding: 0;
+}
+
+#SearchPanel QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    background: #1E1E1E;  /* match the darkened input interior */
+    subcontrol-position: center left;
+}
+
+#SearchPanel QCheckBox::indicator:hover {
+    border-color: #777777;
+}
+
+#SearchPanel QCheckBox::indicator:checked {
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
 }
 
 #searchStatusLabel {

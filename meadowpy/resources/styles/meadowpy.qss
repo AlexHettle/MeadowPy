@@ -1192,6 +1192,103 @@ QRadioButton::indicator:checked {
 
 /* ===== Search Panel ===== */
 
+#SearchPanel {
+    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+}
+
+#SearchPanel QWidget {
+    background: #FFFFFF;
+    color: #1F2937;
+}
+
+#searchTitleBar {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#searchTitleLabel {
+    color: #1F2937;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#searchTitleSeparator {
+    background: #E5E7EB;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+#searchContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+/* Match the Output panel's input styling — higher specificity
+   (#SearchPanel prefix) so it wins over the generic QLineEdit rule. */
+#SearchPanel #searchInput {
+    background: #FFFFFF;
+    color: #212529;
+    border: 1px solid #CED4DA;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+#SearchPanel #searchInput:focus {
+    border-color: {{ACCENT}};
+}
+
+/* Accent-filled action button, matching the Output panel's Run button */
+#SearchPanel #searchRunBtn {
+    background: {{ACCENT}};
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 14px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+#SearchPanel #searchRunBtn:hover {
+    background: {{ACCENT_HOVER}};
+}
+
+#SearchPanel #searchRunBtn:disabled {
+    background: #ADB5BD;
+}
+
+#SearchPanel QCheckBox {
+    color: #1F2937;
+    spacing: 4px;
+    padding: 0;
+}
+
+#SearchPanel QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid #CED4DA;
+    border-radius: 4px;
+    background: #FFFFFF;  /* match the input interior */
+    subcontrol-position: center left;
+}
+
+#SearchPanel QCheckBox::indicator:hover {
+    border-color: #9CA3AF;
+}
+
+#SearchPanel QCheckBox::indicator:checked {
+    background: {{ACCENT}};
+    border-color: {{ACCENT_HOVER}};
+}
+
 #SearchPanel QPushButton {
     background: #F0F0F0;
     color: #333333;

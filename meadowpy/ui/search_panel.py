@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDockWidget,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -162,34 +163,80 @@ class SearchPanel(QDockWidget):
         self._setup_ui()
 
     def _setup_ui(self) -> None:
-        container = QWidget()
+        # -- custom dock title bar -------------------------------------
+        # Mirrors File Explorer / Output / AI Chat: a QFrame title bar
+        # installed as the dock's title widget, with rounded top corners
+        # and border-top/left/right. Content lives in a QFrame container
+        # below with matching bottom styling.
+        title_bar = QFrame()
+        title_bar.setObjectName("searchTitleBar")
+        title_bar.setFrameShape(QFrame.Shape.NoFrame)
+        title_bar.setFixedHeight(40)
+        title_layout = QHBoxLayout(title_bar)
+        title_layout.setContentsMargins(10, 2, 6, 8)
+        title_layout.setSpacing(6)
+
+        title_label = QLabel("Search")
+        title_label.setObjectName("searchTitleLabel")
+        title_layout.addWidget(title_label)
+        title_layout.addStretch()
+
+        self.setTitleBarWidget(title_bar)
+        self._title_bar = title_bar
+
+        # -- main container (rounded bottom corners, border l/r/bottom) -
+        container = QFrame()
+        container.setObjectName("searchContainer")
+        container.setFrameShape(QFrame.Shape.NoFrame)
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
+        # Bottom padding so the tree's square corners don't cover the
+        # container's rounded bottom corners.
+        layout.setContentsMargins(4, 0, 4, 6)
         layout.setSpacing(4)
 
+        # 1px separator under the title bar.
+        separator = QFrame()
+        separator.setObjectName("searchTitleSeparator")
+        separator.setFixedHeight(1)
+        separator.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(separator)
+
+        # Top padding for the controls row (the outer layout has 0 top).
+        controls_top_spacer = QWidget()
+        controls_top_spacer.setFixedHeight(4)
+        layout.addWidget(controls_top_spacer)
+
         # -- Search controls row --
+        # Styled to mirror the Output panel's input row: matching
+        # fixed heights, rounded corners, accent-colored action button.
         controls = QHBoxLayout()
+        controls.setContentsMargins(4, 0, 4, 0)
         controls.setSpacing(6)
+        controls.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self._search_input = QLineEdit()
+        self._search_input.setObjectName("searchInput")
         self._search_input.setPlaceholderText("Search in files…")
         self._search_input.setToolTip("Type text to search across all files in the open folder")
         self._search_input.setClearButtonEnabled(True)
-        self._search_input.setMinimumHeight(28)
+        self._search_input.setFixedHeight(28)
         self._search_input.returnPressed.connect(self._start_search)
         controls.addWidget(self._search_input, 1)
 
         self._case_cb = QCheckBox("Aa")
         self._case_cb.setToolTip("Match Case")
-        controls.addWidget(self._case_cb)
+        self._case_cb.setFixedHeight(28)
+        controls.addWidget(self._case_cb, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._regex_cb = QCheckBox(".*")
         self._regex_cb.setToolTip("Use Regular Expression")
-        controls.addWidget(self._regex_cb)
+        self._regex_cb.setFixedHeight(28)
+        controls.addWidget(self._regex_cb, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._search_btn = QPushButton("Search")
+        self._search_btn.setObjectName("searchRunBtn")
         self._search_btn.setToolTip("Search all files in the open folder (Enter)")
-        self._search_btn.setMinimumHeight(28)
+        self._search_btn.setFixedHeight(28)
         self._search_btn.clicked.connect(self._start_search)
         controls.addWidget(self._search_btn)
 
