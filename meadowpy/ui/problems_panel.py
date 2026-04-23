@@ -72,13 +72,6 @@ class ProblemsPanel(QDockWidget):
         layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
 
-        # 1px separator under the title bar.
-        separator = QFrame()
-        separator.setObjectName("problemsTitleSeparator")
-        separator.setFixedHeight(1)
-        separator.setFrameShape(QFrame.Shape.NoFrame)
-        layout.addWidget(separator)
-
         # Table
         self._table = QTableWidget()
         self._table.setObjectName("problemsTable")

@@ -174,14 +174,6 @@ class FileExplorerPanel(QDockWidget):
         layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
 
-        # 1px separator under the title bar (plain widget borders don't
-        # render reliably in QSS, so we use a dedicated thin widget).
-        separator = QFrame()
-        separator.setObjectName("explorerTitleSeparator")
-        separator.setFixedHeight(1)
-        separator.setFrameShape(QFrame.Shape.NoFrame)
-        layout.addWidget(separator)
-
         # -- folder info row (folder name + PROJECT badge) --------------
         folder_row = QWidget()
         folder_row.setObjectName("explorerFolderRow")

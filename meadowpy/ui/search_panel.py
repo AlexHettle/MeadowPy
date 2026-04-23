@@ -194,13 +194,6 @@ class SearchPanel(QDockWidget):
         layout.setContentsMargins(4, 0, 4, 6)
         layout.setSpacing(4)
 
-        # 1px separator under the title bar.
-        separator = QFrame()
-        separator.setObjectName("searchTitleSeparator")
-        separator.setFixedHeight(1)
-        separator.setFrameShape(QFrame.Shape.NoFrame)
-        layout.addWidget(separator)
-
         # Top padding for the controls row (the outer layout has 0 top).
         controls_top_spacer = QWidget()
         controls_top_spacer.setFixedHeight(4)

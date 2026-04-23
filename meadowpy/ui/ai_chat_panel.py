@@ -347,13 +347,6 @@ class AIChatPanel(QDockWidget):
         layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
 
-        # 1px separator under the title bar.
-        separator = QFrame()
-        separator.setObjectName("aiChatTitleSeparator")
-        separator.setFixedHeight(1)
-        separator.setFrameShape(QFrame.Shape.NoFrame)
-        layout.addWidget(separator)
-
         # Default visual state — will be refreshed when theme/connection info arrives
         self._set_status_dot(False)
         self._refresh_brand_icon()

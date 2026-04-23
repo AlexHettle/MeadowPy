@@ -259,13 +259,6 @@ class OutputPanel(QDockWidget):
         layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
 
-        # 1px separator under the title bar.
-        separator = QFrame()
-        separator.setObjectName("outputTitleSeparator")
-        separator.setFixedHeight(1)
-        separator.setFrameShape(QFrame.Shape.NoFrame)
-        layout.addWidget(separator)
-
         # --- Output text area ---
         self._output_text = QPlainTextEdit()
         self._output_text.setObjectName("outputText")

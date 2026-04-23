@@ -178,13 +178,6 @@ class SymbolOutlinePanel(QDockWidget):
         layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(0)
 
-        # 1px separator under the title bar.
-        separator = QFrame()
-        separator.setObjectName("outlineTitleSeparator")
-        separator.setFixedHeight(1)
-        separator.setFrameShape(QFrame.Shape.NoFrame)
-        layout.addWidget(separator)
-
         self._tree = QTreeWidget()
         self._tree.setHeaderHidden(True)
         self._tree.setIndentation(16)

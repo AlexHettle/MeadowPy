@@ -303,7 +303,6 @@ QScrollBar::sub-page:horizontal {
 #explorerContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -677,7 +676,6 @@ QRadioButton::indicator:checked {
 #outlineContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -762,7 +760,6 @@ QRadioButton::indicator:checked {
 #problemsContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -805,7 +802,6 @@ QRadioButton::indicator:checked {
 #problemsTable QHeaderView::section {
     background: #FFFFFF;
     border: none;
-    border-top: 1px solid #E5E7EB;
     border-bottom: 1px solid #E5E7EB;
     padding: 4px 8px;
     font-size: 11px;
@@ -957,7 +953,6 @@ QRadioButton::indicator:checked {
 #outputContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -1300,7 +1295,6 @@ QRadioButton::indicator:checked {
 #searchContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -1613,7 +1607,6 @@ QRadioButton::indicator:checked {
 #aiChatContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }

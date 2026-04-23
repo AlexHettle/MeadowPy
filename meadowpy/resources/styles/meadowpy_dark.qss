@@ -570,7 +570,6 @@ QMessageBox QPushButton:hover {
 #explorerContainer {
     background: #1E1E1E;
     border: 1px solid #3C3C3C;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -737,7 +736,6 @@ QDockWidget::title {
 #outlineContainer {
     background: #1E1E1E;
     border: 1px solid #3C3C3C;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -823,7 +821,6 @@ QDockWidget::title {
 #problemsContainer {
     background: #1E1E1E;
     border: 1px solid #3C3C3C;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -868,7 +865,6 @@ QDockWidget::title {
     background: #1E1E1E;
     color: #CCCCCC;
     border: none;
-    border-top: 1px solid #3C3C3C;
     border-bottom: 1px solid #3C3C3C;
     padding: 4px 8px;
     font-size: 11px;
@@ -911,7 +907,6 @@ QDockWidget::title {
 #searchContainer {
     background: #1E1E1E;
     border: 1px solid #3C3C3C;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -1234,7 +1229,6 @@ QDockWidget::title {
 #outputContainer {
     background: #1E1E1E;
     border: 1px solid #3C3C3C;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -1738,7 +1732,6 @@ QDockWidget::title {
 #aiChatContainer {
     background: #1E1E1E;
     border: 1px solid #3C3C3C;
-    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
