@@ -179,6 +179,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | Improved app setup & first-run experience          | ✅ Completed    |
 | More starter project templates                     | ✅ Completed    |
 | Custom theming options                             | ✅ Completed    |
+| Comment / uncomment toggle (Ctrl+/)                | ✅ Completed    |
 | macOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
@@ -191,7 +192,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Git basics panel                                   | 📋 Planned     |
 | Claude API integration                             | 📋 Planned     |
 | Enhanced AI features/capabilities                  | 📋 Planned     |
-| Comment / uncomment toggle (Ctrl+/)                | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
 | Snippet / template expansion (e.g. `for`+Tab)      | 📋 Planned     |
 | Clickable tracebacks in output panel               | 📋 Planned     |
