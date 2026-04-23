@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import pyqtSignal, Qt, QEvent
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QKeySequence
 from PyQt6.QtWidgets import QToolTip
 from PyQt6.Qsci import QsciScintilla
 
@@ -61,6 +61,19 @@ class CodeEditor(QsciScintilla):
         EditorConfigurator.apply(self, settings)
         self._connect_signals()
 
+        # QScintilla reserves Ctrl+/ for one of its own built-in commands
+        # (a word-select variant that moves the caret slightly backwards).
+        # Clear the built-in mapping so our ``keyPressEvent`` override,
+        # which maps Ctrl+/ to ``toggle_comment``, actually wins.
+        # Scintilla's SCI_CLEARCMDKEY expects a single int encoded as
+        # ``keyCode | (modifiers << 16)`` using its own SCMOD_* flags:
+        # SHIFT=1, CTRL=2, ALT=4.
+        _SCMOD_CTRL = 2
+        self.SendScintilla(
+            QsciScintilla.SCI_CLEARCMDKEY,
+            ord("/") | (_SCMOD_CTRL << 16),
+        )
+
     def _connect_signals(self) -> None:
         self.modificationChanged.connect(self._on_modification_changed)
         self.linesChanged.connect(self._update_margin_width)
@@ -90,6 +103,108 @@ class CodeEditor(QsciScintilla):
         self._settings = settings
         EditorConfigurator.apply(self, settings)
 
+    # ── Comment / Uncomment ──────────────────────────────────────────
+
+    def _selection_is_commented(self) -> bool:
+        """Return True if every non-blank line in the current range is
+        already commented at the common minimum indent.
+
+        Used to pick the right context-menu label
+        (``Comment`` vs ``Uncomment``).
+        """
+        if self.hasSelectedText():
+            line_from, _, line_to, index_to = self.getSelection()
+            if index_to == 0 and line_to > line_from:
+                line_to -= 1
+        else:
+            line_from, _ = self.getCursorPosition()
+            line_to = line_from
+
+        texts = []
+        for i in range(line_from, line_to + 1):
+            raw = self.text(i).rstrip("\r\n")
+            if raw.strip():
+                texts.append(raw)
+        if not texts:
+            return False
+        min_indent = min(len(t) - len(t.lstrip()) for t in texts)
+        return all(t[min_indent:min_indent + 1] == "#" for t in texts)
+
+    def toggle_comment(self) -> None:
+        """Toggle a Python ``#`` comment on the selected lines.
+
+        If no text is selected, operates on the line containing the
+        cursor. If every non-blank line in the range is already commented
+        (a ``#`` at the common minimum indent), the comment markers are
+        removed; otherwise ``# `` is inserted at that indent.
+        """
+        # Determine the line range to operate on.
+        if self.hasSelectedText():
+            line_from, _, line_to, index_to = self.getSelection()
+            # A selection that ends at column 0 of the next line shouldn't
+            # include that trailing empty line.
+            if index_to == 0 and line_to > line_from:
+                line_to -= 1
+        else:
+            line_from, _ = self.getCursorPosition()
+            line_to = line_from
+
+        # Capture each line's text plus its original line terminator.
+        lines: list[tuple[str, str]] = []
+        for i in range(line_from, line_to + 1):
+            raw = self.text(i)
+            if raw.endswith("\r\n"):
+                lines.append((raw[:-2], "\r\n"))
+            elif raw.endswith("\n") or raw.endswith("\r"):
+                lines.append((raw[:-1], raw[-1]))
+            else:
+                lines.append((raw, ""))
+
+        nonblank = [t for t, _ in lines if t.strip()]
+        if not nonblank:
+            return
+
+        # Common minimum indent across non-blank lines — where ``#`` goes.
+        min_indent = min(len(t) - len(t.lstrip()) for t in nonblank)
+        all_commented = all(
+            t[min_indent:min_indent + 1] == "#" for t in nonblank
+        )
+
+        new_lines: list[str] = []
+        for text, eol in lines:
+            if not text.strip():
+                new_lines.append(text + eol)
+                continue
+            if all_commented:
+                pre = text[:min_indent]
+                post = text[min_indent:]
+                if post.startswith("# "):
+                    post = post[2:]
+                elif post.startswith("#"):
+                    post = post[1:]
+                new_lines.append(pre + post + eol)
+            else:
+                new_lines.append(
+                    text[:min_indent] + "# " + text[min_indent:] + eol
+                )
+
+        new_text = "".join(new_lines)
+
+        # Replace the full line range as a single undoable edit.
+        last_line_text, _ = lines[-1]
+        self.beginUndoAction()
+        try:
+            self.setSelection(line_from, 0, line_to, len(last_line_text))
+            self.replaceSelectedText(new_text)
+        finally:
+            self.endUndoAction()
+
+        # Restore a line-range selection on the transformed block so the
+        # user can repeat Ctrl+/ to undo/flip it.
+        # Recompute the last line's length post-edit.
+        new_last_len = len(self.text(line_to).rstrip("\r\n"))
+        self.setSelection(line_from, 0, line_to, new_last_len)
+
     def _on_modification_changed(self, modified: bool) -> None:
         self.modification_changed.emit(modified)
 
@@ -97,6 +212,14 @@ class CodeEditor(QsciScintilla):
 
     def keyPressEvent(self, event) -> None:
         """Override to handle smart indent and auto-close."""
+        # Ctrl+/ → toggle comment (intercept before Scintilla / super)
+        if (
+            event.key() == Qt.Key.Key_Slash
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
+            self.toggle_comment()
+            return
+
         # Smart indent on Enter
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             if self._smart_indent.handle_return():
@@ -203,6 +326,19 @@ class CodeEditor(QsciScintilla):
             word = self.wordAtLineIndex(
                 *self.lineIndexFromPosition(pos)
             )
+
+        # Comment / Uncomment toggle (always available)
+        menu.addSeparator()
+        toggle_label = (
+            "Uncomment Selection" if self._selection_is_commented()
+            else "Comment Selection"
+        )
+        if not self.hasSelectedText():
+            # Match VS Code / Sublime wording when there's no selection
+            toggle_label = toggle_label.replace("Selection", "Line")
+        toggle_action = menu.addAction(toggle_label)
+        toggle_action.setShortcut(QKeySequence("Ctrl+/"))
+        toggle_action.triggered.connect(self.toggle_comment)
 
         if word:
             from meadowpy.resources.keyword_help import KEYWORD_HELP
