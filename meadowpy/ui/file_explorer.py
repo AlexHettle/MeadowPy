@@ -355,11 +355,19 @@ class FileExplorerPanel(QDockWidget):
 
     def collapse_all(self) -> None:
         """Collapse every expanded node."""
-        self._tree.collapseAll()
-        # Scroll back to top after collapsing
-        root = self._tree.rootIndex()
-        if root.isValid():
-            self._tree.scrollTo(root)
+        # Disable animation around collapseAll: with QFileSystemModel's async
+        # directory loads in flight, animated collapse of a deep tree can
+        # crash (visualRect calculations against indexes that vanish mid-anim).
+        was_animated = self._tree.isAnimated()
+        self._tree.setAnimated(False)
+        self._suppress_expand_handler = True
+        try:
+            self._tree.collapseAll()
+        finally:
+            self._suppress_expand_handler = False
+            self._tree.setAnimated(was_animated)
+        # scrollToTop is safe; scrollTo(rootIndex) is not — the root has no row.
+        self._tree.scrollToTop()
 
     def refresh(self) -> None:
         """Force the file-system model to re-read the root directory."""
