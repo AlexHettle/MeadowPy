@@ -41,7 +41,7 @@ QTabBar::tear {
     image: none;
 }
 
-QTabBar QToolButton {
+QTabBar > QToolButton {
     background: #181818;
     border: none;
     width: 0px;
@@ -50,11 +50,11 @@ QTabBar QToolButton {
     margin: 0px;
 }
 
-QTabBar QToolButton::left-arrow {
+QTabBar > QToolButton::left-arrow {
     image: none;
 }
 
-QTabBar QToolButton::right-arrow {
+QTabBar > QToolButton::right-arrow {
     image: none;
 }
 
@@ -64,7 +64,7 @@ QTabBar::tab {
     border-bottom: none;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
-    padding: 6px 14px;
+    padding: 4px 14px 8px 14px;
     min-width: 80px;
     color: #858585;
     font-size: 13px;
@@ -77,8 +77,7 @@ QTabBar::tab:hover:!selected {
 }
 
 QTabBar::tab:selected {
-    background: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1,
-        stop:0 {{ACCENT}}, stop:0.45 #1E1E1E, stop:1 #1E1E1E);
+    background: #1E1E1E;
     border: 1px solid #3C3C3C;
     border-bottom: none;
     border-top: 2px solid {{ACCENT}};

@@ -2,18 +2,78 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer, QSize
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer, QSize, QPoint
 from PyQt6.QtGui import QColor, QPainter
-from PyQt6.QtWidgets import QTabWidget, QTabBar, QMessageBox, QToolButton
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QMessageBox,
+    QTabBar,
+    QTabWidget,
+    QToolButton,
+    QWidget,
+)
 
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
-from meadowpy.resources.resource_loader import theme_is_dark
+from meadowpy.resources.resource_loader import current_accent_hex, theme_is_dark
 from meadowpy.ui.welcome_widget import WelcomeWidget
 
 
-class _GradientTabBar(QTabBar):
-    """Editor tab bar with a thin scroll indicator when tabs overflow."""
+class _ModifiedDot(QWidget):
+    """Small accent-colored circle shown on modified tabs."""
+
+    _RADIUS = 4
+
+    def __init__(self, color_provider, parent=None):
+        super().__init__(parent)
+        self._color_provider = color_provider
+        size = self._RADIUS * 2 + 2
+        self.setFixedSize(size, size)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def refresh_color(self) -> None:
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(self._color_provider()))
+        cx = self.width() // 2
+        cy = self.height() // 2
+        painter.drawEllipse(QPoint(cx, cy), self._RADIUS, self._RADIUS)
+        painter.end()
+
+
+class _TabRightWidget(QWidget):
+    """Right-side tab widget: optional modified dot + close button."""
+
+    def __init__(self, close_btn: QToolButton, dot: _ModifiedDot | None, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 3, 4, 0)
+        layout.setSpacing(6)
+        self._dot = dot
+        if dot is not None:
+            sp = dot.sizePolicy()
+            sp.setRetainSizeWhenHidden(True)
+            dot.setSizePolicy(sp)
+            dot.setVisible(False)
+            layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.close_btn = close_btn
+
+    def set_modified(self, modified: bool) -> None:
+        if self._dot is not None:
+            self._dot.setVisible(modified)
+
+    def refresh_dot_color(self) -> None:
+        if self._dot is not None:
+            self._dot.refresh_color()
+
+
+class _EditorTabBar(QTabBar):
+    """Editor tab bar with an overflow scroll indicator."""
 
     _SCROLLBAR_H = 3  # height of the thin scrollbar
 
@@ -88,8 +148,7 @@ class TabManager(QTabWidget):
         self._settings = settings
         self._untitled_counter = 1
 
-        # Use custom tab bar for gradient top border
-        self.setTabBar(_GradientTabBar(settings, self))
+        self.setTabBar(_EditorTabBar(settings, self))
 
         self.setTabsClosable(False)
         self.setMovable(True)
@@ -129,12 +188,19 @@ class TabManager(QTabWidget):
         hover_bg = "rgba(255,255,255,0.12)" if is_dark else "rgba(0,0,0,0.08)"
         return (
             f"QToolButton {{ color: {idle_color}; font-size: 11px; font-weight: normal;"
-            f" background: transparent; border: none; border-radius: 9px; padding: 0; margin: 0 4px 0 2px; }}"
+            f" background: transparent; border: none; border-radius: 9px; padding: 0; margin: 0; }}"
             f" QToolButton:hover {{ background: {hover_bg}; color: {hover_color}; }}"
         )
 
+    def _accent_color(self) -> str:
+        return current_accent_hex(
+            self._settings.get("editor.theme") or "default_dark",
+            self._settings.get("editor.custom_theme.base") or "dark",
+            self._settings.get("editor.custom_theme.accent"),
+        )
+
     def _set_close_button(self, index: int, editor: CodeEditor) -> None:
-        """Add a styled close button that tracks its editor widget."""
+        """Add a styled close button (with modified dot) tied to this editor."""
         is_dark = theme_is_dark(
             self._settings.get("editor.theme"),
             self._settings.get("editor.custom_theme.base"),
@@ -147,9 +213,12 @@ class TabManager(QTabWidget):
         btn.setToolTip("Close Tab")
         btn.setAutoRaise(True)
         btn.setStyleSheet(self._close_btn_stylesheet(is_dark))
-        # Track editor, not index — index shifts when tabs are removed
         btn.clicked.connect(lambda checked=False, ed=editor: self._close_editor_tab(ed))
-        self.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, btn)
+
+        dot = _ModifiedDot(self._accent_color)
+        side = _TabRightWidget(btn, dot)
+        side.set_modified(editor.is_modified)
+        self.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, side)
 
     def _close_editor_tab(self, editor: CodeEditor) -> None:
         """Close the tab containing this editor (deferred to next event loop)."""
@@ -239,11 +308,14 @@ class TabManager(QTabWidget):
             self.setTabText(index, editor.display_name)
 
     def _update_modified_indicator(self, editor: CodeEditor, modified: bool) -> None:
-        """Show/hide the '*' modified indicator on the tab."""
+        """Show/hide the dot on this editor's tab."""
         index = self.indexOf(editor)
-        if index >= 0:
-            name = editor.display_name
-            self.setTabText(index, f"* {name}" if modified else name)
+        if index < 0:
+            return
+        self.setTabText(index, editor.display_name)
+        side = self.tabBar().tabButton(index, QTabBar.ButtonPosition.RightSide)
+        if isinstance(side, _TabRightWidget):
+            side.set_modified(modified)
 
     def update_theme(self) -> None:
         """Called when the theme changes to refresh close button colors."""
@@ -254,9 +326,12 @@ class TabManager(QTabWidget):
         qss = self._close_btn_stylesheet(is_dark)
         bar = self.tabBar()
         for i in range(self.count()):
-            btn = bar.tabButton(i, QTabBar.ButtonPosition.RightSide)
-            if isinstance(btn, QToolButton):
-                btn.setStyleSheet(qss)
+            side = bar.tabButton(i, QTabBar.ButtonPosition.RightSide)
+            if isinstance(side, _TabRightWidget):
+                side.close_btn.setStyleSheet(qss)
+                side.refresh_dot_color()
+            elif isinstance(side, QToolButton):
+                side.setStyleSheet(qss)
 
     def _on_tab_changed(self, index: int) -> None:
         editor = self.widget(index) if index >= 0 else None
@@ -301,4 +376,5 @@ class TabManager(QTabWidget):
         btn.setAutoRaise(True)
         btn.setStyleSheet(self._close_btn_stylesheet(is_dark))
         btn.clicked.connect(lambda: QTimer.singleShot(0, self.close_welcome_tab))
-        self.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, btn)
+        side = _TabRightWidget(btn, None)
+        self.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, side)
