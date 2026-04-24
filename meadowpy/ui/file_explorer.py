@@ -405,14 +405,15 @@ class FileExplorerPanel(QDockWidget):
         self._apply_badge_style(accent, is_dark)
 
     def _apply_badge_style(self, accent: str, is_dark: bool) -> None:
+        # Neutral fill + text so the badge reads as a chip; accent only
+        # appears as the border for a subtle theme accent.
         if is_dark:
-            bg = darken_color(accent, 0.30)
-            text = lighten_color(accent, 0.25, 1.0)
-            border = darken_color(accent, 0.10)
+            bg = "#2A2A2A"
+            text = "#C8C8C8"
         else:
-            bg = lighten_color(accent, 0.42, 0.75)
-            text = darken_color(accent, 0.08)
-            border = lighten_color(accent, 0.20, 0.85)
+            bg = "#F0F0F0"
+            text = "#6B6B6B"
+        border = accent
         self._project_badge.setStyleSheet(
             "#explorerProjectBadge {"
             f" color: {text};"
