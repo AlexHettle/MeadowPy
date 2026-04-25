@@ -103,6 +103,7 @@ class MeadowPyApp:
         self._load_app_font()
 
         # Set app icon (prefer .ico on Windows for taskbar/title bar)
+        self._app_icon: QIcon | None = None
         self._set_app_icon()
 
         # Initialize core systems
@@ -126,6 +127,10 @@ class MeadowPyApp:
         self._window = MainWindow(
             self._settings, self._file_manager, self._recent_files
         )
+        # Also set the icon on the window itself — on Windows the taskbar
+        # entry sometimes uses the per-window icon rather than QApplication's.
+        if self._app_icon is not None:
+            self._window.setWindowIcon(self._app_icon)
 
         # Clip menus to rounded bottom corners at the OS window level
         self._menu_filter = _MenuRoundedMaskFilter(self._qapp)
@@ -149,33 +154,55 @@ class MeadowPyApp:
     def _set_app_icon(self) -> None:
         """Set the application window icon.
 
-        Uses the .ico file on Windows (better taskbar rendering with
-        multiple embedded sizes) and falls back to SVG otherwise.
+        Builds a multi-size QIcon from every available source so Windows can
+        pick the best match for the taskbar, alt-tab, and title bar.
         """
         import sys
         from pathlib import Path
+        from PyQt6.QtGui import QPixmap
+
+        # Set Windows AppUserModelID FIRST so the taskbar associates the
+        # window with our icon instead of the python.exe icon.
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                    "meadowpy.ide.meadowpy"
+                )
+            except Exception:
+                pass
 
         icons_dir = Path(__file__).parent / "resources" / "icons"
+        icon = QIcon()
 
-        # On Windows, prefer .ico for crisp taskbar / title-bar rendering
-        if sys.platform == "win32":
-            ico_path = icons_dir / "meadowpy.ico"
-            if ico_path.exists():
-                self._qapp.setWindowIcon(QIcon(str(ico_path)))
-                # Set Windows AppUserModelID so the taskbar groups correctly
-                try:
-                    import ctypes
-                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                        "meadowpy.ide.meadowpy"
-                    )
-                except Exception:
-                    pass
-                return
+        # Add the .ico (carries multiple embedded sizes — best for Windows)
+        ico_path = icons_dir / "meadowpy.ico"
+        if ico_path.exists():
+            icon.addFile(str(ico_path))
 
-        # Fallback: SVG / PNG via resource_loader
-        icon_path = get_icon_path("meadowpy")
-        if icon_path:
-            self._qapp.setWindowIcon(QIcon(icon_path))
+        # Add the high-res PNG and explicitly register common sizes so Qt
+        # always has a crisp source to scale from.
+        png_path = icons_dir / "meadowpy_256.png"
+        if png_path.exists():
+            base = QPixmap(str(png_path))
+            for size in (16, 24, 32, 48, 64, 128, 256):
+                icon.addPixmap(base.scaled(
+                    size, size,
+                    aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio,
+                    transformMode=Qt.TransformationMode.SmoothTransformation,
+                ))
+
+        # Fallback to SVG resource if neither file existed
+        if icon.isNull():
+            svg_path = get_icon_path("meadowpy")
+            if svg_path:
+                icon = QIcon(svg_path)
+
+        if not icon.isNull():
+            self._app_icon = icon
+            self._qapp.setWindowIcon(icon)
+        else:
+            self._app_icon = None
 
     def _load_app_font(self) -> None:
         """Set Segoe UI as the application default UI font."""
