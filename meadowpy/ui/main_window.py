@@ -159,6 +159,9 @@ class MainWindow(QMainWindow):
         self._file_explorer.file_deleted.connect(
             self._on_explorer_file_deleted
         )
+        self._file_explorer.change_folder_requested.connect(
+            self.action_open_folder
+        )
 
     def _create_symbol_outline(self) -> None:
         """Create the symbol outline dock widget on the right side."""

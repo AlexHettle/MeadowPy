@@ -72,6 +72,22 @@ class _ExplorerIconProvider(QFileIconProvider):
         return self._file_generic
 
 
+class _ClickableLabel(QLabel):
+    """QLabel that emits ``clicked`` on left-mouse release."""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.pos()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+
 class _NoFocusDelegate(QStyledItemDelegate):
     """Suppresses the dotted focus rectangle on items."""
 
@@ -107,6 +123,7 @@ class FileExplorerPanel(QDockWidget):
     file_renamed = pyqtSignal(str, str)  # (old_path, new_path)
     file_deleted = pyqtSignal(str)       # deleted path
     file_created = pyqtSignal(str)       # new file path (open in editor)
+    change_folder_requested = pyqtSignal()  # user clicked the project badge
 
     def __init__(self, parent=None):
         super().__init__("Explorer", parent)
@@ -184,9 +201,10 @@ class FileExplorerPanel(QDockWidget):
 
         f_layout.addStretch()
 
-        self._project_badge = QLabel("")
+        self._project_badge = _ClickableLabel("")
         self._project_badge.setObjectName("explorerProjectBadge")
         self._project_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._project_badge.clicked.connect(self.change_folder_requested.emit)
         f_layout.addWidget(self._project_badge)
 
         layout.addWidget(folder_row)
@@ -346,7 +364,7 @@ class FileExplorerPanel(QDockWidget):
         # Update pill badge
         folder_name = Path(folder_path).name
         self._project_badge.setText(folder_name.upper())
-        self._project_badge.setToolTip(folder_path)
+        self._project_badge.setToolTip(f"{folder_path}\n\nClick to switch project folder")
 
         # Switch from empty state to tree
         self._empty_label.hide()
@@ -409,10 +427,14 @@ class FileExplorerPanel(QDockWidget):
         # appears as the border for a subtle theme accent.
         if is_dark:
             bg = "#2A2A2A"
+            hover_bg = "#3A3A3A"
             text = "#C8C8C8"
+            hover_text = "#FFFFFF"
         else:
             bg = "#F0F0F0"
+            hover_bg = "#E0E0E0"
             text = "#6B6B6B"
+            hover_text = "#1F1F1F"
         border = accent
         self._project_badge.setStyleSheet(
             "#explorerProjectBadge {"
@@ -424,6 +446,10 @@ class FileExplorerPanel(QDockWidget):
             " font-size: 10px;"
             " font-weight: bold;"
             " letter-spacing: 0.5px;"
+            "}"
+            "#explorerProjectBadge:hover {"
+            f" color: {hover_text};"
+            f" background: {hover_bg};"
             "}"
         )
 
