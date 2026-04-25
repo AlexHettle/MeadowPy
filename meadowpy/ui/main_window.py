@@ -1716,6 +1716,7 @@ class MainWindow(QMainWindow):
             filename=filename,
             function_name=func_name,
             cursor_line=line,
+            file_text=editor.text(),
         )
 
     # --- Window events ---

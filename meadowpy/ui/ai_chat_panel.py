@@ -277,6 +277,7 @@ class AIChatPanel(QDockWidget):
         self._messages: list[dict] = []
         self._streaming = False
         self._current_assistant_text = ""
+        self._streaming_bubble: "_Bubble | None" = None  # in-place updated bubble
         self._code_blocks: list[str] = []  # extracted code blocks for insert
         self._accent_hex = "#2F7A44"
         self._is_dark_theme = True
@@ -285,6 +286,7 @@ class AIChatPanel(QDockWidget):
         self._context_file: str = ""   # e.g. "calculator.py"
         self._context_func: str = ""   # e.g. "def add(a, b):"
         self._context_line: int = -1   # 0-based cursor line
+        self._context_text: str = ""   # current file contents (truncated)
 
         self._setup_ui()
 
@@ -418,11 +420,14 @@ class AIChatPanel(QDockWidget):
 
     # -- Public API (called by MainWindow) ---------------------------
 
+    _MAX_CONTEXT_CHARS = 8000  # cap so huge files don't blow the context window
+
     def update_editor_context(
         self,
         filename: str = "",
         function_name: str = "",
         cursor_line: int = -1,
+        file_text: str = "",
     ) -> None:
         """Update the current editor context for context-aware AI help.
 
@@ -431,6 +436,15 @@ class AIChatPanel(QDockWidget):
         self._context_file = filename
         self._context_func = function_name
         self._context_line = cursor_line
+        if len(file_text) > self._MAX_CONTEXT_CHARS:
+            half = self._MAX_CONTEXT_CHARS // 2
+            self._context_text = (
+                file_text[:half]
+                + "\n\n... [middle of file omitted to fit context window] ...\n\n"
+                + file_text[-half:]
+            )
+        else:
+            self._context_text = file_text
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt, including editor context when available."""
@@ -448,6 +462,17 @@ class AIChatPanel(QDockWidget):
             parts.append(
                 "\n\nThe user is currently editing "
                 + ", ".join(context_bits) + "."
+            )
+
+        # Include the actual file contents so the model isn't guessing.
+        if self._context_text.strip():
+            fence_lang = ""
+            if self._context_file.endswith(".py"):
+                fence_lang = "python"
+            parts.append(
+                f"\n\nHere are the current contents of {self._context_file or 'the file'} "
+                "(this is the source of truth — do not invent or assume code that isn't shown):\n\n"
+                f"```{fence_lang}\n{self._context_text}\n```"
             )
 
         return "".join(parts)
@@ -492,9 +517,28 @@ class AIChatPanel(QDockWidget):
         )
 
     def append_token(self, token: str) -> None:
-        """Append a single streamed token to the current assistant message."""
+        """Append a single streamed token to the current assistant message.
+
+        Updates the existing streaming bubble in place to avoid rebuilding the
+        entire chat view (and the visual jumpiness that caused) for each token.
+        """
         self._current_assistant_text += token
-        self._render_chat()
+
+        # First token of the response: do a full render to insert the bubble
+        # and capture a reference to it.
+        if self._streaming_bubble is None:
+            self._render_chat()
+            return
+
+        # Subsequent tokens: just rewrite the streaming bubble's contents.
+        content_html = self._format_content_html(
+            self._current_assistant_text, allow_insert=False
+        )
+        content_html += '<span style="opacity: 0.55;"> █</span>'
+        self._streaming_bubble.set_html(content_html)
+
+        if self._chat_view.is_at_bottom(slack=80):
+            QTimer.singleShot(0, self._scroll_to_bottom)
 
     def finish_response(self) -> None:
         """Called when the AI stream completes."""
@@ -506,6 +550,7 @@ class AIChatPanel(QDockWidget):
             })
         self._current_assistant_text = ""
         self._streaming = False
+        self._streaming_bubble = None
         self._input_area.setEnabled(True)
         self._update_send_btn()
         self._update_btn_visibility()
@@ -516,6 +561,7 @@ class AIChatPanel(QDockWidget):
         """Display an error in the chat and re-enable input."""
         self._current_assistant_text = ""
         self._streaming = False
+        self._streaming_bubble = None
         self._input_area.setEnabled(True)
         self._update_send_btn()
         self._update_btn_visibility()
@@ -568,6 +614,7 @@ class AIChatPanel(QDockWidget):
         self._code_blocks.clear()
         self._current_assistant_text = ""
         self._streaming = False
+        self._streaming_bubble = None
         self._chat_view.clear()
         self._input_area.setEnabled(True)
         self._update_send_btn()
@@ -690,6 +737,7 @@ class AIChatPanel(QDockWidget):
         })
 
         self._streaming = False
+        self._streaming_bubble = None
         self._input_area.setEnabled(True)
         self._update_send_btn()
         self._update_btn_visibility()
@@ -759,15 +807,17 @@ class AIChatPanel(QDockWidget):
                     f"<i>{html.escape(msg['content'])}</i>", "aiChatStoppedLabel"
                 )
 
-        # Append the in-progress assistant text (if streaming)
+        # Append the in-progress assistant text (if streaming) and remember
+        # the bubble so append_token can update it in place.
+        self._streaming_bubble = None
         if self._streaming and self._current_assistant_text:
             content_html = self._format_content_html(
                 self._current_assistant_text, allow_insert=False
             )
             content_html += '<span style="opacity: 0.55;"> \u2588</span>'
-            self._chat_view.add_bubble("ai", content_html)
+            self._streaming_bubble = self._chat_view.add_bubble("ai", content_html)
         elif self._streaming:
-            self._chat_view.add_bubble(
+            self._streaming_bubble = self._chat_view.add_bubble(
                 "ai", '<span style="opacity: 0.6;">Thinking\u2026</span>',
             )
 

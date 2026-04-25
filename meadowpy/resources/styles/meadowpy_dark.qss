@@ -1807,7 +1807,7 @@ QDockWidget::title {
 }
 
 #aiChatInputContainer {
-    background: #252525;
+    background: #1E1E1E;
     border-top: 1px solid #3C3C3C;
 }
 

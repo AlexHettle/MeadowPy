@@ -1682,7 +1682,7 @@ QRadioButton::indicator:checked {
 }
 
 #aiChatInputContainer {
-    background: #F8F9FA;
+    background: #FFFFFF;
     border-top: 1px solid #DEE2E6;
 }
 
