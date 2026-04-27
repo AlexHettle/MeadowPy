@@ -187,6 +187,8 @@ MeadowPy is actively developed. Here's what's coming next:
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
 | UI overhaul                       | 🔄 In progress     |
+| High Contrast mode for visually impaired                       | 🔄 In progress     |
+
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
