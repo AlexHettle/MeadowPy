@@ -114,8 +114,20 @@ class MainWindow(QMainWindow):
         )
 
     def _create_tab_manager(self) -> None:
+        from PyQt6.QtWidgets import QFrame, QVBoxLayout
+
         self._tab_manager = TabManager(self._settings, self)
-        self.setCentralWidget(self._tab_manager)
+
+        # Wrap the editor in a styled container so it picks up the same
+        # rounded-bottom-corner border treatment as the surrounding panels.
+        container = QFrame()
+        container.setObjectName("editorContainer")
+        container.setFrameShape(QFrame.Shape.NoFrame)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._tab_manager)
+        self.setCentralWidget(container)
 
     def _apply_explorer_icon_theme(self) -> None:
         """Push the current accent + base to the file explorer's icon

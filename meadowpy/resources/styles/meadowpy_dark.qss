@@ -27,9 +27,28 @@ QTabWidget::pane {
     margin-top: -1px;
 }
 
+#editorContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-radius: 10px;
+}
+
 QTabBar {
     background: #181818;
     qproperty-drawBase: 0;
+}
+
+#editorTabs QTabBar {
+    background: #181818;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+/* Tabified dock-widget tab strips (Problems/Outline, Search/AI Chat, etc.) */
+QMainWindow > QTabBar {
+    background: #181818;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
 }
 
 QTabBar::scroller {
@@ -62,8 +81,8 @@ QTabBar::tab {
     background: transparent;
     border: 1px solid transparent;
     border-bottom: none;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
     padding: 4px 14px 8px 14px;
     min-width: 80px;
     color: #858585;

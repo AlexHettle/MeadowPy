@@ -148,6 +148,7 @@ class TabManager(QTabWidget):
         self._settings = settings
         self._untitled_counter = 1
 
+        self.setObjectName("editorTabs")
         self.setTabBar(_EditorTabBar(settings, self))
 
         self.setTabsClosable(False)
