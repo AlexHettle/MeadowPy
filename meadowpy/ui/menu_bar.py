@@ -227,6 +227,8 @@ class MenuBarBuilder:
         _restart_icon = load_themed_icon("restart", theme_name)
         restart_console = run_menu.addAction(_restart_icon, "Restart Python &Console")
         restart_console.triggered.connect(self._window._on_repl_restart)
+        # Expose so MainWindow._refresh_themed_icons can re-tint on theme switch
+        self._window._restart_console_action = restart_console
 
         run_menu.addSeparator()
 

@@ -295,6 +295,38 @@ class MainWindow(QMainWindow):
         self._stop_action.setToolTip("Stop the running program (Ctrl+F5)")
         self._stop_action.setEnabled(False)
 
+    def _refresh_themed_icons(self) -> None:
+        """Reload every theme-sensitive icon so theme switches take effect.
+
+        Called from the settings-changed handler. Without this, QActions
+        created at startup keep their initial icons forever — switching
+        from High Contrast back to Dark would leave Run/Stop/Debug as the
+        white HC silhouettes instead of restoring the green/red/orange
+        brand colors (and vice-versa).
+        """
+        theme_name = self._settings.get("editor.theme") or ""
+        for attr, icon_name in (
+            ("_run_action", "run"),
+            ("_stop_action", "stop"),
+            ("_debug_action", "debug"),
+            ("_restart_console_action", "restart"),
+        ):
+            action = getattr(self, attr, None)
+            if action is not None:
+                action.setIcon(load_themed_icon(icon_name, theme_name))
+
+        # Output panel's own toolbar buttons (run / stop / restart REPL)
+        op = getattr(self, "_output_panel", None)
+        if op is not None:
+            for attr, icon_name in (
+                ("_run_btn", "run"),
+                ("_stop_btn", "stop"),
+                ("_restart_repl_btn", "restart"),
+            ):
+                btn = getattr(op, attr, None)
+                if btn is not None:
+                    btn.setIcon(load_themed_icon(icon_name, theme_name))
+
     def _make_action(self, icon_or_path, text, shortcut, callback):
         from PyQt6.QtGui import QAction
         if isinstance(icon_or_path, QIcon):
@@ -1374,6 +1406,12 @@ class MainWindow(QMainWindow):
                 self._toolbar_builder.update_accent_color(accent)
             if hasattr(self, "_output_panel"):
                 self._output_panel.update_accent_color(accent)
+
+            # Rebuild icons whose color depends on the theme (Run/Stop/Debug
+            # are white in HC, original brand colors in dark/light/custom).
+            # Without this, icons created at startup persist across theme
+            # switches and you get white icons leaking into non-HC themes.
+            self._refresh_themed_icons()
 
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)
