@@ -17,6 +17,32 @@ A beginner-friendly Python IDE with built-in AI assistance, a step-through debug
 
 ---
 
+## In 30 seconds after setup, you can:
+
+- Run your first Python program
+- Understand errors in plain English
+- Ask questions about your code (with local AI)
+
+No setup headaches. No confusing interface. Just start coding.
+
+---
+
+## How is MeadowPy different?
+
+Most popular tools like VS Code and PyCharm are designed for flexibility and professional workflows. MeadowPy is designed for learning.
+
+| Feature | MeadowPy | VS Code | PyCharm |
+|--------|--------|--------|--------|
+| Beginner-focused UI | ✅ | ❌ (general-purpose) | ❌ (pro-focused) |
+| Setup required | Minimal | Moderate (extensions) | Moderate |
+| Error explanations | Plain English | Raw tracebacks | Raw tracebacks |
+| Built-in learning tools | ✅ | ❌ | ❌ |
+| AI assistant | Local (offline) | Extension-based | Limited / cloud |
+
+If you're just starting out, MeadowPy removes the friction so you can focus on learning Python — not configuring tools.
+
+---
+
 ## Table of Contents
 
 - [Why MeadowPy?](#why-meadowpy)
