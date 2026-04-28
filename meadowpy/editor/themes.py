@@ -79,9 +79,43 @@ DEFAULT_DARK = EditorTheme(
     },
 )
 
+DEFAULT_HIGH_CONTRAST = EditorTheme(
+    name="default_high_contrast",
+    # Pure black + pure white maximises legibility for users with
+    # low-vision / contrast-sensitivity needs (WCAG AAA). Everything
+    # in the editor is monochrome — no syntax color cues — so the
+    # theme is fully usable by people with any form of color blindness.
+    editor_background="#000000",
+    editor_foreground="#FFFFFF",
+    caret_line_background="#2A2A2A",
+    margin_background="#000000",
+    margin_foreground="#FFFFFF",
+    fold_margin_background="#000000",
+    foreground_colors={
+        0: "#FFFFFF",      # Default
+        1: "#FFFFFF",      # Comment
+        2: "#FFFFFF",      # Number
+        3: "#FFFFFF",      # DoubleQuotedString
+        4: "#FFFFFF",      # SingleQuotedString
+        5: "#FFFFFF",      # Keyword
+        6: "#FFFFFF",      # TripleSingleQuotedString
+        7: "#FFFFFF",      # TripleDoubleQuotedString
+        8: "#FFFFFF",      # ClassName
+        9: "#FFFFFF",      # FunctionMethodName
+        10: "#FFFFFF",     # Operator
+        11: "#FFFFFF",     # Identifier
+        12: "#FFFFFF",     # CommentBlock
+        13: "#FFFFFF",     # UnclosedString
+        14: "#FFFFFF",     # HighlightedIdentifier (built-ins)
+        15: "#FFFFFF",     # Decorator
+    },
+)
+
+
 THEMES: dict[str, EditorTheme] = {
     "default_light": DEFAULT_LIGHT,
     "default_dark": DEFAULT_DARK,
+    "default_high_contrast": DEFAULT_HIGH_CONTRAST,
     # "custom" is registered so it appears in the Preferences combo.
     # Its actual editor colors are resolved at runtime via get_theme(),
     # which delegates to DEFAULT_DARK or DEFAULT_LIGHT based on the

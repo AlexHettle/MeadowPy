@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenuBar, QMenu
 
-from meadowpy.resources.resource_loader import get_icon_path
+from meadowpy.resources.resource_loader import get_icon_path, load_themed_icon
 
 
 class MenuBarBuilder:
@@ -223,8 +223,8 @@ class MenuBarBuilder:
 
         run_menu.addSeparator()
 
-        _restart_icon_path = get_icon_path("restart")
-        _restart_icon = QIcon(_restart_icon_path) if _restart_icon_path else QIcon()
+        theme_name = self._window._settings.get("editor.theme") or ""
+        _restart_icon = load_themed_icon("restart", theme_name)
         restart_console = run_menu.addAction(_restart_icon, "Restart Python &Console")
         restart_console.triggered.connect(self._window._on_repl_restart)
 

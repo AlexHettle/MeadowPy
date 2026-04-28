@@ -59,7 +59,10 @@ class EditorConfigurator:
             settings.get("editor.custom_theme.accent"),
         )
         editor.setSelectionBackgroundColor(QColor(accent))
-        editor.setSelectionForegroundColor(QColor("#FFFFFF"))
+        # Selection foreground must contrast with the accent background.
+        # In HC mode the accent is white, so flip the selected text to black.
+        sel_fg = "#000000" if theme_name == "default_high_contrast" else "#FFFFFF"
+        editor.setSelectionForegroundColor(QColor(sel_fg))
 
     @staticmethod
     def _apply_caret(editor: QsciScintilla, settings: Settings) -> None:
@@ -130,6 +133,18 @@ class EditorConfigurator:
         # Set paper for all defined styles to match editor background
         for style_id in theme.foreground_colors:
             lexer.setPaper(QColor(theme.editor_background), style_id)
+
+        # In HC mode the entire editor must be monochrome — but QsciLexerPython
+        # has style IDs beyond what theme.foreground_colors covers (e.g. f-string
+        # styles 16-19), and those keep their default purple/orange tints unless
+        # we force-paint every slot. So in HC, override all 128 possible styles
+        # to the theme's foreground/background.
+        if settings.get("editor.theme") == "default_high_contrast":
+            fg = QColor(theme.editor_foreground)
+            bg = QColor(theme.editor_background)
+            for style_id in range(128):
+                lexer.setColor(fg, style_id)
+                lexer.setPaper(bg, style_id)
 
         editor.setLexer(lexer)
 

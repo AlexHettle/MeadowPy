@@ -4,7 +4,11 @@ from PyQt6.QtCore import QSize, Qt, QEvent, QObject, QPointF
 from PyQt6.QtGui import QBrush, QColor, QIcon, QPainter, QRadialGradient
 from PyQt6.QtWidgets import QApplication, QToolBar
 
-from meadowpy.resources.resource_loader import get_icon_path
+from meadowpy.resources.resource_loader import (
+    get_icon_path,
+    load_themed_icon,
+    theme_is_high_contrast,
+)
 
 
 class ToolbarGlowPainter(QObject):
@@ -175,11 +179,17 @@ class ToolBarBuilder:
         self._window._step_out_action.setToolTip("Step Out (Shift+F11)")
         self._window._step_out_action.setVisible(False)
 
-        # Glow painter — draws radial gradients on the toolbar behind buttons
+        # Glow painter — draws radial gradients on the toolbar behind buttons.
+        # In HC mode collapse all three glows onto pure white so the toolbar
+        # is fully monochromatic (no chroma anywhere).
+        is_hc = theme_is_high_contrast(self._window._settings.get("editor.theme"))
+        run_glow = QColor("#FFFFFF") if is_hc else QColor("#4CAF50")
+        stop_glow = QColor("#FFFFFF") if is_hc else QColor("#E51400")
+        debug_glow = QColor("#FFFFFF") if is_hc else QColor("#FF9800")
         self._glow = ToolbarGlowPainter(toolbar, toolbar)
-        self._glow.add_button(run_btn, QColor("#4CAF50"))    # green
-        self._glow.add_button(stop_btn, QColor("#E51400"))   # red
-        self._glow.add_button(debug_btn, QColor("#FF9800"))  # orange
+        self._glow.add_button(run_btn, run_glow)
+        self._glow.add_button(stop_btn, stop_glow)
+        self._glow.add_button(debug_btn, debug_glow)
         # Remember the run button so its glow can be re-tinted when the
         # user switches to a custom theme with a different accent colour.
         self._run_btn = run_btn
@@ -198,8 +208,10 @@ class ToolBarBuilder:
         action.setToolTip(tooltip)
 
     def _icon(self, name: str) -> QIcon:
-        path = get_icon_path(name)
-        return QIcon(path) if path else QIcon()
+        # Route through the themed loader so colorful SVGs (run/debug/stop/
+        # restart) get rewritten to the HC accent when High Contrast is on.
+        theme_name = self._window._settings.get("editor.theme") or ""
+        return load_themed_icon(name, theme_name)
 
     def _editor_call(self, method: str) -> None:
         editor = self._window._tab_manager.current_editor()

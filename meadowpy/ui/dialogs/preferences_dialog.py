@@ -184,6 +184,7 @@ class PreferencesDialog(QDialog):
         _THEME_DISPLAY = {
             "default_light": "Light Theme",
             "default_dark": "Dark Theme",
+            "default_high_contrast": "High Contrast (Accessibility)",
             "custom": "Custom Theme",
         }
         self._theme_combo = QComboBox()

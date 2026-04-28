@@ -18,6 +18,7 @@ from meadowpy.resources.resource_loader import (
     current_accent_hex,
     get_icon_path,
     get_stylesheet,
+    load_themed_icon,
     run_button_accent_hex,
     theme_is_dark,
 )
@@ -280,22 +281,28 @@ class MainWindow(QMainWindow):
 
     def _create_run_actions(self) -> None:
         """Create shared Run/Stop QActions used by menu, toolbar, and output panel."""
-        run_icon_path = get_icon_path("run")
-        stop_icon_path = get_icon_path("stop")
+        theme_name = self._settings.get("editor.theme") or ""
 
         self._run_action = self._make_action(
-            run_icon_path, "Run File", "F5", self.action_run_file,
+            load_themed_icon("run", theme_name),
+            "Run File", "F5", self.action_run_file,
         )
         self._run_action.setToolTip("Run your Python file (F5)")
         self._stop_action = self._make_action(
-            stop_icon_path, "Stop Process", "Ctrl+F5", self.action_stop_process,
+            load_themed_icon("stop", theme_name),
+            "Stop Process", "Ctrl+F5", self.action_stop_process,
         )
         self._stop_action.setToolTip("Stop the running program (Ctrl+F5)")
         self._stop_action.setEnabled(False)
 
-    def _make_action(self, icon_path, text, shortcut, callback):
+    def _make_action(self, icon_or_path, text, shortcut, callback):
         from PyQt6.QtGui import QAction
-        icon = QIcon(icon_path) if icon_path else QIcon()
+        if isinstance(icon_or_path, QIcon):
+            icon = icon_or_path
+        elif icon_or_path:
+            icon = QIcon(icon_or_path)
+        else:
+            icon = QIcon()
         action = QAction(icon, text, self)
         action.setShortcut(QKeySequence(shortcut))
         action.setToolTip(f"{text} ({shortcut})")
@@ -346,10 +353,10 @@ class MainWindow(QMainWindow):
 
     def _create_debug_actions(self) -> None:
         """Create shared debug QActions used by menu, toolbar, and debug toolbar."""
-        debug_icon_path = get_icon_path("debug")
-
+        theme_name = self._settings.get("editor.theme") or ""
         self._debug_action = self._make_action(
-            debug_icon_path, "Start Debugging", "F6", self.action_start_debug,
+            load_themed_icon("debug", theme_name),
+            "Start Debugging", "F6", self.action_start_debug,
         )
         self._debug_action.setToolTip("Run with debugger \u2014 pause at breakpoints (F6)")
 

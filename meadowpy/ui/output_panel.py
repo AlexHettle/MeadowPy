@@ -19,7 +19,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from meadowpy.resources.resource_loader import get_icon_path
+from meadowpy.resources.resource_loader import (
+    get_icon_path,
+    load_themed_icon,
+    theme_is_high_contrast,
+)
 
 # Matches Python traceback file references, e.g.:
 #   File "C:\Users\Alex\script.py", line 42, in <module>
@@ -223,11 +227,16 @@ class OutputPanel(QDockWidget):
             )
             header_layout.addWidget(btn)
 
-        # Glow painter for run/stop/restart buttons
+        # Glow painter for run/stop/restart buttons. HC mode collapses every
+        # glow onto pure white (no chroma anywhere) for accessibility.
+        is_hc = theme_is_high_contrast(self._current_theme_name())
+        run_glow = QColor("#FFFFFF") if is_hc else QColor("#4CAF50")
+        stop_glow = QColor("#FFFFFF") if is_hc else QColor("#E51400")
+        restart_glow = QColor("#FFFFFF") if is_hc else QColor("#FF9800")
         self._header_glow = _HeaderGlowPainter(title_bar, title_bar)
-        self._header_glow.add_button(self._run_btn, QColor("#4CAF50"))           # green
-        self._header_glow.add_button(self._stop_btn, QColor("#E51400"))          # red
-        self._header_glow.add_button(self._restart_repl_btn, QColor("#FF9800"))  # orange
+        self._header_glow.add_button(self._run_btn, run_glow)
+        self._header_glow.add_button(self._stop_btn, stop_glow)
+        self._header_glow.add_button(self._restart_repl_btn, restart_glow)
 
         # Visual separator
         sep = QLabel("|")
@@ -542,25 +551,32 @@ class OutputPanel(QDockWidget):
             )
             cursor.removeSelectedText()
 
-    @staticmethod
-    def _make_tool_button(icon_name: str, tooltip: str) -> QToolButton:
+    def _make_tool_button(self, icon_name: str, tooltip: str) -> QToolButton:
         btn = QToolButton()
         btn.setToolTip(tooltip)
-        icon_path = get_icon_path(icon_name)
         btn.setStyleSheet(
-            f"""
-            QToolButton {{
+            """
+            QToolButton {
                 border: 1px solid transparent;
                 border-radius: 3px;
                 padding: 3px;
                 icon-size: 16px;
-            }}
-            QToolButton:hover {{
+            }
+            QToolButton:hover {
                 background: rgba(128,128,128,0.2);
                 border-color: rgba(128,128,128,0.3);
-            }}
+            }
             """
         )
-        from PyQt6.QtGui import QIcon
-        btn.setIcon(QIcon(str(icon_path)))
+        btn.setIcon(load_themed_icon(icon_name, self._current_theme_name()))
         return btn
+
+    def _current_theme_name(self) -> str:
+        """Return the active theme name (or '') by walking up to the main window."""
+        w = self.parent()
+        while w is not None:
+            settings = getattr(w, "_settings", None)
+            if settings is not None:
+                return settings.get("editor.theme") or ""
+            w = w.parent() if hasattr(w, "parent") else None
+        return ""
