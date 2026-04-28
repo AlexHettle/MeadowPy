@@ -238,7 +238,7 @@ MeadowPy is a solo project, but feedback from real users is what shapes it.
 
 - **Found a bug?** [Open an issue](../../issues) with what you were doing and what went wrong.
 - **Have a feature idea?** Open an issue and describe what you'd find useful — especially if you're a beginner who ran into a gap.
-- **Want to contribute code?** Pull requests are welcome. Open an issue first so we can discuss the change.
+- **Want to contribute code?** Interested in being part of MeadowPy's development? Feel free to contact me (ahettle@depaul.edu) and we can talk about contribution.
 
 If MeadowPy helped you learn something or is something you find useful, a ⭐ on the repo goes a long way.
 
