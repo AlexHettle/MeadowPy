@@ -15,7 +15,6 @@ A beginner-friendly Python IDE with built-in AI assistance, a step-through debug
 
 ![MeadowPy main interface showing the code editor, file explorer, and output panel](meadowpy/resources/Images/full%20screenshot.png)
 
----
 
 ## In 30 seconds after setup, you can:
 
@@ -27,25 +26,10 @@ No setup headaches. No confusing interface. Just start coding.
 
 ---
 
-## How is MeadowPy different?
-
-Most popular tools like VS Code and PyCharm are designed for flexibility and professional workflows. MeadowPy is designed for learning.
-
-| Feature | MeadowPy | VS Code | PyCharm |
-|--------|--------|--------|--------|
-| Beginner-focused UI | ✅ | ❌ (general-purpose) | ❌ (pro-focused) |
-| Setup required | Minimal | Moderate (extensions) | Moderate |
-| Error explanations | Plain English | Raw tracebacks | Raw tracebacks |
-| Built-in learning tools | ✅ | ❌ | ❌ |
-| AI assistant | Local (offline) | Extension-based | Limited / cloud |
-
-If you're just starting out, MeadowPy removes the friction so you can focus on learning Python — not configuring tools.
-
----
-
 ## Table of Contents
 
 - [Why MeadowPy?](#why-meadowpy)
+- [How is MeadowPy Different?](#how-is-meadowpy-different)
 - [Requirements](#requirements)
 - [Getting Started](#getting-started)
 - [AI Assistant](#ai-assistant)
@@ -75,6 +59,22 @@ MeadowPy is different. It's built specifically for beginners, with three core id
 **Zero friction to get started.** Six ready-to-run starter projects, one-click setup, and a full example library mean you can go from download to running code in minutes — no configuration required.
 
 If you're learning Python and want an environment that supports you rather than gets in your way, MeadowPy is for you.
+
+---
+
+## How is MeadowPy different?
+
+Most popular tools like VS Code and PyCharm are designed for flexibility and professional workflows. MeadowPy is designed for learning.
+
+| Feature | MeadowPy | VS Code | PyCharm |
+|--------|--------|--------|--------|
+| Beginner-focused UI | ✅ | ❌ (general-purpose) | ❌ (pro-focused) |
+| Setup required | Minimal | Moderate (extensions) | Moderate |
+| Error explanations | Plain English | Raw tracebacks | Raw tracebacks |
+| Built-in learning tools | ✅ | ❌ | ❌ |
+| AI assistant | Local (offline) | Extension-based | Limited / cloud |
+
+If you're just starting out, MeadowPy removes the friction so you can focus on learning Python — not configuring tools.
 
 ---
 
