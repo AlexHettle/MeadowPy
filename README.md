@@ -180,6 +180,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | More starter project templates                     | ✅ Completed    |
 | Custom theming options                             | ✅ Completed    |
 | Comment / uncomment toggle (Ctrl+/)                | ✅ Completed    |
+| High Contrast mode for visually impaired                       |  ✅ Completed     |
 | macOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
@@ -187,7 +188,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
 | UI overhaul                       | 🔄 In progress     |
-| High Contrast mode for visually impaired                       | 🔄 In progress     |
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
