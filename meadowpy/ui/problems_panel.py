@@ -18,6 +18,10 @@ from PyQt6.QtWidgets import (
 )
 
 from meadowpy.core.linter import LintIssue
+from meadowpy.resources.resource_loader import (
+    load_tinted_icon,
+    theme_is_high_contrast,
+)
 
 
 class _NoFocusDelegate(QStyledItemDelegate):
@@ -34,7 +38,7 @@ class ProblemsPanel(QDockWidget):
     navigate_to = pyqtSignal(int, int)  # line, column (both 0-based)
     ai_fix_requested = pyqtSignal(str, int, str)  # (code, line_1based, message)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, settings=None):
         super().__init__("Problems", parent)
         self.setObjectName("ProblemsPanel")
         self.setAllowedAreas(
@@ -43,6 +47,7 @@ class ProblemsPanel(QDockWidget):
             | Qt.DockWidgetArea.RightDockWidgetArea
         )
         self._issues: list[LintIssue] = []
+        self._settings = settings
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -127,16 +132,28 @@ class ProblemsPanel(QDockWidget):
         self.setWindowTitle(title)
         self._title_label.setText(title)
 
+        # In HC mode collapse both severity icons onto pure white so the panel
+        # is fully monochrome — severity is read from the glyph shape (✕ vs ⚠)
+        # rather than color, which works for color-blind users too.
+        is_hc = theme_is_high_contrast(self._current_theme_name())
+
+        # Pre-render the severity icons for this batch. Custom SVG glyphs
+        # avoid two pitfalls of the previous text-based approach: the
+        # warning sign rendered as a yellow color emoji that ignored
+        # setForeground in HC, and ASCII fallbacks like "[X]" got elided
+        # to "..." in the narrow severity column.
+        error_color = "#FFFFFF" if is_hc else "#F44747"
+        warning_color = "#FFFFFF" if is_hc else "#F0AD4E"
+        error_icon = load_tinted_icon("problem_error", error_color)
+        warning_icon = load_tinted_icon("problem_warning", warning_color)
+
         for row, issue in enumerate(issues):
-            # Severity indicator
-            if issue.severity == "error":
-                icon_text = "\u2716"
-                icon_color = QColor("#F44747")  # red
-            else:
-                icon_text = "\u26A0"
-                icon_color = QColor("#CCA700")  # amber/yellow
-            severity_item = QTableWidgetItem(icon_text)
-            severity_item.setForeground(icon_color)
+            # Severity indicator — drawn as a tinted SVG icon, not text,
+            # so it stays monochrome in HC mode and never gets elided.
+            severity_item = QTableWidgetItem()
+            severity_item.setIcon(
+                error_icon if issue.severity == "error" else warning_icon
+            )
             severity_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 0, severity_item)
 
@@ -153,6 +170,12 @@ class ProblemsPanel(QDockWidget):
 
             # Message
             self._table.setItem(row, 3, QTableWidgetItem(issue.message))
+
+    def _current_theme_name(self) -> str:
+        """Return the active theme name (or '') from the injected settings."""
+        if self._settings is not None:
+            return self._settings.get("editor.theme") or ""
+        return ""
 
     def _on_cell_clicked(self, row: int, column: int) -> None:
         line_item = self._table.item(row, 1)

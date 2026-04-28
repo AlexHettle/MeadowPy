@@ -140,7 +140,7 @@ class OutputPanel(QDockWidget):
     _MODE_REPL = "repl"
     _MODE_STDIN = "stdin"
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, settings=None):
         super().__init__("Output", parent)
         self.setObjectName("OutputPanel")
         self.setAllowedAreas(
@@ -150,7 +150,13 @@ class OutputPanel(QDockWidget):
         )
         self._max_lines = 10000
         self._last_error_text: str = ""  # stores the most recent stderr block
+        # Keep an in-memory replay buffer of every (stream, text) chunk we've
+        # appended. The visible QPlainTextEdit bakes color into character
+        # formats, so when the theme switches between HC and non-HC we need
+        # to clear the widget and replay everything to re-tint old output.
+        self._output_history: list[tuple[str, str]] = []
         self._mode = self._MODE_REPL
+        self._settings = settings
         self._setup_ui()
 
     # ------------------------------------------------------------------
@@ -344,6 +350,14 @@ class OutputPanel(QDockWidget):
         # an extra line break, which causes spurious blank lines).
         text = text.replace("\r", "")
 
+        # Record into the replay buffer so we can re-render with new colors
+        # on a theme switch. Capped to avoid unbounded growth on long-running
+        # programs; once full, the oldest chunks fall out (in line with the
+        # widget's own _max_lines trim).
+        self._output_history.append((stream, text))
+        if len(self._output_history) > 20000:
+            del self._output_history[: len(self._output_history) - 20000]
+
         # Detect whether scrollbar is at the bottom before inserting
         scrollbar = self._output_text.verticalScrollBar()
         at_bottom = scrollbar.value() >= scrollbar.maximum() - 4
@@ -358,11 +372,13 @@ class OutputPanel(QDockWidget):
             self._insert_stderr(cursor, text)
         else:
             fmt = QTextCharFormat()
+            is_hc = theme_is_high_contrast(self._current_theme_name())
             if stream == "hint":
-                fmt.setForeground(QColor("#4EC9B0"))
+                fmt.setForeground(QColor("#FFFFFF") if is_hc else QColor("#4EC9B0"))
                 fmt.setFontItalic(True)
             elif stream == "system":
-                fmt.setForeground(QColor("#888888"))
+                # In HC, system messages stay legible white instead of dim grey
+                fmt.setForeground(QColor("#FFFFFF") if is_hc else QColor("#888888"))
                 fmt.setFontItalic(True)
             # stdout uses default text color (theme-dependent)
             cursor.insertText(text, fmt)
@@ -379,8 +395,32 @@ class OutputPanel(QDockWidget):
         """Clear all output text."""
         self._output_text.clear()
         self._last_error_text = ""
+        self._output_history.clear()
         self._fix_btn.setVisible(False)
         self._fix_separator.setVisible(False)
+
+    def recolor_for_theme(self) -> None:
+        """Re-render every previously appended chunk with the current theme.
+
+        Character formats in QPlainTextEdit bake in the foreground color at
+        insertion time — switching themes doesn't repaint old text. This
+        clears the visible buffer and replays the recorded history so all
+        existing output picks up the new theme's colors (e.g. red traceback
+        text becomes white in HC, and back to red when leaving HC).
+        """
+        history_snapshot = list(self._output_history)
+        # Reset visible state and history; append_output will rebuild both.
+        self._output_text.clear()
+        self._output_history.clear()
+        # Temporarily clear stderr accumulator so _insert_stderr doesn't
+        # double-count the replayed traceback text.
+        prior_error = self._last_error_text
+        self._last_error_text = ""
+        for stream, text in history_snapshot:
+            self.append_output(text, stream)
+        # Preserve the original error tail so the AI Analysis button still
+        # has the right context after a theme switch.
+        self._last_error_text = prior_error
 
     def copy_output(self) -> None:
         """Copy all output text to the clipboard."""
@@ -492,11 +532,13 @@ class OutputPanel(QDockWidget):
 
     def _insert_stderr(self, cursor: QTextCursor, text: str) -> None:
         """Insert stderr text, styling traceback file lines as links."""
+        is_hc = theme_is_high_contrast(self._current_theme_name())
+
         stderr_fmt = QTextCharFormat()
-        stderr_fmt.setForeground(QColor("#E51400"))
+        stderr_fmt.setForeground(QColor("#FFFFFF") if is_hc else QColor("#E51400"))
 
         link_fmt = QTextCharFormat()
-        link_fmt.setForeground(QColor("#5999D4"))
+        link_fmt.setForeground(QColor("#FFFFFF") if is_hc else QColor("#5999D4"))
         link_fmt.setFontUnderline(True)
 
         # Split into lines but preserve the original text exactly
@@ -572,11 +614,7 @@ class OutputPanel(QDockWidget):
         return btn
 
     def _current_theme_name(self) -> str:
-        """Return the active theme name (or '') by walking up to the main window."""
-        w = self.parent()
-        while w is not None:
-            settings = getattr(w, "_settings", None)
-            if settings is not None:
-                return settings.get("editor.theme") or ""
-            w = w.parent() if hasattr(w, "parent") else None
+        """Return the active theme name (or '') from the injected settings."""
+        if self._settings is not None:
+            return self._settings.get("editor.theme") or ""
         return ""

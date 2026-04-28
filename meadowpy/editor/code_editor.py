@@ -527,9 +527,18 @@ class CodeEditor(QsciScintilla):
         # (Re-)define squiggle indicators via Scintilla API directly.
         # QScintilla's wrapper can silently fail for certain indicator IDs,
         # so we bypass it to guarantee the styles are set.
+        # Scintilla expects color as 0xBBGGRR, not 0xRRGGBB. In HC mode both
+        # severities collapse onto pure white so the editor stays monochrome.
+        is_hc = self._settings.get("editor.theme") == "default_high_contrast"
+        if is_hc:
+            error_bgr = 0xFFFFFF
+            warning_bgr = 0xFFFFFF
+        else:
+            error_bgr = 0x0014E5    # #E51400 in BGR
+            warning_bgr = 0x4EADF0  # #F0AD4E in BGR
         for ind_id, bgr_color in (
-            (INDICATOR_ERROR, 0x0014E5),    # #E51400 in BGR
-            (INDICATOR_WARNING, 0x4EADF0),  # #F0AD4E in BGR
+            (INDICATOR_ERROR, error_bgr),
+            (INDICATOR_WARNING, warning_bgr),
         ):
             self.SendScintilla(SCI_INDICSETSTYLE, ind_id, INDIC_SQUIGGLE)
             self.SendScintilla(SCI_INDICSETFORE, ind_id, bgr_color)
@@ -552,6 +561,16 @@ class CodeEditor(QsciScintilla):
                     self.SendScintilla(
                         SCI_INDICATORFILLRANGE, start_pos, end_pos - start_pos
                     )
+
+    def refresh_lint_colors(self) -> None:
+        """Re-apply current lint markers using the current theme's colors.
+
+        Squiggle indicator colors are set when ``set_lint_issues`` runs and
+        don't update when the theme changes — without this, switching from
+        HC back to dark would leave error squiggles white instead of red.
+        """
+        if self._lint_issues:
+            self.set_lint_issues(list(self._lint_issues))
 
     def clear_lint_markers(self) -> None:
         """Remove all lint markers and squiggle underlines."""

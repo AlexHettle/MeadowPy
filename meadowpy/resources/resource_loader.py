@@ -186,6 +186,29 @@ QTabBar::tab:hover:!selected { background: #2A2A2A; color: #FFFFFF; }
 /* AI chat extras */
 #aiChatHint { color: #FFFFFF; }
 #aiChatPlaceholder { color: #FFFFFF; }
+#aiChatErrorLabel { color: #FFFFFF; }
+#aiChatStoppedLabel { color: #FFFFFF; }
+
+/* User chat bubble — the underlying QSS sets bg=ACCENT and color=white,
+   which collapses to white-on-white in HC. Force black text. */
+#chatBubbleUser { background: #FFFFFF; color: #000000; border: 2px solid #FFFFFF; }
+#chatBubbleUser QLabel { color: #000000; background: transparent; }
+
+/* AI chat Stop button — original is red (#C44) which never touches the
+   substitution map; explicit override so it goes white-on-black like
+   every other button. */
+#aiChatStopBtn {
+    background: #000000;
+    color: #FFFFFF;
+    border: 2px solid #FFFFFF;
+    border-radius: 6px;
+}
+#aiChatStopBtn:hover { background: #FFFFFF; color: #000000; }
+#aiChatStopBtn:disabled {
+    background: #2A2A2A;
+    color: #7F7F7F;
+    border-color: #7F7F7F;
+}
 
 /* Accent-styled buttons across the app — the underlying QSS sets these to
    `background: ACCENT; color: white;`, which collapses to white-on-white in

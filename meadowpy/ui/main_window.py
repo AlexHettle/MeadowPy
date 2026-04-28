@@ -199,7 +199,7 @@ class MainWindow(QMainWindow):
 
     def _create_problems_panel(self) -> None:
         """Create the problems panel dock widget at the bottom."""
-        self._problems_panel = ProblemsPanel(self)
+        self._problems_panel = ProblemsPanel(self, settings=self._settings)
         self.addDockWidget(
             Qt.DockWidgetArea.BottomDockWidgetArea, self._problems_panel
         )
@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
 
     def _create_output_panel(self) -> None:
         """Create the output panel and tabify with problems panel."""
-        self._output_panel = OutputPanel(self)
+        self._output_panel = OutputPanel(self, settings=self._settings)
         self.addDockWidget(
             Qt.DockWidgetArea.BottomDockWidgetArea, self._output_panel
         )
@@ -1413,10 +1413,33 @@ class MainWindow(QMainWindow):
             # switches and you get white icons leaking into non-HC themes.
             self._refresh_themed_icons()
 
+            # Re-render the Problems panel so its severity glyphs (✕ red /
+            # ⚠ amber vs both white in HC) follow the new theme.
+            if hasattr(self, "_problems_panel"):
+                self._problems_panel.update_issues(
+                    list(self._problems_panel._issues)
+                )
+
+            # Output panel bakes color into character formats at insert time,
+            # so already-printed traceback text stays in the old theme's
+            # colors until we replay the history.
+            if hasattr(self, "_output_panel"):
+                self._output_panel.recolor_for_theme()
+
+            # Status bar lint counts use inline-HTML colors that don't update
+            # on stylesheet change — re-render with the new theme's colors.
+            if hasattr(self, "_status_bar_manager"):
+                self._status_bar_manager.refresh_lint_colors()
+
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)
             if isinstance(editor, CodeEditor):
                 EditorConfigurator.apply(editor, self._settings)
+                # Squiggle indicator colors are baked at set_lint_issues time
+                # and don't follow stylesheet changes — re-apply with the
+                # current theme's palette so HC switches refresh underlines.
+                if key in theme_keys:
+                    editor.refresh_lint_colors()
 
         self._status_bar_manager.update_indent_info()
 
