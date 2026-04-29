@@ -48,15 +48,11 @@ class CodeEditor(QsciScintilla):
         # Breakpoint storage (0-based line numbers)
         self._breakpoints: set[int] = set()
 
-        # Define the breakpoint marker: a red filled circle
+        # Define gutter marker shapes; colors are applied separately so they
+        # can be refreshed when the theme changes.
         self.markerDefine(QsciScintilla.MarkerSymbol.Circle, MARKER_BREAKPOINT)
-        self.setMarkerForegroundColor(QColor("#E51400"), MARKER_BREAKPOINT)
-        self.setMarkerBackgroundColor(QColor("#E51400"), MARKER_BREAKPOINT)
-
-        # Define the current-line marker: a yellow right-arrow
         self.markerDefine(QsciScintilla.MarkerSymbol.RightArrow, MARKER_CURRENT_LINE)
-        self.setMarkerForegroundColor(QColor("#000000"), MARKER_CURRENT_LINE)
-        self.setMarkerBackgroundColor(QColor("#FFCC00"), MARKER_CURRENT_LINE)
+        self._apply_marker_colors()
 
         EditorConfigurator.apply(self, settings)
         self._connect_signals()
@@ -471,6 +467,32 @@ class CodeEditor(QsciScintilla):
             line_count = self.lines()
             width = max(len(str(line_count)) + 1, 4)
             self.setMarginWidth(0, "0" * width)
+
+    # --- Marker color theming ---
+
+    def _apply_marker_colors(self) -> None:
+        """Set breakpoint / current-line marker colors for the active theme.
+
+        High-contrast collapses both markers onto pure black & white so the
+        gutter stays monochrome alongside everything else.
+        """
+        is_hc = self._settings.get("editor.theme") == "default_high_contrast"
+        if is_hc:
+            bp_color = QColor("#FFFFFF")
+            cur_fg = QColor("#000000")
+            cur_bg = QColor("#FFFFFF")
+        else:
+            bp_color = QColor("#E51400")
+            cur_fg = QColor("#000000")
+            cur_bg = QColor("#FFCC00")
+        self.setMarkerForegroundColor(bp_color, MARKER_BREAKPOINT)
+        self.setMarkerBackgroundColor(bp_color, MARKER_BREAKPOINT)
+        self.setMarkerForegroundColor(cur_fg, MARKER_CURRENT_LINE)
+        self.setMarkerBackgroundColor(cur_bg, MARKER_CURRENT_LINE)
+
+    def refresh_marker_colors(self) -> None:
+        """Re-apply breakpoint / current-line marker colors after a theme change."""
+        self._apply_marker_colors()
 
     # --- Breakpoint methods ---
 

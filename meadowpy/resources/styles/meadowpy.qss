@@ -723,13 +723,11 @@ QRadioButton::indicator:checked {
 
 #symbolTree::item:selected {
     background: rgba(0, 0, 0, 0.07);
-    color: #1B1B1B;
     border-left: 2px solid {{ACCENT}};
 }
 
 #symbolTree::item:selected:!active {
     background: rgba(0, 0, 0, 0.05);
-    color: #333333;
     border-left: 2px solid {{ACCENT}};
 }
 
@@ -1355,6 +1353,7 @@ QRadioButton::indicator:checked {
     color: #1F2937;
     spacing: 4px;
     padding: 0;
+    margin-top: 4px;
 }
 
 #SearchPanel QCheckBox::indicator {

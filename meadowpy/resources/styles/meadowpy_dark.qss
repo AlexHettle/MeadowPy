@@ -784,7 +784,7 @@ QDockWidget::title {
 
 #symbolTree::item:selected {
     background: rgba(255, 255, 255, 0.08);
-    color: #FFFFFF;
+    color: #CCCCCC;
     border-left: 2px solid {{ACCENT}};
 }
 
@@ -996,6 +996,7 @@ QDockWidget::title {
     color: #CCCCCC;
     spacing: 4px;
     padding: 0;
+    margin-top: 4px;
 }
 
 #SearchPanel QCheckBox::indicator {

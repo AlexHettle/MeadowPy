@@ -193,9 +193,11 @@ class EditorConfigurator:
             custom_base=settings.get("editor.custom_theme.base"),
         )
 
-        # Margin 2: narrow symbol margin for breakpoint dots
+        # Margin 2: narrow symbol margin for breakpoint dots. Width must
+        # leave room for the Circle marker (scales with font height) so
+        # the breakpoint doesn't clip into the text area.
         editor.setMarginType(2, QsciScintilla.MarginType.SymbolMargin)
-        editor.setMarginWidth(2, 14)
+        editor.setMarginWidth(2, 18)
         editor.setMarginSensitivity(2, True)
 
         # Show breakpoint + current-line markers in this margin

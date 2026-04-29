@@ -1440,6 +1440,7 @@ class MainWindow(QMainWindow):
                 # current theme's palette so HC switches refresh underlines.
                 if key in theme_keys:
                     editor.refresh_lint_colors()
+                    editor.refresh_marker_colors()
 
         self._status_bar_manager.update_indent_info()
 
