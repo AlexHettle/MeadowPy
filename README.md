@@ -74,7 +74,7 @@ Most popular tools like VS Code and PyCharm are designed for flexibility and pro
 | Built-in learning tools | ✅ | ❌ | ❌ |
 | AI assistant | Local (offline) | Extension-based | Limited / cloud |
 
-If you're just starting out, MeadowPy removes the friction so you can focus on learning Python — not configuring tools.
+If you're just starting out, MeadowPy removes the friction so you can focus on learning Python, and gives you the tools to accelerate your growth as a developer.
 
 ---
 
