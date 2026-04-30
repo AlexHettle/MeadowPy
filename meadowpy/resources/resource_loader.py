@@ -160,10 +160,38 @@ QSplitter::handle { background: #FFFFFF; }
 QDockWidget { color: #FFFFFF; }
 QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFFFFF; }
 
-/* Frames / panel containers — solid white border for clear separation */
-#explorerContainer, #outputContainer, #aiChatContainer, #editorContainer,
-#aiChatTitleBar, #aiChatInputContainer {
+/* Frames / panel containers — solid white border for clear separation.
+   Mirrors the original (non-HC) border structure so every panel renders as
+   one continuous outline rather than three stacked boxes:
+     - Title bars get top/left/right borders only and sit flush against the
+       container below; the container's top border serves as the inner
+       divider line between the header and the content.
+     - The AI chat input container lives *inside* aiChatContainer, so it
+       only needs a top-divider border (the outer container already draws
+       the full perimeter). */
+#editorContainer,
+#explorerContainer,
+#outlineContainer,
+#problemsContainer,
+#searchContainer,
+#outputContainer,
+#aiChatContainer {
     border: 2px solid #FFFFFF;
+}
+
+#explorerTitleBar,
+#outlineTitleBar,
+#problemsTitleBar,
+#searchTitleBar,
+#outputTitleBar,
+#aiChatTitleBar {
+    border: 2px solid #FFFFFF;
+    border-bottom: none;
+}
+
+#aiChatInputContainer {
+    border: none;
+    border-top: 2px solid #FFFFFF;
 }
 
 /* Tab bars — selected tab inverts (white bg + black text), no chroma anywhere */
