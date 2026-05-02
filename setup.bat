@@ -127,11 +127,20 @@ echo  Creating MeadowPy shortcut...
 set "SCRIPT_DIR=%~dp0"
 :: Remove trailing backslash for clean paths
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+set "GUI_PYTHON=%SCRIPT_DIR%\.venv\Scripts\pythonw.exe"
+set "SHORTCUT_TARGET=%SCRIPT_DIR%\meadowpy\resources\launch.vbs"
+set "SHORTCUT_ARGS="
+
+if exist "%GUI_PYTHON%" (
+    set "SHORTCUT_TARGET=%GUI_PYTHON%"
+    set "SHORTCUT_ARGS=-m meadowpy"
+)
 
 powershell -NoProfile -Command ^
   "$ws = New-Object -ComObject WScript.Shell;" ^
   "$s = $ws.CreateShortcut('%SCRIPT_DIR%\MeadowPy.lnk');" ^
-  "$s.TargetPath = '%SCRIPT_DIR%\meadowpy\resources\launch.vbs';" ^
+  "$s.TargetPath = '%SHORTCUT_TARGET%';" ^
+  "$s.Arguments = '%SHORTCUT_ARGS%';" ^
   "$s.WorkingDirectory = '%SCRIPT_DIR%';" ^
   "$s.IconLocation = '%SCRIPT_DIR%\meadowpy\resources\icons\meadowpy.ico,0';" ^
   "$s.Description = 'Launch MeadowPy IDE';" ^

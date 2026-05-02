@@ -1,6 +1,7 @@
 """Application-wide constants and default settings."""
 
 APP_NAME = "MeadowPy"
+APP_ID = "meadowpy.ide.meadowpy"
 VERSION = "1.0.9"
 CONFIG_DIR_NAME = ".meadowpy"
 SETTINGS_FILENAME = "settings.json"

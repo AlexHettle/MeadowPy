@@ -2,6 +2,8 @@
 
 import sys
 
+from meadowpy.constants import APP_ID
+
 
 def _set_windows_app_id() -> None:
     # Must run before any Qt import so Windows associates the taskbar
@@ -11,7 +13,7 @@ def _set_windows_app_id() -> None:
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-            "meadowpy.ide.meadowpy"
+            APP_ID
         )
     except Exception:
         pass

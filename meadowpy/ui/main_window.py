@@ -52,8 +52,13 @@ class MainWindow(QMainWindow):
         settings: Settings,
         file_manager: FileManager,
         recent_files: RecentFilesManager,
+        app_icon: QIcon | None = None,
     ):
         super().__init__()
+        if app_icon is not None and not app_icon.isNull():
+            # Apply the icon before native window state is created so Windows
+            # does not latch onto a fallback taskbar icon first.
+            self.setWindowIcon(app_icon)
         self._settings = settings
         self._file_manager = file_manager
         self._recent_files = recent_files

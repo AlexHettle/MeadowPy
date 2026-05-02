@@ -7,7 +7,7 @@ from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtGui import QFont, QIcon, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMenu, QMenuBar, QWidget
 
-from meadowpy.constants import APP_NAME, VERSION
+from meadowpy.constants import APP_ID, APP_NAME, VERSION
 from meadowpy.core.settings import Settings
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.file_manager import FileManager
@@ -125,13 +125,13 @@ class MeadowPyApp:
 
         # Create main window
         self._window = MainWindow(
-            self._settings, self._file_manager, self._recent_files
+            self._settings,
+            self._file_manager,
+            self._recent_files,
+            app_icon=self._app_icon,
         )
         # Also set the icon on the window itself — on Windows the taskbar
         # entry sometimes uses the per-window icon rather than QApplication's.
-        if self._app_icon is not None:
-            self._window.setWindowIcon(self._app_icon)
-
         # Clip menus to rounded bottom corners at the OS window level
         self._menu_filter = _MenuRoundedMaskFilter(self._qapp)
         self._qapp.installEventFilter(self._menu_filter)
@@ -189,6 +189,14 @@ class MeadowPyApp:
         if not icon.isNull():
             self._app_icon = icon
             self._qapp.setWindowIcon(icon)
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                        APP_ID
+                    )
+                except Exception:
+                    pass
         else:
             self._app_icon = None
 
