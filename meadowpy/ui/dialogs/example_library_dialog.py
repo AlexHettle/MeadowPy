@@ -34,6 +34,10 @@ class _CategoryButton(QWidget):
         self.setObjectName("exLibCatBtn")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._selected = False
+        # Required so QSS rules on this QWidget subclass actually paint a
+        # background/border (otherwise the dark-theme selected highlight and
+        # the high-contrast selection outline are silently dropped).
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -97,6 +101,9 @@ class _ExampleCard(QWidget):
         self.setObjectName("exLibExCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._selected = False
+        # See _CategoryButton — without WA_StyledBackground, QSS-defined
+        # backgrounds and borders on this widget are silently ignored.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedWidth(160)
         self.setMinimumHeight(90)
         self.setMaximumHeight(90)

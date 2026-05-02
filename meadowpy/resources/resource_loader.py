@@ -257,6 +257,34 @@ QPushButton:default:hover {
     color: #000000;
     border: 2px solid #FFFFFF;
 }
+
+/* Welcome screen template cards — the card background is forced to white
+   above, so the title (#EEEEEE) and description (#888888) baked into the
+   dark QSS become unreadable. Force black text + transparent background on
+   the inner labels so they read against the white card. */
+#welcomeTemplateCard #welcomeCardTitle,
+#welcomeTemplateCard #welcomeCardDesc,
+#welcomeCardTitle,
+#welcomeCardDesc {
+    color: #000000;
+    background: transparent;
+}
+
+/* Example library — selected category/card need a clearly visible signal.
+   The dialog's _CategoryButton and _ExampleCard widgets enable
+   WA_StyledBackground in Python so these QSS rules actually paint. We
+   draw a 3px white outline around the whole row/card so the selection
+   indicator is the same size and position regardless of label width. */
+#exLibCatBtn[selected="true"] {
+    border: 3px solid #FFFFFF;
+    border-radius: 6px;
+    background: transparent;
+}
+#exLibExCard[selected="true"] {
+    border: 3px solid #FFFFFF;
+    border-radius: 8px;
+    background: transparent;
+}
 #aiChatSendBtn:hover,
 #SearchPanel #searchRunBtn:hover,
 #OutputPanel #replRunBtn:hover,
