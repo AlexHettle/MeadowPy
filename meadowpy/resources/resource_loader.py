@@ -111,6 +111,21 @@ QComboBox QAbstractItemView {
     selection-background-color: #FFFFFF;
     selection-color: #000000;
 }
+/* The base QSS has a more specific `::item:selected` rule that bakes in
+   `color: #FFFFFF` and `background: {{ACCENT}}`. In HC mode ACCENT is white,
+   so without this override the highlighted item ends up white-on-white. */
+QComboBox QAbstractItemView::item {
+    background: #000000;
+    color: #FFFFFF;
+    border-left: 3px solid transparent;
+}
+QComboBox QAbstractItemView::item:hover,
+QComboBox QAbstractItemView::item:selected,
+QComboBox QAbstractItemView::item:selected:focus {
+    background: #FFFFFF;
+    color: #000000;
+    border-left: 3px solid #FFFFFF;
+}
 
 QCheckBox, QRadioButton, QLabel { color: #FFFFFF; background: transparent; }
 QCheckBox::indicator, QRadioButton::indicator {
@@ -302,9 +317,18 @@ QPushButton:default:hover {
     border-color: #7F7F7F;
 }
 
-/* Status bar should stay black-on-white at the very bottom of the window */
+/* Status bar should stay black-on-white at the very bottom of the window.
+   The dark QSS targets #ollamaStatusLabel with an ID selector that outranks
+   our `QStatusBar QLabel` rule by specificity, so we have to override it
+   explicitly or its text stays white-on-white. */
 QStatusBar { background: #FFFFFF; color: #000000; }
-QStatusBar QLabel { background: transparent; color: #000000; border: none; }
+QStatusBar QLabel,
+QStatusBar #ollamaStatusLabel,
+#ollamaStatusLabel {
+    background: transparent;
+    color: #000000;
+    border: none;
+}
 """
 
 
