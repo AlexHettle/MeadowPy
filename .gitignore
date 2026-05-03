@@ -1,5 +1,6 @@
 # Virtual environment
 .venv/
+.testenv/
 
 # Python bytecode
 __pycache__/
@@ -35,3 +36,16 @@ MeadowPy.lnk
 
 # Claude
 .claude/
+
+# Test tooling
+.coverage
+.pytest_cache/
+.pytest_tmp/
+.test-artifacts/
+pytest-cache-files-*/
+coverage.xml
+htmlcov/
+dev/.coverage
+dev/.test-artifacts/
+dev/coverage.xml
+dev/htmlcov/

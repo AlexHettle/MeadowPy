@@ -1,0 +1,23 @@
+[run]
+branch = True
+source = meadowpy
+data_file = dev/.coverage
+omit =
+    meadowpy/app.py
+    meadowpy/__main__.py
+    meadowpy/ui/*
+    meadowpy/editor/code_editor.py
+    meadowpy/editor/editor_config.py
+    meadowpy/core/debug_helper.py
+    meadowpy/core/debug_manager.py
+    meadowpy/core/ollama_client.py
+    meadowpy/core/process_runner.py
+    meadowpy/core/repl_manager.py
+
+[report]
+show_missing = True
+skip_covered = True
+fail_under = 88
+exclude_lines =
+    pragma: no cover
+    if __name__ == "__main__":

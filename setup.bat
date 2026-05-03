@@ -2,6 +2,11 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
+set "INSTALL_DEV=0"
+if /I "%~1"=="--dev" (
+    set "INSTALL_DEV=1"
+)
+
 echo.
 echo  =============================================
 echo     MeadowPy Setup
@@ -73,14 +78,24 @@ pause
 exit /b 1
 
 :: -----------------------------------------------------------
-:: 3. Create virtual environment
+:: 3. Create or repair the virtual environment
 :: -----------------------------------------------------------
 :setup_venv
+set "VENV_OK=0"
 if exist ".venv\Scripts\python.exe" (
-    echo  Virtual environment already exists — skipping creation.
-) else (
+    .venv\Scripts\python.exe -c "import sys" >nul 2>&1
+    if !errorlevel! equ 0 (
+        set "VENV_OK=1"
+        echo  Virtual environment already exists - skipping creation.
+    ) else (
+        echo  Found a broken virtual environment - recreating...
+        rmdir /s /q .venv
+    )
+)
+
+if !VENV_OK! equ 0 (
     if exist ".venv" (
-        echo  Found a broken virtual environment — recreating...
+        echo  Found a broken virtual environment - recreating...
         rmdir /s /q .venv
     )
     echo  Creating virtual environment...
@@ -99,8 +114,15 @@ if exist ".venv\Scripts\python.exe" (
 :: -----------------------------------------------------------
 echo  Upgrading pip...
 .venv\Scripts\python.exe -m pip install --upgrade pip -q
-echo  Installing dependencies...
-.venv\Scripts\python.exe -m pip install -r meadowpy\requirements.txt -q
+
+if "%INSTALL_DEV%"=="1" (
+    echo  Installing app + test dependencies...
+    .venv\Scripts\python.exe -m pip install -r dev\requirements-dev.txt -q
+) else (
+    echo  Installing dependencies...
+    .venv\Scripts\python.exe -m pip install -r meadowpy\requirements.txt -q
+)
+
 if %errorlevel% neq 0 (
     echo.
     echo  [ERROR] Failed to install dependencies.
@@ -116,7 +138,7 @@ if %errorlevel% neq 0 (
 if %errorlevel% neq 0 (
     echo.
     echo  [WARNING] PyQt6 installed but could not be verified.
-    echo  MeadowPy may still work — try launching it.
+    echo  MeadowPy may still work - try launching it.
     echo.
 )
 
@@ -125,7 +147,6 @@ if %errorlevel% neq 0 (
 :: -----------------------------------------------------------
 echo  Creating MeadowPy shortcut...
 set "SCRIPT_DIR=%~dp0"
-:: Remove trailing backslash for clean paths
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 set "GUI_PYTHON=%SCRIPT_DIR%\.venv\Scripts\pythonw.exe"
 set "SHORTCUT_TARGET=%SCRIPT_DIR%\meadowpy\resources\launch.vbs"
@@ -160,6 +181,7 @@ echo  =============================================
 echo     Setup complete!
 echo.
 echo     Double-click "MeadowPy" to start.
+if "%INSTALL_DEV%"=="1" echo     Use "dev\Run Tests.bat" to run the test suite.
 echo  =============================================
 echo.
 pause

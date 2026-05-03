@@ -32,6 +32,7 @@ No setup headaches. No confusing interface. Just start coding.
 - [How is MeadowPy Different?](#how-is-meadowpy-different)
 - [Requirements](#requirements)
 - [Getting Started](#getting-started)
+- [Development Testing](#development-testing)
 - [AI Assistant](#ai-assistant)
 - [Built for Beginners](#built-for-beginners)
 - [Features](#features)
@@ -91,6 +92,24 @@ If you're just starting out, MeadowPy removes the friction so you can focus on l
 2. **Extract** — Right-click the ZIP and choose **Extract All**. Pick any folder you like.
 3. **Setup** — Open the extracted folder and double-click **`setup.bat`**. This creates a virtual environment and installs everything MeadowPy needs. You only need to do this once.
 4. **Launch** — Double-click the **MeadowPy** shortcut (created by setup) to start the IDE.
+
+## Development Testing
+
+If you're working on MeadowPy itself, use the developer setup path so the test tools are installed too:
+
+1. Run **`dev\setup-dev.bat`** once. This installs the app dependencies plus `pytest` and coverage reporting tools.
+2. Run **`dev\Run Tests.bat`** to execute the full automated test suite with coverage.
+3. If you prefer the terminal, you can also run `.venv\Scripts\python.exe -m pytest -c dev\pytest.ini`.
+
+`dev\Run Tests.bat` forwards extra pytest arguments, so targeted runs like `dev\Run Tests.bat dev\tests\test_settings.py -q` work too.
+It generates coverage outputs under the `dev\` folder:
+- `dev\htmlcov\index.html` for the HTML report
+- `dev\coverage.xml` for the XML report
+When launched by double-click, `dev\Run Tests.bat` now stays open after the run so you can read the results. If you're running it from an existing terminal and want it to close immediately afterward, set `MEADOWPY_NO_PAUSE=1` first.
+
+To keep the project root cleaner, the internal test suite, dev-only config, test launcher scripts, and generated coverage outputs now live under the `dev\` folder.
+
+If you ever move the project folder or remove the Python install that created `.venv`, rerun `setup.bat` or `dev\setup-dev.bat`. MeadowPy now detects broken virtual environments and recreates them automatically.
 
 ## AI Assistant
 
@@ -185,6 +204,9 @@ Make sure Python 3.11+ is installed and that you checked "Add Python to PATH" du
 
 **"Please run setup.bat first"**
 You need to run `setup.bat` once before launching the IDE. Double-click it and wait for it to finish.
+
+**Virtual environment looks broken**
+If MeadowPy or the test runner says the virtual environment is broken, rerun `setup.bat` (or `dev\setup-dev.bat` for development). This usually happens after moving the project folder or uninstalling the Python version that originally created `.venv`.
 
 **MeadowPy won't start**
 Try running `setup.bat` again to reinstall dependencies. If the problem persists, make sure no antivirus software is blocking Python.
