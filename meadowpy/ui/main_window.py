@@ -527,16 +527,21 @@ class MainWindow(QMainWindow):
         from meadowpy.ui.welcome_widget import WelcomeWidget
 
         # Check if a welcome tab already exists — avoid double-connecting
+        theme_name = self._settings.get("editor.theme") or "default_dark"
+        custom_base = self._settings.get("editor.custom_theme.base") or "dark"
+        custom_accent = self._settings.get("editor.custom_theme.accent")
         for i in range(self._tab_manager.count()):
-            if isinstance(self._tab_manager.widget(i), WelcomeWidget):
+            widget = self._tab_manager.widget(i)
+            if isinstance(widget, WelcomeWidget):
+                widget.apply_theme(theme_name, custom_base, custom_accent)
                 self._tab_manager.setCurrentIndex(i)
                 return
 
-        is_dark = theme_is_dark(
-            self._settings.get("editor.theme"),
-            self._settings.get("editor.custom_theme.base"),
+        welcome = self._tab_manager.show_welcome_tab(
+            theme_name=theme_name,
+            custom_base=custom_base,
+            custom_accent=custom_accent,
         )
-        welcome = self._tab_manager.show_welcome_tab(is_dark=is_dark)
         welcome.action_new_file.connect(self._welcome_new_file)
         welcome.action_open_file.connect(self.action_open_file)
         welcome.action_open_folder.connect(self.action_open_folder)

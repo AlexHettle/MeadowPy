@@ -320,13 +320,16 @@ class TabManager(QTabWidget):
 
     def update_theme(self) -> None:
         """Called when the theme changes to refresh close button colors."""
-        is_dark = theme_is_dark(
-            self._settings.get("editor.theme"),
-            self._settings.get("editor.custom_theme.base"),
-        )
+        theme_name = self._settings.get("editor.theme") or "default_dark"
+        custom_base = self._settings.get("editor.custom_theme.base") or "dark"
+        custom_accent = self._settings.get("editor.custom_theme.accent")
+        is_dark = theme_is_dark(theme_name, custom_base)
         qss = self._close_btn_stylesheet(is_dark)
         bar = self.tabBar()
         for i in range(self.count()):
+            widget = self.widget(i)
+            if isinstance(widget, WelcomeWidget):
+                widget.apply_theme(theme_name, custom_base, custom_accent)
             side = bar.tabButton(i, QTabBar.ButtonPosition.RightSide)
             if isinstance(side, _TabRightWidget):
                 side.close_btn.setStyleSheet(qss)
@@ -340,16 +343,27 @@ class TabManager(QTabWidget):
 
     # ── Welcome tab helpers ───────────────────────────────────────
 
-    def show_welcome_tab(self, is_dark: bool = False) -> WelcomeWidget:
+    def show_welcome_tab(
+        self,
+        theme_name: str,
+        custom_base: str = "dark",
+        custom_accent: str | None = None,
+    ) -> WelcomeWidget:
         """Insert a Welcome tab and switch to it. Returns the widget."""
         # If already showing, just switch to it
         for i in range(self.count()):
             w = self.widget(i)
             if isinstance(w, WelcomeWidget):
+                w.apply_theme(theme_name, custom_base, custom_accent)
                 self.setCurrentIndex(i)
                 return w
 
-        welcome = WelcomeWidget(is_dark=is_dark, parent=self)
+        welcome = WelcomeWidget(
+            theme_name=theme_name,
+            custom_base=custom_base,
+            custom_accent=custom_accent,
+            parent=self,
+        )
         idx = self.insertTab(0, welcome, "Welcome")
         self._set_welcome_close_button(idx, welcome)
         self.setCurrentIndex(idx)
