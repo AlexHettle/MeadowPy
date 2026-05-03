@@ -93,24 +93,6 @@ If you're just starting out, MeadowPy removes the friction so you can focus on l
 3. **Setup** — Open the extracted folder and double-click **`setup.bat`**. This creates a virtual environment and installs everything MeadowPy needs. You only need to do this once.
 4. **Launch** — Double-click the **MeadowPy** shortcut (created by setup) to start the IDE.
 
-## Development Testing
-
-If you're working on MeadowPy itself, use the developer setup path so the test tools are installed too:
-
-1. Run **`dev\setup-dev.bat`** once. This installs the app dependencies plus `pytest` and coverage reporting tools.
-2. Run **`dev\Run Tests.bat`** to execute the full automated test suite with coverage.
-3. If you prefer the terminal, you can also run `.venv\Scripts\python.exe -m pytest -c dev\pytest.ini`.
-
-`dev\Run Tests.bat` forwards extra pytest arguments, so targeted runs like `dev\Run Tests.bat dev\tests\test_settings.py -q` work too.
-It generates coverage outputs under the `dev\` folder:
-- `dev\htmlcov\index.html` for the HTML report
-- `dev\coverage.xml` for the XML report
-When launched by double-click, `dev\Run Tests.bat` now stays open after the run so you can read the results. If you're running it from an existing terminal and want it to close immediately afterward, set `MEADOWPY_NO_PAUSE=1` first.
-
-To keep the project root cleaner, the internal test suite, dev-only config, test launcher scripts, and generated coverage outputs now live under the `dev\` folder.
-
-If you ever move the project folder or remove the Python install that created `.venv`, rerun `setup.bat` or `dev\setup-dev.bat`. MeadowPy now detects broken virtual environments and recreates them automatically.
-
 ## AI Assistant
 
 MeadowPy has a built-in AI assistant powered by [Ollama](https://ollama.com) that runs entirely on your computer — no accounts, no internet, and no data leaves your machine.
@@ -264,6 +246,24 @@ MeadowPy is a solo project, but feedback from real users is what shapes it.
 - **Want to contribute code?** Interested in being part of MeadowPy's development? Feel free to contact me (ahettle@depaul.edu) and we can talk about contribution.
 
 If MeadowPy helped you learn something or is something you find useful, a ⭐ on the repo goes a long way.
+
+## Development Testing
+
+If you're working on MeadowPy itself, use the developer setup path so the test tools are installed too:
+
+1. Run **`dev\setup-dev.bat`** once. This installs the app dependencies plus `pytest` and coverage reporting tools.
+2. Run **`dev\Run Tests.bat`** to execute the full automated test suite with coverage.
+3. If you prefer the terminal, you can also run `.venv\Scripts\python.exe -m pytest -c dev\pytest.ini`.
+
+`dev\Run Tests.bat` forwards extra pytest arguments, so targeted runs like `dev\Run Tests.bat dev\tests\test_settings.py -q` work too.
+It generates coverage outputs under the `dev\` folder:
+- `dev\htmlcov\index.html` for the HTML report
+- `dev\coverage.xml` for the XML report
+When launched by double-click, `dev\Run Tests.bat` now stays open after the run so you can read the results. If you're running it from an existing terminal and want it to close immediately afterward, set `MEADOWPY_NO_PAUSE=1` first.
+
+To keep the project root cleaner, the internal test suite, dev-only config, test launcher scripts, and generated coverage outputs now live under the `dev\` folder.
+
+If you ever move the project folder or remove the Python install that created `.venv`, rerun `setup.bat` or `dev\setup-dev.bat`. MeadowPy now detects broken virtual environments and recreates them automatically.
 
 ## License
 
