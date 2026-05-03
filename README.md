@@ -7,7 +7,7 @@
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white">
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
-  <img alt="AI" src="https://img.shields.io/badge/AI-Ollama%20powered-orange">
+  <img alt="AI" src="https://img.shields.io/badge/AI-Ollama-orange">
   <img alt="Active Development" src="https://img.shields.io/badge/Status-Active%20Development-brightgreen">
   <img alt="Coverage" src="https://img.shields.io/badge/Coverage-88%25-brightgreen">
 </p>
