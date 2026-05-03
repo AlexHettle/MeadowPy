@@ -1272,7 +1272,7 @@ class MainWindow(QMainWindow):
     def action_about(self) -> None:
         from meadowpy.ui.dialogs.about_dialog import AboutDialog
 
-        dialog = AboutDialog(self)
+        dialog = AboutDialog(self._settings, self)
         dialog.exec()
 
     def open_file_in_tab(self, file_path: str, content: str) -> None:
