@@ -1,6 +1,6 @@
 <p align="center">
   <img src="meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy logo" width="300"><br>
-  <strong>MeadowPy</strong>
+  <img src="meadowpy/resources/icons/meadowpy_wordmark.svg" alt="MeadowPy" width="280">
 </p>
 
 <p align="center">
