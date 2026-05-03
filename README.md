@@ -9,6 +9,7 @@
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
   <img alt="AI" src="https://img.shields.io/badge/AI-Ollama%20powered-orange">
   <img alt="Active Development" src="https://img.shields.io/badge/Status-Active%20Development-brightgreen">
+  <img alt="Coverage" src="https://img.shields.io/badge/Coverage-88%25-brightgreen">
 </p>
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
