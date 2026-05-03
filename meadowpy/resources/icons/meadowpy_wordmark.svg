@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 90" width="480" height="90" role="img" aria-label="MeadowPy">
+  <style>
+    .base { fill: #273026; }
+    .accent { fill: #4CAF50; }
+    @media (prefers-color-scheme: dark) {
+      .base { fill: #F6FAF5; }
+    }
+  </style>
+  <text x="240" y="68" text-anchor="middle"
+        font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        font-weight="700" font-size="64">
+    <tspan class="base">Meadow</tspan><tspan class="accent">Py</tspan>
+  </text>
+</svg>
