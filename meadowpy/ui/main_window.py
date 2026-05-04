@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self._create_find_replace_bar()
         self._connect_signals()
         self._restore_state()
+        self._initial_refresh_pending = True
 
         # Apply the current theme's accent to the Run button glows. Light/Dark
         # themes pass through the original green; Custom passes the user's
@@ -97,9 +98,9 @@ class MainWindow(QMainWindow):
         self._toolbar_builder.update_accent_color(initial_accent)
         self._output_panel.update_accent_color(initial_accent)
 
-        # Defer initial outline/lint refresh until after the window is shown,
-        # because isVisible() returns False during __init__.
-        QTimer.singleShot(0, self._initial_refresh)
+        # Defer the first outline/lint refresh until the first real showEvent.
+        # The splash screen keeps the event loop alive during startup, so a
+        # singleShot queued here could fire before the window is visible.
 
     def _setup_window(self) -> None:
         self.setWindowTitle(APP_NAME)
@@ -118,6 +119,12 @@ class MainWindow(QMainWindow):
         self.setTabPosition(
             Qt.DockWidgetArea.LeftDockWidgetArea, QTabWidget.TabPosition.North
         )
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        if self._initial_refresh_pending:
+            self._initial_refresh_pending = False
+            QTimer.singleShot(0, self._initial_refresh)
 
     def _create_tab_manager(self) -> None:
         from PyQt6.QtWidgets import QFrame, QVBoxLayout

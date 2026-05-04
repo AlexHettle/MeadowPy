@@ -1,18 +1,21 @@
 """MeadowPy application controller."""
 
 import sys
+from time import perf_counter
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtCore import QEvent, QEventLoop, QObject, Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMenu, QMenuBar, QWidget
 
 from meadowpy.constants import APP_ID, APP_NAME, VERSION
-from meadowpy.core.settings import Settings
-from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.file_manager import FileManager
+from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.ui.main_window import MainWindow
+from meadowpy.core.settings import Settings
+from meadowpy.core.startup import remaining_delay_ms
 from meadowpy.resources.resource_loader import get_icon_path, get_stylesheet
+from meadowpy.ui.splash_screen import MeadowPySplashScreen
 
 def _is_menubar_menu(menu: QMenu) -> bool:
     """Return True if *menu* is a direct dropdown of a QMenuBar."""
@@ -93,6 +96,8 @@ class _ClipboardShortcutFilter(QObject):
 class MeadowPyApp:
     """Application controller. Sets up QApplication, loads settings, shows main window."""
 
+    _MINIMUM_SPLASH_SECONDS = 5.0
+
     def __init__(self, argv: list[str]):
         self._qapp = QApplication(argv)
         self._qapp.setApplicationName(APP_NAME)
@@ -105,12 +110,17 @@ class MeadowPyApp:
         # Set app icon (prefer .ico on Windows for taskbar/title bar)
         self._app_icon: QIcon | None = None
         self._set_app_icon()
+        self._splash: MeadowPySplashScreen | None = None
+        self._splash_started_at = perf_counter()
+        self._show_splash("Initializing...")
 
         # Initialize core systems
+        self._set_splash_status("Loading settings...")
         self._settings = Settings()
         self._settings.load()
 
         # Load stylesheet based on saved theme
+        self._set_splash_status("Applying theme...")
         theme_name = self._settings.get("editor.theme")
         stylesheet = get_stylesheet(
             theme_name,
@@ -120,10 +130,12 @@ class MeadowPyApp:
         if stylesheet:
             self._qapp.setStyleSheet(stylesheet)
 
+        self._set_splash_status("Preparing workspace...")
         self._recent_files = RecentFilesManager(self._settings)
         self._file_manager = FileManager(self._settings, self._recent_files)
 
         # Create main window
+        self._set_splash_status("Building interface...")
         self._window = MainWindow(
             self._settings,
             self._file_manager,
@@ -145,11 +157,14 @@ class MeadowPyApp:
         self._apply_font_to_all()
 
         # Handle files passed as command-line arguments
+        self._set_splash_status("Opening files...")
         for arg in argv[1:]:
             path = Path(arg)
             if path.is_file():
                 content = self._file_manager.read_file(str(path))
                 self._window.open_file_in_tab(str(path), content)
+
+        self._set_splash_status("Finalizing startup...")
 
     def _set_app_icon(self) -> None:
         """Set the application window icon.
@@ -205,6 +220,49 @@ class MeadowPyApp:
         self._app_font = QFont("Segoe UI", 10)
         self._qapp.setFont(self._app_font)
 
+    def _show_splash(self, message: str) -> None:
+        """Create and display the startup splash screen."""
+        self._splash = MeadowPySplashScreen(self._app_icon, VERSION)
+        self._splash.set_status_text(message)
+        self._splash.center_on_screen()
+        self._splash.show()
+        self._splash_started_at = perf_counter()
+        self._process_pending_ui_events()
+
+    def _set_splash_status(self, message: str) -> None:
+        """Update the splash screen's loading message."""
+        if self._splash is None:
+            return
+        self._splash.set_status_text(message)
+        self._process_pending_ui_events()
+
+    def _process_pending_ui_events(self) -> None:
+        """Let Qt paint the splash screen during startup work."""
+        self._qapp.processEvents()
+
+    def _wait_for_minimum_splash_time(self) -> None:
+        """Keep the splash visible until the minimum display time has elapsed."""
+        if self._splash is None:
+            return
+
+        remaining_ms = remaining_delay_ms(
+            self._splash_started_at,
+            self._MINIMUM_SPLASH_SECONDS,
+        )
+        if remaining_ms <= 0:
+            return
+
+        loop = QEventLoop()
+        QTimer.singleShot(remaining_ms, loop.quit)
+        loop.exec()
+
+    def _close_splash(self) -> None:
+        """Close the splash screen once the main window is ready."""
+        if self._splash is None:
+            return
+        self._splash.close()
+        self._splash = None
+
     def _apply_font_to_all(self) -> None:
         """Force Segoe UI onto every widget (overrides QSS font reset).
 
@@ -222,5 +280,11 @@ class MeadowPyApp:
 
     def run(self) -> int:
         """Show main window and enter event loop."""
+        self._set_splash_status("Launching MeadowPy...")
+        self._wait_for_minimum_splash_time()
         self._window.show()
+        self._window.raise_()
+        self._window.activateWindow()
+        self._process_pending_ui_events()
+        self._close_splash()
         return self._qapp.exec()
