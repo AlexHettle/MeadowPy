@@ -223,6 +223,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
+| Implement Github actions                                  | 📋 Planned     |
 | Claude API integration                             | 📋 Planned     |
 | Enhanced AI features/capabilities                  | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
