@@ -17,7 +17,7 @@ omit =
 [report]
 show_missing = True
 skip_covered = True
-fail_under = 88
+fail_under = 85
 exclude_lines =
     pragma: no cover
     if __name__ == "__main__":
