@@ -212,13 +212,13 @@ MeadowPy is actively developed. Here's what's coming next:
 | Custom theming options                             | ✅ Completed    |
 | Comment / uncomment toggle (Ctrl+/)                | ✅ Completed    |
 | High Contrast mode for visually impaired                       |  ✅ Completed     |
+| Add splash screen                           | ✅ Completed |
 | macOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
 | Improved styling cohesion                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
-| Add splash screen                           | 🔄 In progress |
 | UI overhaul                       | 🔄 In progress     |
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
