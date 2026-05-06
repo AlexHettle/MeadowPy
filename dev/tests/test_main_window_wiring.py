@@ -42,6 +42,96 @@ class FakeCloseEvent:
         self.ignored = True
 
 
+class FakeMimeData:
+    def __init__(self, has_urls=True, urls=None):
+        self._has_urls = has_urls
+        self._urls = list(urls or [])
+
+    def hasUrls(self):
+        return self._has_urls
+
+    def urls(self):
+        return self._urls
+
+
+class FakeDragEvent:
+    def __init__(self, has_urls=True, urls=None):
+        self.accepted = False
+        self._mime_data = FakeMimeData(has_urls, urls)
+
+    def mimeData(self):
+        return self._mime_data
+
+    def acceptProposedAction(self):
+        self.accepted = True
+
+
+def test_drag_events_accept_file_urls():
+    event = FakeDragEvent(has_urls=True)
+
+    MainWindow.dragEnterEvent(None, event)
+    MainWindow.dragMoveEvent(None, event)
+
+    assert event.accepted is True
+
+
+class FakeUrl:
+    def __init__(self, path, local=True):
+        self._path = str(path)
+        self._local = local
+
+    def isLocalFile(self):
+        return self._local
+
+    def toLocalFile(self):
+        return self._path
+
+
+def test_drop_event_opens_files_and_project_folders(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    script = tmp_path / "demo.py"
+    script.write_text("print('hi')", encoding="utf-8")
+    calls = []
+    window = SimpleNamespace(
+        _file_explorer=SimpleNamespace(
+            set_root_folder=lambda path: calls.append(("root", path)),
+            show=lambda: calls.append(("explorer_show",)),
+        ),
+        _settings=SimpleNamespace(
+            set=lambda key, value: calls.append(("setting", key, value))
+        ),
+        _search_panel=SimpleNamespace(
+            set_root_path=lambda path: calls.append(("search_root", path))
+        ),
+        _file_manager=SimpleNamespace(
+            read_file=lambda path: calls.append(("read", path)) or "content"
+        ),
+        _tab_manager=SimpleNamespace(
+            open_file_in_tab=lambda path, content: calls.append(
+                ("open", path, content)
+            )
+        ),
+        _recent_files=SimpleNamespace(
+            add=lambda path: calls.append(("recent", path))
+        ),
+    )
+    event = FakeDragEvent(urls=[
+        FakeUrl(project),
+        FakeUrl(script),
+        FakeUrl(tmp_path / "remote.py", local=False),
+    ])
+
+    MainWindow.dropEvent(window, event)
+
+    assert ("root", str(project)) in calls
+    assert ("search_root", str(project)) in calls
+    assert ("read", str(script)) in calls
+    assert ("open", str(script), "content") in calls
+    assert ("recent", str(script)) in calls
+    assert event.accepted is True
+
+
 def test_close_event_ignores_without_shutdown_when_save_prompt_cancelled():
     calls = []
     window = SimpleNamespace(
@@ -119,3 +209,77 @@ def test_shutdown_background_work_stops_long_running_components():
     MainWindow._shutdown_background_work(window)
 
     assert calls == ["ollama", "lint", "search", "debug", "process", "repl"]
+
+
+class FakeBytePayload:
+    def __init__(self, text):
+        self._text = text
+
+    def data(self):
+        return self._text.encode()
+
+
+class FakeGeometry:
+    def __init__(self, text):
+        self._text = text
+
+    def toBase64(self):
+        return FakeBytePayload(self._text)
+
+
+def test_save_state_persists_geometry_state_and_open_files():
+    saved = {}
+    window = SimpleNamespace(
+        saveGeometry=lambda: FakeGeometry("geom"),
+        saveState=lambda: FakeGeometry("state"),
+        _tab_manager=SimpleNamespace(
+            get_open_file_paths=lambda: ["a.py", "b.py"]
+        ),
+        _settings=SimpleNamespace(
+            set=lambda key, value: saved.__setitem__(key, value)
+        ),
+    )
+
+    MainWindow._save_state(window)
+
+    assert saved == {
+        "window.geometry": "geom",
+        "window.state": "state",
+        "general.open_files": ["a.py", "b.py"],
+    }
+
+
+def test_restore_state_reopens_existing_files_without_welcome(tmp_path):
+    script = tmp_path / "demo.py"
+    script.write_text("print('hi')", encoding="utf-8")
+    calls = []
+
+    def get_setting(key, default=None):
+        return {
+            "window.geometry": "AAAA",
+            "window.state": "BBBB",
+            "general.restore_tabs_on_startup": True,
+            "general.open_files": [str(script), str(tmp_path / "missing.py")],
+        }.get(key, default)
+
+    window = SimpleNamespace(
+        restoreGeometry=lambda payload: calls.append(("geom", bytes(payload))),
+        restoreState=lambda payload: calls.append(("state", bytes(payload))),
+        _settings=SimpleNamespace(get=get_setting),
+        _file_manager=SimpleNamespace(
+            read_file=lambda path: calls.append(("read", path)) or "content"
+        ),
+        _tab_manager=SimpleNamespace(
+            open_file_in_tab=lambda path, content: calls.append(
+                ("open", path, content)
+            ),
+            count=lambda: 1,
+        ),
+        _show_welcome=lambda: calls.append(("welcome",)),
+    )
+
+    MainWindow._restore_state(window)
+
+    assert ("read", str(script)) in calls
+    assert ("open", str(script), "content") in calls
+    assert ("welcome",) not in calls

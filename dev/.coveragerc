@@ -5,14 +5,30 @@ data_file = dev/.coverage
 omit =
     meadowpy/app.py
     meadowpy/__main__.py
-    meadowpy/ui/*
+    meadowpy/ui/ai_chat_panel.py
+    meadowpy/ui/call_stack_panel.py
+    meadowpy/ui/controllers/*
+    meadowpy/ui/debug_toolbar.py
+    meadowpy/ui/dialogs/*
+    meadowpy/ui/file_explorer.py
+    meadowpy/ui/find_replace_bar.py
+    meadowpy/ui/keyword_help_popup.py
+    meadowpy/ui/menu_bar.py
+    meadowpy/ui/model_selector.py
+    meadowpy/ui/output_panel.py
+    meadowpy/ui/problems_panel.py
+    meadowpy/ui/search_panel.py
+    meadowpy/ui/splash_screen.py
+    meadowpy/ui/status_bar.py
+    meadowpy/ui/symbol_outline.py
+    meadowpy/ui/tab_manager.py
+    meadowpy/ui/tool_bar.py
+    meadowpy/ui/variable_inspector.py
+    meadowpy/ui/watch_panel.py
+    meadowpy/ui/welcome_widget.py
     meadowpy/editor/code_editor.py
     meadowpy/editor/editor_config.py
     meadowpy/core/debug_helper.py
-    meadowpy/core/debug_manager.py
-    meadowpy/core/ollama_client.py
-    meadowpy/core/process_runner.py
-    meadowpy/core/repl_manager.py
 
 [report]
 show_missing = True

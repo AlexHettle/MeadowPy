@@ -101,6 +101,41 @@ def test_eval_result_message_normalizes_missing_values():
     assert results.calls == [("x", "", "")]
 
 
+def test_resume_commands_send_protocol_and_update_state():
+    manager = DebugManager()
+    manager._state = DebugState.PAUSED
+    manager._client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    resumed = SignalRecorder()
+    manager.resumed.connect(resumed)
+
+    manager.send_continue()
+    manager.send_step_over()
+    manager.send_step_into()
+    manager.send_step_out()
+
+    sent = [
+        json.loads(payload.decode("utf-8"))["cmd"]
+        for payload in manager._client.written
+    ]
+    assert sent == ["continue", "step_over", "step_into", "step_out"]
+    assert manager.state == DebugState.RUNNING
+    assert resumed.calls == [(), (), (), ()]
+
+
+def test_evaluate_and_stdin_forward_to_debug_session():
+    manager = DebugManager()
+    manager._client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    manager._process = DebugProcess()
+    manager._process.state_value = QtQProcess.ProcessState.Running
+
+    manager.send_evaluate("x + 1", frame_index=2)
+    manager.send_stdin("answer\n")
+
+    sent = json.loads(manager._client.written[0].decode("utf-8"))
+    assert sent == {"cmd": "evaluate", "expression": "x + 1", "frame_index": 2}
+    assert manager._process.written == [b"answer\n"]
+
+
 def test_update_breakpoints_sends_when_client_is_connected():
     manager = DebugManager()
     manager._client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
@@ -110,6 +145,47 @@ def test_update_breakpoints_sends_when_client_is_connected():
     sent = json.loads(manager._client.written[0].decode("utf-8"))
     assert sent["cmd"] == "set_breakpoints"
     assert sent["breakpoints"] == {"demo.py": [1, 2]}
+
+
+def test_new_connection_accepts_socket_and_sends_buffered_messages():
+    manager = DebugManager()
+    server = FakeServer()
+    socket = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    server.next_connection = socket
+    manager._server = server
+    paused = SignalRecorder()
+    manager.paused.connect(paused)
+
+    manager._on_new_connection()
+    socket.queue_text(
+        json.dumps({
+            "event": "paused",
+            "file": "demo.py",
+            "line": 4,
+            "variables": {"locals": {}, "globals": {}},
+            "call_stack": [],
+        }) + "\n"
+    )
+    manager._on_socket_data()
+
+    assert server.closed is True
+    assert manager._client is socket
+    assert paused.calls == [("demo.py", 3, {"locals": {}, "globals": {}}, [])]
+
+
+def test_socket_disconnect_cleans_socket_without_killing_process():
+    manager = DebugManager()
+    manager._state = DebugState.RUNNING
+    manager._client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    manager._server = FakeServer()
+    manager._process = DebugProcess()
+
+    manager._on_socket_disconnected()
+
+    assert manager._client is None
+    assert manager._server is None
+    assert manager._process is not None
+    assert manager.state == DebugState.RUNNING
 
 
 def test_stop_debug_disconnects_process_and_cleans_up():
@@ -124,6 +200,20 @@ def test_stop_debug_disconnects_process_and_cleans_up():
 
     assert manager.state == DebugState.IDLE
     assert manager._process is None
+
+
+def test_stdout_and_stderr_are_forwarded():
+    manager = DebugManager()
+    output = SignalRecorder()
+    manager.debug_output.connect(output)
+    manager._process = DebugProcess()
+    manager._process.stdout_bytes = b"out"
+    manager._process.stderr_bytes = b"err"
+
+    manager._on_stdout()
+    manager._on_stderr()
+
+    assert output.calls == [("out", "stdout"), ("err", "stderr")]
 
 
 def test_process_finished_drains_output_and_emits_summary():
@@ -143,6 +233,22 @@ def test_process_finished_drains_output_and_emits_summary():
     assert manager.state == DebugState.IDLE
 
 
+def test_process_finished_reports_nonzero_and_crash_exit():
+    manager = DebugManager()
+    finished = SignalRecorder()
+    manager.debug_finished.connect(finished)
+    manager._process = DebugProcess()
+
+    manager._on_process_finished(3, QtQProcess.ExitStatus.NormalExit)
+    manager._process = DebugProcess()
+    manager._on_process_finished(1, QtQProcess.ExitStatus.CrashExit)
+
+    assert finished.calls == [
+        (3, "Debug process exited with code 3"),
+        (1, "Debug process was terminated"),
+    ]
+
+
 def test_process_error_emits_system_message():
     manager = DebugManager()
     output = SignalRecorder()
@@ -153,3 +259,19 @@ def test_process_error_emits_system_message():
     assert output.calls
     assert output.calls[0][1] == "system"
     assert "Failed to start" in output.calls[0][0]
+
+
+def test_cleanup_closes_server_socket_and_running_process():
+    manager = DebugManager()
+    manager._state = DebugState.RUNNING
+    manager._client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    manager._server = FakeServer()
+    manager._process = DebugProcess()
+    manager._process.state_value = QtQProcess.ProcessState.Running
+
+    manager._cleanup()
+
+    assert manager.state == DebugState.IDLE
+    assert manager._client is None
+    assert manager._server is None
+    assert manager._process is None

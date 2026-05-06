@@ -1,7 +1,14 @@
 from PyQt6.QtCore import QProcess
 
+import meadowpy.core.process_runner as process_module
 from meadowpy.core.process_runner import ProcessRunner
 from tests.helpers import FakeProcess, SignalRecorder
+
+
+class FakeQProcess(FakeProcess):
+    ProcessChannelMode = QProcess.ProcessChannelMode
+    ProcessError = QProcess.ProcessError
+    ProcessState = QProcess.ProcessState
 
 
 def test_run_file_delegates_to_start_process_and_emits_description():
@@ -59,6 +66,47 @@ def test_stop_kills_active_process():
     assert process.killed is True
 
 
+def test_start_process_configures_qprocess_and_replaces_existing(monkeypatch):
+    created = []
+
+    class ProcessFactory(FakeQProcess):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            created.append(self)
+
+    monkeypatch.setattr(process_module, "QProcess", ProcessFactory)
+    runner = ProcessRunner()
+
+    runner._start_process("python.exe", ["-u", "demo.py"], "C:/work")
+    first = created[0]
+    first.state_value = QProcess.ProcessState.Running
+    runner._start_process("python.exe", ["-u", "next.py"], "C:/work2")
+    second = created[1]
+
+    assert first.killed is True
+    assert first.wait_calls == [1000]
+    assert second.working_directory == "C:/work2"
+    assert second.channel_mode == QProcess.ProcessChannelMode.SeparateChannels
+    assert second.start_args == ("python.exe", ["-u", "next.py"])
+
+
+def test_stop_waits_for_process_and_removes_temp_file(tmp_path):
+    runner = ProcessRunner()
+    process = FakeQProcess()
+    process.state_value = QProcess.ProcessState.Running
+    runner._process = process
+    temp_file = tmp_path / "selection.py"
+    temp_file.write_text("print('x')", encoding="utf-8")
+    runner._temp_file = str(temp_file)
+
+    runner.stop(timeout_ms=250)
+
+    assert process.killed is True
+    assert process.wait_calls == [250]
+    assert runner._temp_file is None
+    assert not temp_file.exists()
+
+
 def test_stdout_and_stderr_are_forwarded():
     runner = ProcessRunner()
     process = FakeProcess()
@@ -105,3 +153,14 @@ def test_on_error_maps_known_process_errors():
     assert output.calls[0][1] == "system"
     assert "Failed to start" in output.calls[0][0]
     assert output.calls[1] == ("Read error", "system")
+
+
+def test_on_error_handles_unknown_process_error():
+    runner = ProcessRunner()
+    output = SignalRecorder()
+    runner.output_received.connect(output)
+
+    runner._on_error(object())
+
+    assert output.calls[0][1] == "system"
+    assert "Unknown error" in output.calls[0][0]
