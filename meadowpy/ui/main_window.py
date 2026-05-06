@@ -27,7 +27,6 @@ from meadowpy.ui.problems_panel import ProblemsPanel
 from meadowpy.ui.output_panel import OutputPanel
 from meadowpy.ui.search_panel import SearchPanel
 from meadowpy.core.interpreter_manager import InterpreterManager
-from meadowpy.core.debug_manager import DebugState
 from meadowpy.ui.variable_inspector import VariableInspectorPanel
 from meadowpy.ui.call_stack_panel import CallStackPanel
 from meadowpy.ui.watch_panel import WatchPanel
@@ -517,30 +516,28 @@ class MainWindow(QMainWindow):
         event.acceptProposedAction()
 
     def closeEvent(self, event) -> None:
-        """Handle window close: kill process, save unsaved files, persist state."""
-        # Kill any running process or debug session first
-        if self._debug_manager.state != DebugState.IDLE:
+        """Handle window close: save files, persist state, stop background work."""
+        if not self._tab_manager.prompt_save_all():
+            event.ignore()
+            return
+
+        self._save_state()
+        self._settings.save()
+        self._shutdown_background_work()
+        event.accept()
+
+    def _shutdown_background_work(self) -> None:
+        """Stop long-running workers and subprocesses before Qt destroys widgets."""
+        self._ollama_client.stop()
+        self._lint_runner.stop()
+        self._search_panel.stop()
+
+        if self._debug_manager.is_running():
             self._debug_manager.stop_debug()
         if self._process_runner.is_running():
             self._process_runner.stop()
         if self._repl_manager.is_running:
             self._repl_manager.stop()
-
-        if self._tab_manager.prompt_save_all():
-            self._save_state()
-            self._settings.save()
-            # Cancel any in-flight AI request (closes the HTTP socket)
-            if self._ollama_client._chat_worker:
-                self._ollama_client._chat_worker.cancel()
-            self._ollama_client._auto_check_timer.stop()
-            # Force-exit to avoid "QThread: Destroyed while thread is
-            # still running" when a background thread (e.g. Ollama chat)
-            # is stuck in a blocking C-level I/O call that cannot be
-            # interrupted by QThread.quit/terminate on Windows.
-            import os
-            os._exit(0)
-        else:
-            event.ignore()
 
     def resizeEvent(self, event) -> None:
         """Reposition the find bar on window resize."""

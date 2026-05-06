@@ -48,13 +48,15 @@ class ProcessRunner(QObject):
         if self._process and self._process.state() != QProcess.ProcessState.NotRunning:
             self._process.write(text.encode("utf-8"))
 
-    def stop(self) -> None:
-        """Stop the running process immediately."""
+    def stop(self, timeout_ms: int = 1000) -> None:
+        """Stop the running process and wait briefly for Qt to tear it down."""
         if not self.is_running():
             return
         # On Windows, terminate() and kill() both call TerminateProcess —
         # there is no graceful SIGTERM equivalent. Kill directly.
         self._process.kill()
+        if self._process.waitForFinished(timeout_ms):
+            self._cleanup_temp()
 
     def is_running(self) -> bool:
         return (
