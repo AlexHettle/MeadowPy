@@ -20,9 +20,19 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-.venv\Scripts\python.exe -m meadowpy
-if %errorlevel% neq 0 (
+set "MEADOWPY_LOG_DIR=%USERPROFILE%\.meadowpy"
+set "MEADOWPY_LOG=%MEADOWPY_LOG_DIR%\meadowpy.log"
+if not exist "%MEADOWPY_LOG_DIR%" mkdir "%MEADOWPY_LOG_DIR%" >nul 2>&1
+echo.>> "%MEADOWPY_LOG%"
+echo [%date% %time%] Launching MeadowPy>> "%MEADOWPY_LOG%"
+
+.venv\Scripts\python.exe -X faulthandler -m meadowpy >> "%MEADOWPY_LOG%" 2>&1
+set "MEADOWPY_EXIT_CODE=%errorlevel%"
+if %MEADOWPY_EXIT_CODE% neq 0 (
     echo.
-    echo MeadowPy failed to start. Press any key to close.
+    echo MeadowPy closed with an error ^(exit code %MEADOWPY_EXIT_CODE%^).
+    echo Check "%MEADOWPY_LOG%" for shutdown details.
+    echo Press any key to close.
     pause >nul
+    exit /b %MEADOWPY_EXIT_CODE%
 )

@@ -6,7 +6,14 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from meadowpy.constants import CONFIG_DIR_NAME, SETTINGS_FILENAME, DEFAULT_SETTINGS
+from meadowpy.constants import (
+    CONFIG_DIR_NAME,
+    DEFAULT_SETTINGS,
+    DEFAULT_WINDOW_LAYOUT_VERSION,
+    DEFAULT_WINDOW_STATE,
+    LEGACY_DEFAULT_WINDOW_STATES,
+    SETTINGS_FILENAME,
+)
 
 
 class Settings(QObject):
@@ -45,10 +52,17 @@ class Settings(QObject):
                     loaded = json.load(f)
                 if isinstance(loaded, dict):
                     self._data = loaded
+                    self._migrate_loaded_defaults()
             except (json.JSONDecodeError, OSError):
                 self._data = {}
         else:
             self._data = {}
+
+    def _migrate_loaded_defaults(self) -> None:
+        """Update saved settings that only contain an older default layout."""
+        if self._data.get("window.state") in LEGACY_DEFAULT_WINDOW_STATES:
+            self._data["window.state"] = DEFAULT_WINDOW_STATE
+            self._data["window.layout_version"] = DEFAULT_WINDOW_LAYOUT_VERSION
 
     def save(self) -> None:
         """Persist current settings to JSON file."""

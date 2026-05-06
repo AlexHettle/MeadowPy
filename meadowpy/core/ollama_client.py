@@ -6,6 +6,7 @@ import urllib.error
 
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 
+from meadowpy.core.qt_threads import stop_qthread
 from meadowpy.core.settings import Settings
 
 
@@ -180,6 +181,7 @@ class OllamaClient(QObject):
         self._thread: QThread | None = None
         self._worker: OllamaWorker | None = None
         self._old_threads: list[QThread] = []
+        self._old_workers: list[QObject] = []
 
         # Chat worker thread management (separate from health checks)
         self._chat_thread: QThread | None = None
@@ -234,19 +236,16 @@ class OllamaClient(QObject):
         if self._worker:
             pass  # health worker has no cancel — it's fast
 
-        # Ask all threads to quit — short timeouts to avoid freezing the UI
-        for thread in [self._chat_thread, self._thread] + self._old_threads:
-            if thread and thread.isRunning():
-                thread.quit()
-                if not thread.wait(500):
-                    thread.terminate()
-                    thread.wait(500)
+        # Stop before QObject teardown; a live QThread aborts the process.
+        for thread in [self._chat_thread, self._thread] + list(self._old_threads):
+            stop_qthread(thread, graceful_timeout_ms=5_000)
 
         self._chat_thread = None
         self._chat_worker = None
         self._thread = None
         self._worker = None
         self._old_threads.clear()
+        self._old_workers.clear()
 
     def check_connection(self) -> None:
         """Spawn a background worker to check health + fetch models."""
@@ -261,7 +260,11 @@ class OllamaClient(QObject):
         self._worker.health_checked.connect(self._on_health_result)
         self._worker.models_fetched.connect(self._on_models_result)
         self._worker.finished.connect(self._thread.quit)
-        self._thread.finished.connect(self._on_health_thread_finished)
+        self._thread.finished.connect(
+            lambda t=self._thread, w=self._worker: self._on_health_thread_finished(
+                t, w
+            )
+        )
         self._thread.start()
 
     def select_model(self, model_name: str) -> None:
@@ -290,7 +293,11 @@ class OllamaClient(QObject):
         self._chat_worker.chat_error.connect(self._on_chat_error)
         self._chat_worker.finished.connect(self._on_chat_worker_finished)
         self._chat_worker.finished.connect(self._chat_thread.quit)
-        self._chat_thread.finished.connect(self._on_chat_thread_finished)
+        self._chat_thread.finished.connect(
+            lambda t=self._chat_thread, w=self._chat_worker: self._on_chat_thread_finished(
+                t, w
+            )
+        )
         self._chat_thread.start()
 
     def cancel_chat(self) -> None:
@@ -299,11 +306,11 @@ class OllamaClient(QObject):
             self._chat_worker.cancel()
         if self._chat_thread and self._chat_thread.isRunning():
             old_thread = self._chat_thread
+            old_worker = self._chat_worker
             old_thread.quit()
             self._old_threads.append(old_thread)
-            old_thread.finished.connect(
-                lambda t=old_thread: self._cleanup_thread(t)
-            )
+            if old_worker is not None:
+                self._old_workers.append(old_worker)
         self._chat_thread = None
         self._chat_worker = None
 
@@ -356,13 +363,23 @@ class OllamaClient(QObject):
     def _on_chat_worker_finished(self) -> None:
         self.chat_finished.emit()
 
-    def _on_chat_thread_finished(self) -> None:
+    def _on_chat_thread_finished(
+        self, thread: QThread | None = None, worker: QObject | None = None
+    ) -> None:
         """Safe to drop chat thread/worker refs now."""
+        if thread is not None and thread is not self._chat_thread:
+            self._cleanup_thread(thread, worker)
+            return
         self._chat_thread = None
         self._chat_worker = None
 
-    def _on_health_thread_finished(self) -> None:
+    def _on_health_thread_finished(
+        self, thread: QThread | None = None, worker: QObject | None = None
+    ) -> None:
         """Safe to drop health-check thread/worker refs now."""
+        if thread is not None and thread is not self._thread:
+            self._cleanup_thread(thread, worker)
+            return
         self._thread = None
         self._worker = None
 
@@ -372,18 +389,25 @@ class OllamaClient(QObject):
         """Cancel any in-progress worker thread."""
         if self._thread and self._thread.isRunning():
             old_thread = self._thread
+            old_worker = self._worker
             old_thread.quit()
             # Keep a reference so it isn't GC'd while still running
             self._old_threads.append(old_thread)
-            old_thread.finished.connect(
-                lambda t=old_thread: self._cleanup_thread(t)
-            )
+            if old_worker is not None:
+                self._old_workers.append(old_worker)
         self._thread = None
         self._worker = None
 
-    def _cleanup_thread(self, thread: QThread) -> None:
+    def _cleanup_thread(
+        self, thread: QThread, worker: QObject | None = None
+    ) -> None:
         """Remove finished thread from the keep-alive list."""
         try:
             self._old_threads.remove(thread)
         except ValueError:
             pass
+        if worker is not None:
+            try:
+                self._old_workers.remove(worker)
+            except ValueError:
+                pass

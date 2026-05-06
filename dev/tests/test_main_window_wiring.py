@@ -170,6 +170,96 @@ def test_close_event_saves_then_stops_background_work():
     assert event.ignored is False
 
 
+def test_close_event_ignores_when_save_prompt_raises():
+    calls = []
+
+    def prompt_save_all():
+        calls.append("prompt")
+        raise RuntimeError("prompt failed")
+
+    window = SimpleNamespace(
+        _tab_manager=SimpleNamespace(prompt_save_all=prompt_save_all),
+        _log_shutdown_error=lambda name, exc: calls.append(
+            ("log", name, str(exc))
+        ),
+        _save_state=lambda: calls.append("save_state"),
+        _settings=SimpleNamespace(save=lambda: calls.append("settings_save")),
+        _shutdown_background_work=lambda: calls.append("shutdown"),
+    )
+    event = FakeCloseEvent()
+
+    MainWindow.closeEvent(window, event)
+
+    assert calls == ["prompt", ("log", "save_prompt", "prompt failed")]
+    assert event.ignored is True
+    assert event.accepted is False
+
+
+def test_close_event_logs_save_errors_and_still_shuts_down():
+    calls = []
+
+    def save_state():
+        calls.append("save_state")
+        raise OSError("settings path unavailable")
+
+    window = SimpleNamespace(
+        _tab_manager=SimpleNamespace(
+            prompt_save_all=lambda: calls.append("prompt") or True
+        ),
+        _save_state=save_state,
+        _settings=SimpleNamespace(save=lambda: calls.append("settings_save")),
+        _shutdown_background_work=lambda: calls.append("shutdown"),
+        _log_shutdown_error=lambda name, exc: calls.append(
+            ("log", name, str(exc))
+        ),
+    )
+    event = FakeCloseEvent()
+
+    MainWindow.closeEvent(window, event)
+
+    assert calls == [
+        "prompt",
+        "save_state",
+        ("log", "save_state", "settings path unavailable"),
+        "shutdown",
+    ]
+    assert event.accepted is True
+    assert event.ignored is False
+
+
+def test_close_event_logs_shutdown_errors_and_still_accepts():
+    calls = []
+
+    def shutdown():
+        calls.append("shutdown")
+        raise RuntimeError("worker cleanup failed")
+
+    window = SimpleNamespace(
+        _tab_manager=SimpleNamespace(
+            prompt_save_all=lambda: calls.append("prompt") or True
+        ),
+        _save_state=lambda: calls.append("save_state"),
+        _settings=SimpleNamespace(save=lambda: calls.append("settings_save")),
+        _shutdown_background_work=shutdown,
+        _log_shutdown_error=lambda name, exc: calls.append(
+            ("log", name, str(exc))
+        ),
+    )
+    event = FakeCloseEvent()
+
+    MainWindow.closeEvent(window, event)
+
+    assert calls == [
+        "prompt",
+        "save_state",
+        "settings_save",
+        "shutdown",
+        ("log", "shutdown", "worker cleanup failed"),
+    ]
+    assert event.accepted is True
+    assert event.ignored is False
+
+
 def test_shutdown_background_work_stops_long_running_components():
     calls = []
 
@@ -204,11 +294,50 @@ def test_shutdown_background_work_stops_long_running_components():
             is_running=True,
             stop=lambda: calls.append("repl"),
         ),
+        _log_shutdown_error=lambda name, exc: calls.append(("log", name, str(exc))),
+    )
+    window._stop_shutdown_component = (
+        lambda name, callback: MainWindow._stop_shutdown_component(
+            window, name, callback
+        )
     )
 
     MainWindow._shutdown_background_work(window)
 
     assert calls == ["ollama", "lint", "search", "debug", "process", "repl"]
+
+
+def test_stop_shutdown_component_logs_errors_and_continues():
+    calls = []
+
+    def stop_callback():
+        calls.append("stop")
+        raise RuntimeError("stop failed")
+
+    window = SimpleNamespace(
+        _log_shutdown_error=lambda name, exc: calls.append(
+            ("log", name, str(exc))
+        )
+    )
+
+    MainWindow._stop_shutdown_component(window, "lint_runner", stop_callback)
+
+    assert calls == ["stop", ("log", "lint_runner", "stop failed")]
+
+
+def test_log_shutdown_error_writes_traceback(tmp_path):
+    window = SimpleNamespace(
+        _settings=SimpleNamespace(config_file_path=tmp_path / "settings.json")
+    )
+
+    try:
+        raise RuntimeError("cleanup failed")
+    except RuntimeError as exc:
+        MainWindow._log_shutdown_error(window, "process_runner", exc)
+
+    log_text = (tmp_path / "meadowpy.log").read_text(encoding="utf-8")
+    assert "shutdown:process_runner" in log_text
+    assert "RuntimeError: cleanup failed" in log_text
 
 
 class FakeBytePayload:

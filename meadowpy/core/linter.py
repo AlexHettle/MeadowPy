@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from meadowpy.core.qt_threads import stop_qthread
+
 
 @dataclass
 class LintIssue:
@@ -145,6 +147,7 @@ class LintRunner(QObject):
         self._thread: QThread | None = None
         self._worker: LintWorker | None = None
         self._old_threads: list[QThread] = []
+        self._old_workers: list[LintWorker] = []
         self._generation: int = 0
 
     def run_lint(
@@ -171,27 +174,36 @@ class LintRunner(QObject):
     def stop(self) -> None:
         """Shut down all threads cleanly (call during app close)."""
         self._cancel_current()
-        for thread in self._old_threads:
-            if thread.isRunning():
-                thread.quit()
-                if not thread.wait(500):
-                    thread.terminate()
-                    thread.wait(500)
+        for thread in list(self._old_threads):
+            stop_qthread(thread, graceful_timeout_ms=16_000)
         self._old_threads.clear()
+        self._old_workers.clear()
 
     def _cancel_current(self) -> None:
         if self._thread and self._thread.isRunning():
             old_thread = self._thread
+            old_worker = self._worker
             old_thread.quit()
             # Keep a reference so it isn't GC'd while still running
             self._old_threads.append(old_thread)
-            old_thread.finished.connect(lambda t=old_thread: self._cleanup_thread(t))
+            if old_worker is not None:
+                self._old_workers.append(old_worker)
+            old_thread.finished.connect(
+                lambda t=old_thread, w=old_worker: self._cleanup_thread(t, w)
+            )
         self._thread = None
         self._worker = None
 
-    def _cleanup_thread(self, thread: QThread) -> None:
+    def _cleanup_thread(
+        self, thread: QThread, worker: LintWorker | None = None
+    ) -> None:
         """Remove finished thread from the keep-alive list."""
         try:
             self._old_threads.remove(thread)
         except ValueError:
             pass
+        if worker is not None:
+            try:
+                self._old_workers.remove(worker)
+            except ValueError:
+                pass

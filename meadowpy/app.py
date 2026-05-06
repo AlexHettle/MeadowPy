@@ -4,11 +4,19 @@ import sys
 from time import perf_counter
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QEventLoop, QObject, Qt, QTimer
+from PyQt6.QtCore import (
+    QEvent,
+    QEventLoop,
+    QObject,
+    Qt,
+    QtMsgType,
+    QTimer,
+    qInstallMessageHandler,
+)
 from PyQt6.QtGui import QFont, QIcon, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMenu, QMenuBar, QWidget
 
-from meadowpy.constants import APP_ID, APP_NAME, VERSION
+from meadowpy.constants import APP_ID, APP_NAME, CONFIG_DIR_NAME, VERSION
 from meadowpy.core.file_manager import FileManager
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.ui.main_window import MainWindow
@@ -16,6 +24,33 @@ from meadowpy.core.settings import Settings
 from meadowpy.core.startup import remaining_delay_ms
 from meadowpy.resources.resource_loader import get_icon_path, get_stylesheet
 from meadowpy.ui.splash_screen import MeadowPySplashScreen
+
+
+def _install_qt_message_logger():
+    """Mirror native Qt warnings to MeadowPy's runtime log."""
+    log_path = Path.home() / CONFIG_DIR_NAME / "meadowpy.log"
+
+    def _handler(mode, context, message):
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            location = ""
+            if context is not None and context.file:
+                location = f" ({context.file}:{context.line})"
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"\n[qt:{mode.name}]{location} {message}\n")
+        except Exception:
+            pass
+
+        if mode in {
+            QtMsgType.QtWarningMsg,
+            QtMsgType.QtCriticalMsg,
+            QtMsgType.QtFatalMsg,
+        }:
+            print(message, file=sys.stderr)
+
+    qInstallMessageHandler(_handler)
+    return _handler
+
 
 def _is_menubar_menu(menu: QMenu) -> bool:
     """Return True if *menu* is a direct dropdown of a QMenuBar."""
@@ -100,6 +135,7 @@ class MeadowPyApp:
 
     def __init__(self, argv: list[str]):
         self._qapp = QApplication(argv)
+        self._qt_message_handler = _install_qt_message_logger()
         self._qapp.setApplicationName(APP_NAME)
         self._qapp.setOrganizationName(APP_NAME)
         self._qapp.setApplicationVersion(VERSION)
@@ -287,4 +323,50 @@ class MeadowPyApp:
         self._window.activateWindow()
         self._process_pending_ui_events()
         self._close_splash()
-        return self._qapp.exec()
+        exit_code = self._qapp.exec()
+        self._teardown_qt_objects()
+        return exit_code
+
+    def _teardown_qt_objects(self) -> None:
+        """Destroy top-level Qt objects before Python interpreter shutdown."""
+        try:
+            qInstallMessageHandler(None)
+        except Exception:
+            pass
+        self._qt_message_handler = None
+
+        if self._splash is not None:
+            try:
+                self._splash.close()
+                self._splash.deleteLater()
+            except RuntimeError:
+                pass
+            self._splash = None
+
+        window = getattr(self, "_window", None)
+        if window is not None:
+            try:
+                if window.isVisible():
+                    window.close()
+            except RuntimeError:
+                pass
+            try:
+                window.deleteLater()
+            except RuntimeError:
+                pass
+            self._window = None
+
+        for attr in ("_menu_filter", "_clipboard_filter"):
+            event_filter = getattr(self, attr, None)
+            if event_filter is not None:
+                try:
+                    self._qapp.removeEventFilter(event_filter)
+                except RuntimeError:
+                    pass
+                setattr(self, attr, None)
+
+        try:
+            self._qapp.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            self._qapp.processEvents()
+        except RuntimeError:
+            pass

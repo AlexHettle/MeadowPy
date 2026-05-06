@@ -1,6 +1,11 @@
 import json
 
-from meadowpy.constants import DEFAULT_SETTINGS
+from meadowpy.constants import (
+    DEFAULT_SETTINGS,
+    DEFAULT_WINDOW_LAYOUT_VERSION,
+    DEFAULT_WINDOW_STATE,
+    LEGACY_DEFAULT_WINDOW_STATES,
+)
 from meadowpy.core.settings import Settings
 from tests.helpers import SignalRecorder
 
@@ -52,6 +57,38 @@ def test_load_invalid_json_resets_to_empty_data(tmp_path):
 
     assert settings.get("custom.key") is None
     assert settings.get("editor.theme") == DEFAULT_SETTINGS["editor.theme"]
+
+
+def test_load_migrates_only_the_legacy_default_window_state(tmp_path):
+    legacy_state = next(iter(LEGACY_DEFAULT_WINDOW_STATES))
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(
+        json.dumps({
+            "window.state": legacy_state,
+            "editor.font_size": 18,
+        }),
+        encoding="utf-8",
+    )
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("window.state") == DEFAULT_WINDOW_STATE
+    assert settings.get("window.layout_version") == DEFAULT_WINDOW_LAYOUT_VERSION
+    assert settings.get("editor.font_size") == 18
+
+
+def test_load_preserves_custom_window_state(tmp_path):
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(
+        json.dumps({"window.state": "custom-layout"}),
+        encoding="utf-8",
+    )
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("window.state") == "custom-layout"
 
 
 def test_reset_to_defaults_clears_custom_values_and_writes_defaults(tmp_path):

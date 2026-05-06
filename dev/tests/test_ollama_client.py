@@ -339,6 +339,7 @@ def test_setting_changes_restart_or_stop_connection_checks(tmp_path):
 def test_cancel_chat_moves_running_thread_to_keep_alive_list(tmp_path):
     settings = Settings(tmp_path)
     client = OllamaClient(settings)
+
     class Worker:
         def __init__(self):
             self.cancelled = False
@@ -346,7 +347,8 @@ def test_cancel_chat_moves_running_thread_to_keep_alive_list(tmp_path):
         def cancel(self):
             self.cancelled = True
 
-    client._chat_worker = Worker()
+    worker = Worker()
+    client._chat_worker = worker
     client._chat_thread = FakeThread(running=True)
 
     client.cancel_chat()
@@ -354,6 +356,7 @@ def test_cancel_chat_moves_running_thread_to_keep_alive_list(tmp_path):
     assert client._chat_thread is None
     assert client._chat_worker is None
     assert len(client._old_threads) == 1
+    assert client._old_workers == [worker]
 
 
 def test_stop_cancels_workers_and_terminates_stubborn_threads(tmp_path):
@@ -368,6 +371,7 @@ def test_stop_cancels_workers_and_terminates_stubborn_threads(tmp_path):
     client._chat_thread = stubborn
     client._thread = FakeThread(running=True, wait_result=True)
     client._old_threads = [old]
+    client._old_workers = [object()]
 
     client.stop()
 
@@ -376,3 +380,72 @@ def test_stop_cancels_workers_and_terminates_stubborn_threads(tmp_path):
     assert client._chat_thread is None
     assert client._thread is None
     assert client._old_threads == []
+    assert client._old_workers == []
+
+
+def test_old_health_thread_finish_does_not_clear_current_thread(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    old_thread = FakeThread(running=False)
+    old_worker = object()
+    current_thread = FakeThread(running=True)
+    current_worker = FakeWorker()
+    client._old_threads = [old_thread]
+    client._old_workers = [old_worker]
+    client._thread = current_thread
+    client._worker = current_worker
+
+    client._on_health_thread_finished(old_thread, old_worker)
+
+    assert client._thread is current_thread
+    assert client._worker is current_worker
+    assert client._old_threads == []
+    assert client._old_workers == []
+
+
+def test_current_health_thread_finish_clears_current_thread(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    current_thread = FakeThread(running=False)
+    current_worker = FakeWorker()
+    client._thread = current_thread
+    client._worker = current_worker
+
+    client._on_health_thread_finished(current_thread, current_worker)
+
+    assert client._thread is None
+    assert client._worker is None
+
+
+def test_old_chat_thread_finish_does_not_clear_current_thread(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    old_thread = FakeThread(running=False)
+    old_worker = object()
+    current_thread = FakeThread(running=True)
+    current_worker = FakeWorker()
+    client._old_threads = [old_thread]
+    client._old_workers = [old_worker]
+    client._chat_thread = current_thread
+    client._chat_worker = current_worker
+
+    client._on_chat_thread_finished(old_thread, old_worker)
+
+    assert client._chat_thread is current_thread
+    assert client._chat_worker is current_worker
+    assert client._old_threads == []
+    assert client._old_workers == []
+
+
+def test_current_chat_thread_finish_clears_current_thread(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    current_thread = FakeThread(running=False)
+    current_worker = FakeWorker()
+    client._chat_thread = current_thread
+    client._chat_worker = current_worker
+
+    client._on_chat_thread_finished(current_thread, current_worker)
+
+    assert client._chat_thread is None
+    assert client._chat_worker is None

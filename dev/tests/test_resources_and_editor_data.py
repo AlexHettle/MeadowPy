@@ -1,4 +1,4 @@
-from meadowpy.constants import APP_NAME, DEFAULT_SETTINGS
+from meadowpy.constants import APP_NAME, DEFAULT_SETTINGS, DEFAULT_WINDOW_STATE
 from meadowpy.editor import completion
 from meadowpy.editor.themes import DEFAULT_DARK, DEFAULT_LIGHT, get_theme
 from meadowpy.resources.example_library import EXAMPLE_CATEGORIES
@@ -68,3 +68,4 @@ def test_create_apis_populates_and_prepares(monkeypatch):
 def test_constants_expose_expected_app_metadata():
     assert APP_NAME == "MeadowPy"
     assert DEFAULT_SETTINGS["editor.theme"] == "default_dark"
+    assert DEFAULT_SETTINGS["window.state"] == DEFAULT_WINDOW_STATE

@@ -204,14 +204,16 @@ def test_run_lint_starts_worker_thread_and_emits_latest_results(monkeypatch):
 def test_cancel_current_moves_running_thread_to_keep_alive_list():
     runner = LintRunner()
     thread = FakeThread(running=True)
+    worker = object()
     runner._thread = thread
-    runner._worker = object()
+    runner._worker = worker
 
     runner._cancel_current()
 
     assert runner._thread is None
     assert runner._worker is None
     assert runner._old_threads == [thread]
+    assert runner._old_workers == [worker]
     assert thread.quit_called == 1
 
 
@@ -219,9 +221,11 @@ def test_stop_terminates_old_threads_when_needed():
     runner = LintRunner()
     stubborn = FakeThread(running=True, wait_result=False)
     runner._old_threads = [stubborn]
+    runner._old_workers = [object()]
 
     runner.stop()
 
     assert stubborn.quit_called == 1
     assert stubborn.terminate_called == 1
     assert runner._old_threads == []
+    assert runner._old_workers == []

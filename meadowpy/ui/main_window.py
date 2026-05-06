@@ -1,6 +1,8 @@
 """Main application window."""
 
+from datetime import datetime
 from pathlib import Path
+import traceback
 
 from PyQt6.QtCore import QByteArray, QTimer, Qt
 from PyQt6.QtGui import QIcon, QKeySequence
@@ -517,27 +519,85 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Handle window close: save files, persist state, stop background work."""
-        if not self._tab_manager.prompt_save_all():
+        try:
+            should_close = self._tab_manager.prompt_save_all()
+        except Exception as exc:
+            self._log_shutdown_error("save_prompt", exc)
             event.ignore()
             return
 
-        self._save_state()
-        self._settings.save()
-        self._shutdown_background_work()
+        if not should_close:
+            event.ignore()
+            return
+
+        try:
+            self._save_state()
+            self._settings.save()
+        except Exception as exc:
+            self._log_shutdown_error("save_state", exc)
+
+        try:
+            self._shutdown_background_work()
+        except Exception as exc:
+            self._log_shutdown_error("shutdown", exc)
         event.accept()
 
     def _shutdown_background_work(self) -> None:
         """Stop long-running workers and subprocesses before Qt destroys widgets."""
-        self._ollama_client.stop()
-        self._lint_runner.stop()
-        self._search_panel.stop()
+        self._stop_shutdown_component("ollama_client", self._ollama_client.stop)
+        self._stop_shutdown_component("lint_runner", self._lint_runner.stop)
+        self._stop_shutdown_component("search_panel", self._search_panel.stop)
+        self._stop_shutdown_component(
+            "debug_manager",
+            lambda: (
+                self._debug_manager.stop_debug()
+                if self._debug_manager.is_running()
+                else None
+            ),
+        )
+        self._stop_shutdown_component(
+            "process_runner",
+            lambda: (
+                self._process_runner.stop()
+                if self._process_runner.is_running()
+                else None
+            ),
+        )
+        self._stop_shutdown_component(
+            "repl_manager",
+            lambda: (
+                self._repl_manager.stop() if self._repl_manager.is_running else None
+            ),
+        )
 
-        if self._debug_manager.is_running():
-            self._debug_manager.stop_debug()
-        if self._process_runner.is_running():
-            self._process_runner.stop()
-        if self._repl_manager.is_running:
-            self._repl_manager.stop()
+    def _stop_shutdown_component(self, name: str, stop_callback) -> None:
+        """Run one shutdown step without letting cleanup errors crash the app."""
+        try:
+            stop_callback()
+        except Exception as exc:
+            self._log_shutdown_error(name, exc)
+
+    def _log_shutdown_error(self, component: str, exc: BaseException) -> None:
+        """Write shutdown errors to disk without raising during app teardown."""
+        try:
+            settings = getattr(self, "_settings", None)
+            settings_path = getattr(settings, "config_file_path", None)
+            if settings_path is None:
+                log_path = Path.home() / ".meadowpy" / "meadowpy.log"
+            else:
+                log_path = Path(settings_path).parent / "meadowpy.log"
+
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"\n[{timestamp}] shutdown:{component}\n")
+                f.write(
+                    "".join(
+                        traceback.format_exception(type(exc), exc, exc.__traceback__)
+                    )
+                )
+        except Exception:
+            pass
 
     def resizeEvent(self, event) -> None:
         """Reposition the find bar on window resize."""

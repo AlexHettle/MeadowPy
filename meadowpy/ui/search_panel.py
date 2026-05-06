@@ -21,6 +21,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from meadowpy.core.qt_threads import stop_qthread
+
 
 class _NoFocusDelegate(QStyledItemDelegate):
     """Suppresses the dotted focus rectangle on items."""
@@ -159,6 +161,7 @@ class SearchPanel(QDockWidget):
         self._root_path: str | None = None
         self._file_items: dict[str, QTreeWidgetItem] = {}
         self._old_threads: list[QThread] = []
+        self._old_workers: list[SearchWorker] = []
 
         self._setup_ui()
 
@@ -293,21 +296,21 @@ class SearchPanel(QDockWidget):
         self._worker.finished.connect(self._on_search_finished)
         self._worker.finished.connect(self._thread.quit)
         # Clean up references only after the thread has actually stopped
-        self._thread.finished.connect(self._on_thread_finished)
+        self._thread.finished.connect(
+            lambda t=self._thread, w=self._worker: self._on_thread_finished(t, w)
+        )
         self._thread.start()
 
     def stop(self) -> None:
         """Shut down all threads cleanly (call during app close)."""
         self._cancel_search()
-        for thread in self._old_threads:
-            if thread.isRunning():
-                thread.quit()
-                if not thread.wait(500):
-                    thread.terminate()
-                    thread.wait(500)
+        for thread in list(self._old_threads):
+            stop_qthread(thread, graceful_timeout_ms=5_000)
         self._old_threads.clear()
+        self._old_workers.clear()
 
     def _cancel_search(self) -> None:
+        old_worker = self._worker
         if self._worker:
             self._worker.cancel()
             # Disconnect signals so stale results don't arrive
@@ -321,17 +324,23 @@ class SearchPanel(QDockWidget):
             old_thread.quit()
             # Keep a reference so it isn't GC'd while still running
             self._old_threads.append(old_thread)
-            old_thread.finished.connect(
-                lambda t=old_thread: self._cleanup_thread(t)
-            )
+            if old_worker is not None:
+                self._old_workers.append(old_worker)
         self._thread = None
         self._worker = None
 
-    def _cleanup_thread(self, thread: QThread) -> None:
+    def _cleanup_thread(
+        self, thread: QThread, worker: SearchWorker | None = None
+    ) -> None:
         try:
             self._old_threads.remove(thread)
         except ValueError:
             pass
+        if worker is not None:
+            try:
+                self._old_workers.remove(worker)
+            except ValueError:
+                pass
 
     # ── Slots ───────────────────────────────────────────────────────────
 
@@ -381,8 +390,13 @@ class SearchPanel(QDockWidget):
             )
         self._search_btn.setEnabled(True)
 
-    def _on_thread_finished(self) -> None:
+    def _on_thread_finished(
+        self, thread: QThread | None = None, worker: SearchWorker | None = None
+    ) -> None:
         """Safe to drop references now — the thread has actually stopped."""
+        if thread is not None and thread is not self._thread:
+            self._cleanup_thread(thread, worker)
+            return
         self._thread = None
         self._worker = None
 
