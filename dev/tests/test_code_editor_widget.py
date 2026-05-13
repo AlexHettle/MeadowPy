@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import meadowpy.editor.code_editor as code_editor_module
 from helpers import DummySignal
-from PyQt6.QtCore import QEvent, QPoint, Qt
-from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
+from PyQt6.QtGui import QKeyEvent, QWheelEvent
 from PyQt6.Qsci import QsciScintilla
 
 from meadowpy.core.settings import Settings
@@ -95,6 +95,27 @@ def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_p
     editor.clear_lint_markers()
 
     assert editor._get_lint_tooltip(0, 2) is None
+    editor.deleteLater()
+
+
+def test_lint_markers_use_high_contrast_indicator_colors(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", False)
+    settings.set("editor.theme", "default_high_contrast")
+    editor = CodeEditor(settings)
+    editor.setText("print(missing)\n")
+
+    issue = SimpleNamespace(
+        line=0,
+        column=0,
+        code="F821",
+        message="undefined name 'missing'",
+        severity="error",
+    )
+
+    editor.set_lint_issues([issue])
+
+    assert editor._get_lint_tooltip(0, 0) == "F821: undefined name 'missing'"
     editor.deleteLater()
 
 
@@ -188,6 +209,262 @@ def test_custom_indentation_guide_helpers_count_and_merge_lines():
     ]
 
 
+def test_indent_overlay_delegates_painting_and_ends_painter(monkeypatch, qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    painters = []
+    seen = []
+
+    class FakePainter:
+        def __init__(self, widget):
+            self.widget = widget
+            self.ended = False
+            painters.append(self)
+
+        def end(self):
+            self.ended = True
+
+    monkeypatch.setattr(code_editor_module, "QPainter", FakePainter)
+    editor._draw_indentation_guides = lambda painter: seen.append(painter)
+
+    editor._indent_guide_overlay.paintEvent(None)
+
+    assert seen == painters
+    assert painters[0].widget is editor._indent_guide_overlay
+    assert painters[0].ended is True
+    editor.deleteLater()
+
+
+class GuidePainterHarness:
+    def __init__(self):
+        self.render_hints = []
+        self.pens = []
+        self.lines = []
+
+    def setRenderHint(self, *args):
+        self.render_hints.append(args)
+
+    def setPen(self, pen):
+        self.pens.append(pen)
+
+    def drawLine(self, x1, y1, x2, y2):
+        self.lines.append((x1, y1, x2, y2))
+
+
+class DrawGuidesHarness:
+    _merge_line_segments = staticmethod(CodeEditor._merge_line_segments)
+
+    def __init__(
+        self,
+        settings,
+        *,
+        visible_range=(0, 1),
+        indents=None,
+        y_positions=None,
+        line_heights=None,
+        width=100,
+        height=100,
+    ):
+        self._settings = DictSettings(settings)
+        self.visible_range = visible_range
+        self.indents = indents or {0: 4}
+        self.y_positions = y_positions or {0: 0}
+        self.line_heights = line_heights or {0: 10}
+        self._width = width
+        self._height = height
+        self.guide_columns = []
+
+    def _visible_document_line_range(self):
+        return self.visible_range
+
+    def _effective_guide_indent_columns(self, line, tab_width):
+        return self.indents.get(line, 0)
+
+    def _line_y(self, line):
+        return self.y_positions.get(line, 0)
+
+    def _line_height(self, line):
+        return self.line_heights.get(line, 10)
+
+    def _guide_column_x(self, line, column):
+        self.guide_columns.append((line, column))
+        return column * 3
+
+    def width(self):
+        return self._width
+
+    def height(self):
+        return self._height
+
+
+def test_draw_indentation_guides_returns_for_disabled_invalid_and_empty_ranges():
+    base = {
+        "editor.show_indentation_guides": False,
+        "editor.tab_width": 4,
+        "editor.theme": "default_dark",
+        "editor.custom_theme.base": "dark",
+    }
+    disabled = DrawGuidesHarness(base)
+    disabled_painter = GuidePainterHarness()
+
+    CodeEditor._draw_indentation_guides(disabled, disabled_painter)
+
+    assert disabled_painter.lines == []
+    assert disabled_painter.pens == []
+
+    invalid_tab = DrawGuidesHarness({
+        **base,
+        "editor.show_indentation_guides": True,
+        "editor.tab_width": -1,
+    })
+    invalid_painter = GuidePainterHarness()
+
+    CodeEditor._draw_indentation_guides(invalid_tab, invalid_painter)
+
+    assert invalid_painter.lines == []
+    assert invalid_painter.pens == []
+
+    empty_range = DrawGuidesHarness({
+        **base,
+        "editor.show_indentation_guides": True,
+    }, visible_range=(3, 3))
+    empty_painter = GuidePainterHarness()
+
+    CodeEditor._draw_indentation_guides(empty_range, empty_painter)
+
+    assert empty_painter.lines == []
+    assert empty_painter.pens == []
+
+
+def test_draw_indentation_guides_uses_theme_colors_and_merges_segments():
+    base = {
+        "editor.show_indentation_guides": True,
+        "editor.tab_width": 4,
+        "editor.custom_theme.base": "dark",
+    }
+
+    expected_colors = {
+        "default_high_contrast": "#ffffff",
+        "default_dark": "#565e66",
+        "default_light": "#b8c0c8",
+    }
+    for theme_name, expected_color in expected_colors.items():
+        harness = DrawGuidesHarness({**base, "editor.theme": theme_name})
+        painter = GuidePainterHarness()
+
+        CodeEditor._draw_indentation_guides(harness, painter)
+
+        assert painter.pens[0].color().name() == expected_color
+        assert painter.lines == [(12, -1, 12, 11)]
+
+    harness = DrawGuidesHarness(
+        {**base, "editor.theme": "default_dark"},
+        visible_range=(0, 4),
+        indents={0: 0, 1: 4, 2: 8, 3: 4},
+        y_positions={0: 0, 1: 0, 2: 10, 3: 150},
+        line_heights={0: 10, 1: 10, 2: 10, 3: 10},
+        height=50,
+    )
+    painter = GuidePainterHarness()
+
+    CodeEditor._draw_indentation_guides(harness, painter)
+
+    assert harness.guide_columns == [(1, 4), (2, 4), (2, 8)]
+    assert painter.lines == [
+        (12, -1, 12, 21),
+        (24, 9, 24, 21),
+    ]
+
+
+class VisibleRangeHarness:
+    def __init__(self):
+        self.send_calls = []
+
+    def firstVisibleLine(self):
+        return 5
+
+    def SendScintilla(self, message):
+        self.send_calls.append(message)
+        return 10
+
+    def lines(self):
+        return 20
+
+
+class VisibleRangeFallbackHarness:
+    def SendScintilla(self, _message):
+        raise RuntimeError("Scintilla unavailable")
+
+    def height(self):
+        return 25
+
+    def fontMetrics(self):
+        return SimpleNamespace(height=lambda: 10)
+
+    def lines(self):
+        return 1
+
+
+def test_visible_document_line_range_uses_scintilla_and_widget_fallbacks():
+    normal = VisibleRangeHarness()
+
+    assert CodeEditor._visible_document_line_range(normal) == (5, 17)
+    assert normal.send_calls == [2370]
+
+    fallback = VisibleRangeFallbackHarness()
+
+    assert CodeEditor._visible_document_line_range(fallback) == (0, 1)
+
+
+class GeometryHarness:
+    def __init__(self, *, find_column_raises=False, text_height_raises=False):
+        self.find_column_raises = find_column_raises
+        self.text_height_raises = text_height_raises
+        self.calls = []
+        self.positions = []
+
+    def SendScintilla(self, message, *args):
+        self.calls.append((message, *args))
+        if message == 2456:
+            if self.find_column_raises:
+                raise RuntimeError("find column failed")
+            return 17
+        if message == 2164:
+            return 34
+        if message == 2165:
+            return 7
+        if message == 2279:
+            if self.text_height_raises:
+                raise TypeError("height failed")
+            return 16
+        raise AssertionError(message)
+
+    def positionFromLineIndex(self, line, column):
+        self.positions.append((line, column))
+        return 99
+
+    def text(self, _line):
+        return "abc"
+
+    def fontMetrics(self):
+        return SimpleNamespace(height=lambda: 13)
+
+
+def test_guide_geometry_helpers_use_scintilla_and_fallback_paths():
+    normal = GeometryHarness()
+
+    assert CodeEditor._guide_column_x(normal, 2, 8) == 34
+    assert normal.calls[:2] == [(2456, 2, 8), (2164, 0, 17)]
+    assert CodeEditor._line_y(normal, 3) == 7
+    assert normal.positions == [(3, 0)]
+    assert CodeEditor._line_height(normal, 4) == 16
+
+    fallback = GeometryHarness(find_column_raises=True, text_height_raises=True)
+
+    assert CodeEditor._guide_column_x(fallback, 2, 8) == 34
+    assert fallback.positions == [(2, 3)]
+    assert CodeEditor._line_height(fallback, 4) == 13
+
+
 def test_display_name_settings_modification_zoom_and_margin_helpers(qapp, tmp_path):
     editor = make_editor(qapp, tmp_path)
     seen = []
@@ -215,6 +492,28 @@ def test_display_name_settings_modification_zoom_and_margin_helpers(qapp, tmp_pa
     assert seen[0] is True
     assert all(value is True for value in seen)
     assert editor.marginWidth(0) > 0
+    editor.deleteLater()
+
+
+def test_ctrl_wheel_refreshes_margin_width(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    calls = []
+    editor._update_margin_width = lambda: calls.append("margin")
+
+    event = QWheelEvent(
+        QPointF(1, 1),
+        QPointF(1, 1),
+        QPoint(0, 0),
+        QPoint(0, 120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.ControlModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+    editor.wheelEvent(event)
+
+    assert calls
     editor.deleteLater()
 
 
