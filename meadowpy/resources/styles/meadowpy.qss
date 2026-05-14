@@ -1547,7 +1547,7 @@ QRadioButton::indicator:checked {
 }
 
 #kwHelpTitle {
-    color: #1A73E8;
+    color: {{ACCENT}};
 }
 
 #kwHelpDesc {

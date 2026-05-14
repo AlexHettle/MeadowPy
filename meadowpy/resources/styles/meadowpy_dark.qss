@@ -1672,7 +1672,7 @@ QDockWidget::title {
 }
 
 #kwHelpTitle {
-    color: #4FC1FF;
+    color: {{ACCENT_BRIGHT}};
 }
 
 #kwHelpDesc {

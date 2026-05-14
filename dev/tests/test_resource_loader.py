@@ -35,6 +35,17 @@ def test_get_stylesheet_replaces_placeholders_for_custom_theme():
     assert "{{ACCENT" not in stylesheet
     assert "{{ICONS_DIR}}" not in stylesheet
     assert "#123456" in stylesheet
+    assert "#kwHelpTitle {\n    color: #123456;" in stylesheet
+
+
+def test_keyword_help_title_uses_theme_accent_text_color():
+    light_stylesheet = resource_loader.get_stylesheet("default_light")
+    dark_stylesheet = resource_loader.get_stylesheet("default_dark")
+    high_contrast_stylesheet = resource_loader.get_stylesheet("default_high_contrast")
+
+    assert "#kwHelpTitle {\n    color: #2E7D32;" in light_stylesheet
+    assert "#kwHelpTitle {\n    color: #4CAF50;" in dark_stylesheet
+    assert "#kwHelpTitle {\n    color: #FFFFFF;" in high_contrast_stylesheet
 
 
 def test_get_stylesheet_applies_high_contrast_overrides():
