@@ -214,8 +214,10 @@ class ChatView(QScrollArea):
         self._constrain_widths()
 
     def _on_context_menu(self, pos) -> None:
+        copy_text = self.get_all_plain_text()
         menu = QMenu(self)
         act_copy_all = menu.addAction("Copy All Chat")
+        act_copy_all.setEnabled(bool(copy_text))
         chosen = menu.exec(self.viewport().mapToGlobal(pos))
-        if chosen is act_copy_all:
-            QApplication.clipboard().setText(self.get_all_plain_text())
+        if chosen is act_copy_all and copy_text:
+            QApplication.clipboard().setText(copy_text)

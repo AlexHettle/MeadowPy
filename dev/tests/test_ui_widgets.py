@@ -5,8 +5,10 @@ from types import SimpleNamespace
 from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QMenu, QStatusBar
 
+import meadowpy.ui.ai_chat_widgets as ai_chat_widgets_module
 from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.linter import LintIssue
+from meadowpy.ui.ai_chat_widgets import ChatView
 from meadowpy.ui.call_stack_panel import CallStackPanel
 from meadowpy.ui.dialogs.venv_dialog import VenvDialog
 from meadowpy.ui.model_selector import ModelSelectorPopup
@@ -189,6 +191,66 @@ def test_model_selector_menu_builders_emit_user_choices(qapp):
     ][0]
     setup_action.trigger()
     assert chosen.calls[-1] == ("__setup__",)
+
+
+def test_chat_view_copy_all_action_disables_when_empty(monkeypatch, qapp):
+    created_menus = []
+    copied = []
+
+    class FakeAction:
+        def __init__(self, text):
+            self._text = text
+            self._enabled = True
+
+        def text(self):
+            return self._text
+
+        def setEnabled(self, enabled):
+            self._enabled = enabled
+
+        def isEnabled(self):
+            return self._enabled
+
+    class FakeMenu:
+        def __init__(self, parent=None):
+            self.parent = parent
+            self.actions = []
+            created_menus.append(self)
+
+        def addAction(self, text):
+            action = FakeAction(text)
+            self.actions.append(action)
+            return action
+
+        def exec(self, _pos):
+            return self.actions[0]
+
+    monkeypatch.setattr(ai_chat_widgets_module, "QMenu", FakeMenu)
+    monkeypatch.setattr(
+        ai_chat_widgets_module,
+        "QApplication",
+        SimpleNamespace(
+            clipboard=lambda: SimpleNamespace(
+                setText=lambda text: copied.append(text)
+            )
+        ),
+    )
+
+    view = ChatView()
+
+    view._on_context_menu(QPoint(0, 0))
+
+    assert created_menus[-1].actions[0].text() == "Copy All Chat"
+    assert created_menus[-1].actions[0].isEnabled() is False
+    assert copied == []
+
+    view.add_bubble("user", "<b>Hello</b>")
+    view.add_centered("<i>Stopped</i>", "aiChatStoppedLabel")
+    view._on_context_menu(QPoint(0, 0))
+
+    assert created_menus[-1].actions[0].isEnabled() is True
+    assert copied == ["Hello\n\nStopped"]
+    view.deleteLater()
 
 
 def test_venv_dialog_validates_inputs_and_reports_success(monkeypatch, qapp, tmp_path):
