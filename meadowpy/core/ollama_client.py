@@ -1,6 +1,7 @@
 """Ollama connection manager — background health checks, model listing, and chat."""
 
 import json
+import socket
 import urllib.request
 import urllib.error
 
@@ -8,6 +9,13 @@ from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 
 from meadowpy.core.qt_threads import stop_qthread
 from meadowpy.core.settings import Settings
+
+
+_CHAT_REQUEST_TIMEOUT_SECONDS = 120
+_CHAT_STOP_TIMEOUT_MS = 1_000
+_CHAT_TERMINATE_TIMEOUT_MS = 1_000
+_HEALTH_STOP_TIMEOUT_MS = 5_000
+_HEALTH_TERMINATE_TIMEOUT_MS = 1_000
 
 
 # ── Chat streaming worker ───────────────────────────────────────────
@@ -30,12 +38,35 @@ class ChatWorker(QObject):
     def cancel(self) -> None:
         """Request cancellation — closes the HTTP connection to unblock reads."""
         self._cancelled = True
-        resp = self._response
+        self._close_response()
+
+    def _close_response(self, response=None) -> None:
+        """Close the streaming response and its socket if one is active."""
+        resp = response or self._response
         if resp is not None:
+            sock = self._response_socket(resp)
+            if sock is not None:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+                try:
+                    sock.close()
+                except Exception:
+                    pass
             try:
                 resp.close()
             except Exception:
                 pass
+        if response is None or self._response is response:
+            self._response = None
+
+    @staticmethod
+    def _response_socket(response):
+        """Best-effort access to urllib's underlying socket."""
+        fp = getattr(response, "fp", None)
+        raw = getattr(fp, "raw", None)
+        return getattr(raw, "_sock", None)
 
     def run(self) -> None:
         """POST /api/chat with streaming and emit tokens."""
@@ -52,9 +83,18 @@ class ChatWorker(QObject):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            self._response = urllib.request.urlopen(req, timeout=120)
+            response = urllib.request.urlopen(req, timeout=_CHAT_REQUEST_TIMEOUT_SECONDS)
+            self._response = response
             try:
-                for raw_line in self._response:
+                while not self._cancelled:
+                    try:
+                        raw_line = response.readline()
+                    except OSError:
+                        if self._cancelled:
+                            break
+                        raise
+                    if not raw_line:
+                        break
                     if self._cancelled:
                         break
                     line = raw_line.decode("utf-8").strip()
@@ -74,13 +114,11 @@ class ChatWorker(QObject):
                     if chunk.get("done", False):
                         break
             finally:
-                try:
-                    self._response.close()
-                except Exception:
-                    pass
-                self._response = None
+                self._close_response(response)
 
         except urllib.error.HTTPError as e:
+            if self._cancelled:
+                return
             # HTTP errors (4xx/5xx) — read the body for details
             try:
                 body = e.read().decode("utf-8", errors="replace").strip()
@@ -94,8 +132,9 @@ class ChatWorker(QObject):
                     f"Ollama error ({e.code}): {e.reason}"
                 )
         except urllib.error.URLError as e:
-            reason = getattr(e, "reason", str(e))
-            self.chat_error.emit(f"Connection error: {reason}")
+            if not self._cancelled:
+                reason = getattr(e, "reason", str(e))
+                self.chat_error.emit(f"Connection error: {reason}")
         except Exception as e:
             if not self._cancelled:
                 self.chat_error.emit(str(e))
@@ -186,6 +225,7 @@ class OllamaClient(QObject):
         # Chat worker thread management (separate from health checks)
         self._chat_thread: QThread | None = None
         self._chat_worker: ChatWorker | None = None
+        self._shutting_down = False
 
         # Auto-check timer (30 seconds)
         self._auto_check_timer = QTimer(self)
@@ -221,6 +261,7 @@ class OllamaClient(QObject):
 
     def start(self) -> None:
         """Call once after construction. Starts auto-check if enabled."""
+        self._shutting_down = False
         if self._settings.get("ollama.auto_connect"):
             self._auto_check_timer.start()
             # Immediate first check
@@ -228,17 +269,30 @@ class OllamaClient(QObject):
 
     def stop(self) -> None:
         """Call during app shutdown. Stops timer and cancels running work."""
+        self._shutting_down = True
         self._auto_check_timer.stop()
 
         # Cancel running workers
         if self._chat_worker:
+            self._disconnect_chat_worker_signals(
+                self._chat_worker, self._chat_thread
+            )
             self._chat_worker.cancel()
         if self._worker:
-            pass  # health worker has no cancel — it's fast
+            self._disconnect_health_worker_signals(self._worker, self._thread)
+        for worker, thread in zip(list(self._old_workers), list(self._old_threads)):
+            self._prepare_old_worker_for_shutdown(worker, thread)
 
         # Stop before QObject teardown; a live QThread aborts the process.
-        for thread in [self._chat_thread, self._thread] + list(self._old_threads):
-            stop_qthread(thread, graceful_timeout_ms=5_000)
+        self._stop_thread_for_shutdown(self._chat_thread, self._chat_worker)
+        self._stop_thread_for_shutdown(self._thread, self._worker)
+        for index, thread in enumerate(list(self._old_threads)):
+            worker = (
+                self._old_workers[index]
+                if index < len(self._old_workers)
+                else None
+            )
+            self._stop_thread_for_shutdown(thread, worker)
 
         self._chat_thread = None
         self._chat_worker = None
@@ -316,8 +370,82 @@ class OllamaClient(QObject):
 
     # ── Internal slots ──────────────────────────────────────────────
 
+    @staticmethod
+    def _safe_disconnect(signal, callback=None) -> None:
+        """Disconnect a Qt signal without failing during shutdown."""
+        try:
+            if callback is None:
+                signal.disconnect()
+            else:
+                signal.disconnect(callback)
+        except (TypeError, RuntimeError):
+            pass
+
+    def _disconnect_chat_worker_signals(
+        self, worker: ChatWorker, thread: QThread | None
+    ) -> None:
+        """Prevent late chat-worker signals from updating a closing window."""
+        self._safe_disconnect(worker.chat_token, self._on_chat_token)
+        self._safe_disconnect(worker.chat_error, self._on_chat_error)
+        self._safe_disconnect(worker.finished, self._on_chat_worker_finished)
+        if thread is not None:
+            self._safe_disconnect(worker.finished, thread.quit)
+            self._safe_disconnect(thread.finished)
+
+    def _disconnect_health_worker_signals(
+        self, worker: OllamaWorker, thread: QThread | None
+    ) -> None:
+        """Prevent late health-check signals during application teardown."""
+        self._safe_disconnect(worker.health_checked, self._on_health_result)
+        self._safe_disconnect(worker.models_fetched, self._on_models_result)
+        if thread is not None:
+            self._safe_disconnect(worker.finished, thread.quit)
+            self._safe_disconnect(thread.finished)
+
+    @staticmethod
+    def _looks_like_chat_worker(worker: object | None) -> bool:
+        return worker is not None and (
+            hasattr(worker, "cancel")
+            or all(hasattr(worker, attr) for attr in ("chat_token", "chat_error"))
+        )
+
+    def _prepare_old_worker_for_shutdown(
+        self, worker: QObject | None, thread: QThread | None
+    ) -> None:
+        if worker is None:
+            return
+        if self._looks_like_chat_worker(worker):
+            if hasattr(worker, "chat_token") and hasattr(worker, "chat_error"):
+                self._disconnect_chat_worker_signals(worker, thread)
+            if hasattr(worker, "cancel"):
+                try:
+                    worker.cancel()
+                except RuntimeError:
+                    pass
+            return
+        if hasattr(worker, "health_checked") and hasattr(worker, "models_fetched"):
+            self._disconnect_health_worker_signals(worker, thread)
+
+    def _stop_thread_for_shutdown(
+        self, thread: QThread | None, worker: QObject | None
+    ) -> bool:
+        if self._looks_like_chat_worker(worker):
+            return stop_qthread(
+                thread,
+                graceful_timeout_ms=_CHAT_STOP_TIMEOUT_MS,
+                terminate_timeout_ms=_CHAT_TERMINATE_TIMEOUT_MS,
+            )
+        return stop_qthread(
+            thread,
+            graceful_timeout_ms=_HEALTH_STOP_TIMEOUT_MS,
+            terminate_timeout_ms=_HEALTH_TERMINATE_TIMEOUT_MS,
+        )
+
     def _on_health_result(self, connected: bool, message: str) -> None:
         """Handle health check result from the worker."""
+        if self._shutting_down:
+            return
+
         changed = (connected != self._connected)
         self._connected = connected
         self._status_text = message
@@ -332,6 +460,9 @@ class OllamaClient(QObject):
 
     def _on_models_result(self, models: list[str]) -> None:
         """Handle model list result from the worker."""
+        if self._shutting_down:
+            return
+
         self._models = models
         self.models_updated.emit(models)
 
@@ -342,6 +473,9 @@ class OllamaClient(QObject):
 
     def _on_setting_changed(self, key: str, value: object) -> None:
         """React to relevant settings changes."""
+        if self._shutting_down:
+            return
+
         if key == "ollama.api_url":
             # URL changed — re-check immediately
             self.check_connection()
@@ -355,12 +489,18 @@ class OllamaClient(QObject):
     # ── Chat slots ───────────────────────────────────────────────────
 
     def _on_chat_token(self, token: str) -> None:
+        if self._shutting_down:
+            return
         self.chat_token.emit(token)
 
     def _on_chat_error(self, message: str) -> None:
+        if self._shutting_down:
+            return
         self.chat_error.emit(message)
 
     def _on_chat_worker_finished(self) -> None:
+        if self._shutting_down:
+            return
         self.chat_finished.emit()
 
     def _on_chat_thread_finished(

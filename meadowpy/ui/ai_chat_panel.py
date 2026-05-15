@@ -67,6 +67,7 @@ class AIChatPanel(QDockWidget):
 
         self._messages: list[dict] = []
         self._streaming = False
+        self._shutting_down = False
         self._current_assistant_text = ""
         self._streaming_bubble: ChatBubble | None = None  # in-place updated bubble
         self._code_blocks: list[str] = []  # extracted code blocks for insert
@@ -322,6 +323,9 @@ class AIChatPanel(QDockWidget):
         Updates the existing streaming bubble in place to avoid rebuilding the
         entire chat view (and the visual jumpiness that caused) for each token.
         """
+        if self._shutting_down:
+            return
+
         self._current_assistant_text += token
 
         # First token of the response: do a full render to insert the bubble
@@ -342,6 +346,9 @@ class AIChatPanel(QDockWidget):
 
     def finish_response(self) -> None:
         """Called when the AI stream completes."""
+        if self._shutting_down:
+            return
+
         # Save the complete assistant message into history
         if self._current_assistant_text:
             self._messages.append({
@@ -359,6 +366,9 @@ class AIChatPanel(QDockWidget):
 
     def show_error(self, message: str) -> None:
         """Display an error in the chat and re-enable input."""
+        if self._shutting_down:
+            return
+
         self._current_assistant_text = ""
         self._streaming = False
         self._streaming_bubble = None
@@ -410,6 +420,9 @@ class AIChatPanel(QDockWidget):
 
     def clear_chat(self) -> None:
         """Reset the conversation."""
+        if self._shutting_down:
+            return
+
         self._messages.clear()
         self._code_blocks.clear()
         self._current_assistant_text = ""
@@ -421,12 +434,24 @@ class AIChatPanel(QDockWidget):
         self._update_btn_visibility()
         self._input_area.setFocus()
 
+    def prepare_for_shutdown(self) -> None:
+        """Ignore late AI stream updates while the main window is closing."""
+        self._shutting_down = True
+        self._streaming = False
+        self._streaming_bubble = None
+        self._current_assistant_text = ""
 
     # -- Internal ----------------------------------------------------
 
     def _scroll_to_bottom(self) -> None:
         """Scroll the chat view to the very bottom."""
-        self._chat_view.scroll_to_bottom()
+        if self._shutting_down:
+            return
+        try:
+            self._chat_view.scroll_to_bottom()
+        except RuntimeError:
+            # A queued singleShot can fire after child widgets start teardown.
+            pass
 
     def _on_link_clicked_str(self, href: str) -> None:
         """Handle bubble-label clicks — href is a raw string from QLabel."""
@@ -520,6 +545,9 @@ class AIChatPanel(QDockWidget):
 
     def _on_stop(self) -> None:
         """Handle the user pressing Stop."""
+        if self._shutting_down:
+            return
+
         self.chat_stop_requested.emit()
 
         # Save whatever partial response was received
@@ -546,6 +574,9 @@ class AIChatPanel(QDockWidget):
 
     def _on_send(self) -> None:
         """Handle the user pressing Send / Enter."""
+        if self._shutting_down:
+            return
+
         text = self._input_area.toPlainText().strip()
         if not text or self._streaming:
             return
@@ -580,6 +611,9 @@ class AIChatPanel(QDockWidget):
 
     def _render_chat(self) -> None:
         """Rebuild the bubble list from message history."""
+        if self._shutting_down:
+            return
+
         # Reset code block index — blocks are re-collected during rendering
         self._code_blocks.clear()
 

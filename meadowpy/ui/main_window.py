@@ -545,6 +545,13 @@ class MainWindow(QMainWindow):
 
     def _shutdown_background_work(self) -> None:
         """Stop long-running workers and subprocesses before Qt destroys widgets."""
+        chat_panel = getattr(self, "_ai_chat_panel", None)
+        prepare_chat_shutdown = getattr(chat_panel, "prepare_for_shutdown", None)
+        if callable(prepare_chat_shutdown):
+            self._stop_shutdown_component(
+                "ai_chat_panel", prepare_chat_shutdown
+            )
+
         self._stop_shutdown_component("ollama_client", self._ollama_client.stop)
         self._stop_shutdown_component("lint_runner", self._lint_runner.stop)
         self._stop_shutdown_component("search_panel", self._search_panel.stop)

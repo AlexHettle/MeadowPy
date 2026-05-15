@@ -1,5 +1,6 @@
 import io
 import json
+import socket
 import urllib.error
 
 from meadowpy.core.ollama_client import ChatWorker, OllamaClient, OllamaWorker
@@ -18,6 +19,14 @@ class FakeResponse:
 
     def __iter__(self):
         return iter(self.lines)
+
+    def readline(self):
+        if not self.lines:
+            return b""
+        line = self.lines.pop(0)
+        if isinstance(line, BaseException):
+            raise line
+        return line
 
     def close(self):
         self.closed = True
@@ -103,6 +112,40 @@ def test_chat_worker_ignores_invalid_json_and_cancel_closes_response(monkeypatch
 
     assert tokens.calls == [("ok",)]
     assert response.closed is True
+
+
+def test_chat_worker_cancel_shuts_down_underlying_socket():
+    class FakeSocket:
+        def __init__(self):
+            self.shutdown_calls = []
+            self.closed = False
+
+        def shutdown(self, mode):
+            self.shutdown_calls.append(mode)
+
+        def close(self):
+            self.closed = True
+
+    class Raw:
+        def __init__(self, sock):
+            self._sock = sock
+
+    class Fp:
+        def __init__(self, sock):
+            self.raw = Raw(sock)
+
+    worker = ChatWorker("http://localhost:11434", "llama3", [])
+    response = FakeResponse()
+    sock = FakeSocket()
+    response.fp = Fp(sock)
+    worker._response = response
+
+    worker.cancel()
+
+    assert sock.shutdown_calls == [socket.SHUT_RDWR]
+    assert sock.closed is True
+    assert response.closed is True
+    assert worker._response is None
 
 
 def test_chat_worker_reports_http_error_details(monkeypatch):
@@ -377,10 +420,72 @@ def test_stop_cancels_workers_and_terminates_stubborn_threads(tmp_path):
 
     assert chat_worker.cancelled is True
     assert stubborn.terminate_called == 1
+    assert stubborn.wait_calls == [1_000, 1_000]
     assert client._chat_thread is None
     assert client._thread is None
     assert client._old_threads == []
     assert client._old_workers == []
+
+
+def test_stop_suppresses_late_chat_worker_signals(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    worker = FakeWorker()
+    thread = FakeThread(running=True, wait_result=True)
+    tokens = SignalRecorder()
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    client.chat_token.connect(tokens)
+    client.chat_error.connect(errors)
+    client.chat_finished.connect(finished)
+
+    worker.chat_token.connect(client._on_chat_token)
+    worker.chat_error.connect(client._on_chat_error)
+    worker.finished.connect(client._on_chat_worker_finished)
+    worker.finished.connect(thread.quit)
+    client._chat_worker = worker
+    client._chat_thread = thread
+
+    client.stop()
+    worker.chat_token.emit("late")
+    worker.chat_error.emit("late error")
+    worker.finished.emit()
+
+    assert client._shutting_down is True
+    assert worker.cancelled is True
+    assert tokens.calls == []
+    assert errors.calls == []
+    assert finished.calls == []
+
+
+def test_stop_suppresses_late_old_chat_worker_signals(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    worker = FakeWorker()
+    thread = FakeThread(running=True, wait_result=True)
+    tokens = SignalRecorder()
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    client.chat_token.connect(tokens)
+    client.chat_error.connect(errors)
+    client.chat_finished.connect(finished)
+
+    worker.chat_token.connect(client._on_chat_token)
+    worker.chat_error.connect(client._on_chat_error)
+    worker.finished.connect(client._on_chat_worker_finished)
+    worker.finished.connect(thread.quit)
+    client._old_workers = [worker]
+    client._old_threads = [thread]
+
+    client.stop()
+    worker.chat_token.emit("late")
+    worker.chat_error.emit("late error")
+    worker.finished.emit()
+
+    assert worker.cancelled is True
+    assert tokens.calls == []
+    assert errors.calls == []
+    assert finished.calls == []
 
 
 def test_old_health_thread_finish_does_not_clear_current_thread(tmp_path):
