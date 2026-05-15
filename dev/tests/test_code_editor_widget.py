@@ -98,6 +98,99 @@ def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_p
     editor.deleteLater()
 
 
+def test_breakpoints_follow_editor_marker_line_changes(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("first\nsecond\nthird\n")
+
+    editor.toggle_breakpoint(1)
+    editor.insertAt("inserted\n", 0, 0)
+
+    assert editor.get_breakpoints() == {2}
+
+    editor.toggle_breakpoint(2)
+    assert editor.get_breakpoints() == set()
+    editor.deleteLater()
+
+
+def test_breakpoints_on_non_code_lines_snap_to_next_statement(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("# heading\n\nvalue = 1\n# trailing\n\n")
+
+    editor.toggle_breakpoint(0)
+    assert editor.get_breakpoints() == {2}
+
+    editor.toggle_breakpoint(1)
+    assert editor.get_breakpoints() == set()
+
+    editor.toggle_breakpoint(3)
+    assert editor.get_breakpoints() == {2}
+
+    editor.toggle_breakpoint(4)
+    assert editor.get_breakpoints() == set()
+    editor.deleteLater()
+
+
+class PhantomBreakpointHarness:
+    _breakpoint_hover_margin_at_x = CodeEditor._breakpoint_hover_margin_at_x
+    _line_from_mouse_y = CodeEditor._line_from_mouse_y
+    _set_phantom_breakpoint = CodeEditor._set_phantom_breakpoint
+    _clear_phantom_breakpoint = CodeEditor._clear_phantom_breakpoint
+
+    def __init__(self):
+        self._phantom_breakpoint_line = None
+        self.widths = {0: 24, 1: 12, 2: 18, 3: 0, 4: 0}
+        self.line = 1
+        self.resolved_line = 2
+        self.real_breakpoints = set()
+        self.added = []
+        self.deleted = []
+
+    def marginWidth(self, index):
+        return self.widths.get(index, 0)
+
+    def SendScintilla(self, message, x, y):
+        assert message == 2022
+        return 40
+
+    def lineIndexFromPosition(self, _pos):
+        return self.line, 0
+
+    def lines(self):
+        return 5
+
+    def _resolve_breakpoint_line(self, _line):
+        return self.resolved_line
+
+    def _has_breakpoint_marker(self, line):
+        return line in self.real_breakpoints
+
+    def markerAdd(self, line, marker):
+        self.added.append((line, marker))
+
+    def markerDelete(self, line, marker):
+        self.deleted.append((line, marker))
+
+    def markerDeleteAll(self, marker):
+        self.deleted.append(("all", marker))
+
+
+def test_phantom_breakpoint_follows_hoverable_gutter_and_skips_real_breakpoints():
+    marker = code_editor_module.MARKER_PHANTOM_BREAKPOINT
+    harness = PhantomBreakpointHarness()
+
+    CodeEditor._update_phantom_breakpoint(harness, 5, 12)
+    assert harness._phantom_breakpoint_line == 2
+    assert harness.added == [(2, marker)]
+
+    CodeEditor._update_phantom_breakpoint(harness, 25, 12)
+    assert harness._phantom_breakpoint_line is None
+    assert harness.deleted == [("all", marker)]
+
+    harness.real_breakpoints = {2}
+    CodeEditor._update_phantom_breakpoint(harness, 40, 12)
+    assert harness.added == [(2, marker)]
+
+
 def test_lint_markers_use_high_contrast_indicator_colors(qapp, tmp_path):
     settings = Settings(tmp_path)
     settings.set("editor.auto_complete", False)

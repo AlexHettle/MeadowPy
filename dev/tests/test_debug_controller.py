@@ -289,8 +289,10 @@ def test_create_debug_manager_wires_every_signal(monkeypatch):
 
 
 class CursorBreakpointEditor:
-    def __init__(self):
+    def __init__(self, file_path="cursor.py"):
+        self.file_path = file_path
         self.toggled = []
+        self._breakpoints = set()
         self.cleared = 0
 
     def getCursorPosition(self):
@@ -298,8 +300,16 @@ class CursorBreakpointEditor:
 
     def toggle_breakpoint(self, line):
         self.toggled.append(line)
+        if line in self._breakpoints:
+            self._breakpoints.discard(line)
+        else:
+            self._breakpoints.add(line)
+
+    def get_breakpoints(self):
+        return self._breakpoints
 
     def clear_breakpoints(self):
+        self._breakpoints.clear()
         self.cleared += 1
 
 
@@ -318,6 +328,30 @@ def test_breakpoint_actions_use_current_editor_and_all_open_tabs(monkeypatch):
     assert editor.toggled == [12]
     assert editor.cleared == 1
     assert other_editor.cleared == 1
+
+
+def test_breakpoint_actions_update_active_debug_session(monkeypatch):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("live.py")
+    tabs = FakeTabManager([editor])
+    updates = []
+    manager = SimpleNamespace(
+        state=DebugState.RUNNING,
+        update_breakpoints=lambda breakpoints: updates.append(breakpoints),
+    )
+    controller = DebugController(
+        MainWindowContext(
+            SimpleNamespace(_tab_manager=tabs, _debug_manager=manager),
+            None,
+            None,
+            None,
+        )
+    )
+
+    controller.action_toggle_breakpoint()
+    controller.action_clear_all_breakpoints()
+
+    assert updates == [{"live.py": [13]}, {}]
 
 
 class RecordingDebugManager:

@@ -27,6 +27,7 @@ class DebugController(MainWindowController):
         if editor:
             line, _ = editor.getCursorPosition()
             editor.toggle_breakpoint(line)
+            self._update_active_debug_breakpoints()
 
     # --- Debug actions (Phase 4) ---
 
@@ -100,6 +101,7 @@ class DebugController(MainWindowController):
             editor = self._tab_manager.widget(i)
             if isinstance(editor, CodeEditor):
                 editor.clear_breakpoints()
+        self._update_active_debug_breakpoints()
 
     def _collect_all_breakpoints(self) -> dict[str, list[int]]:
         """Collect breakpoints from all tabs: {filepath: [1-based lines]}."""
@@ -110,8 +112,17 @@ class DebugController(MainWindowController):
                 bp_lines = editor.get_breakpoints()
                 if bp_lines:
                     # Convert 0-based to 1-based for the protocol
-                    result[editor.file_path] = [line + 1 for line in bp_lines]
+                    result[editor.file_path] = [
+                        line + 1 for line in sorted(bp_lines)
+                    ]
         return result
+
+    def _update_active_debug_breakpoints(self) -> None:
+        """Send current editor breakpoints to a live debug session."""
+        manager = getattr(self, "_debug_manager", None)
+        if manager is None or manager.state == DebugState.IDLE:
+            return
+        manager.update_breakpoints(self._collect_all_breakpoints())
 
     def _set_run_as_continue(self, as_continue: bool) -> None:
         """Swap the Run button between Run and Continue modes."""

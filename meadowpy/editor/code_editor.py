@@ -1,5 +1,6 @@
 """Core code editor widget based on QScintilla."""
 
+import ast
 from pathlib import Path
 
 from PyQt6.QtCore import pyqtSignal, Qt, QEvent
@@ -17,6 +18,7 @@ from meadowpy.resources.resource_loader import theme_is_dark
 # Marker IDs for gutter symbols
 MARKER_BREAKPOINT = 0    # Red filled circle for breakpoints
 MARKER_CURRENT_LINE = 1  # Yellow arrow for current execution line during debug
+MARKER_PHANTOM_BREAKPOINT = 2  # Muted circle shown while hovering the gutter
 
 # Indicator IDs for squiggle underlines
 # QScintilla reserves indicators 0-7 for lexer use and 8-10 internally
@@ -66,11 +68,16 @@ class CodeEditor(QsciScintilla):
 
         # Breakpoint storage (0-based line numbers)
         self._breakpoints: set[int] = set()
+        self._phantom_breakpoint_line: int | None = None
+        self.setMouseTracking(True)
 
         # Define gutter marker shapes; colors are applied separately so they
         # can be refreshed when the theme changes.
         self.markerDefine(QsciScintilla.MarkerSymbol.Circle, MARKER_BREAKPOINT)
         self.markerDefine(QsciScintilla.MarkerSymbol.RightArrow, MARKER_CURRENT_LINE)
+        self.markerDefine(
+            QsciScintilla.MarkerSymbol.Circle, MARKER_PHANTOM_BREAKPOINT
+        )
         self._apply_marker_colors()
 
         EditorConfigurator.apply(self, settings)
@@ -97,6 +104,7 @@ class CodeEditor(QsciScintilla):
         self.linesChanged.connect(self._update_margin_width)
         self.linesChanged.connect(self._indent_guide_overlay.update)
         self.textChanged.connect(self._indent_guide_overlay.update)
+        self.textChanged.connect(self._clear_phantom_breakpoint)
         self.marginClicked.connect(self._on_margin_clicked)
 
     @property
@@ -456,6 +464,14 @@ class CodeEditor(QsciScintilla):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._update_margin_width()
 
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        self._update_phantom_breakpoint(event.pos().x(), event.pos().y())
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        self._clear_phantom_breakpoint()
+        super().leaveEvent(event)
+
     # ── Drag & Drop (forward file URLs to main window) ───────────
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
@@ -657,16 +673,144 @@ class CodeEditor(QsciScintilla):
             bp_color = QColor("#E51400")
             cur_fg = QColor("#000000")
             cur_bg = QColor("#FFCC00")
+            theme_name = self._settings.get("editor.theme")
+            custom_base = self._settings.get("editor.custom_theme.base")
+            phantom_color = QColor(
+                "#6F7780" if theme_is_dark(theme_name, custom_base) else "#9AA3AD"
+            )
+        if is_hc:
+            phantom_color = QColor("#808080")
         self.setMarkerForegroundColor(bp_color, MARKER_BREAKPOINT)
         self.setMarkerBackgroundColor(bp_color, MARKER_BREAKPOINT)
         self.setMarkerForegroundColor(cur_fg, MARKER_CURRENT_LINE)
         self.setMarkerBackgroundColor(cur_bg, MARKER_CURRENT_LINE)
+        self.setMarkerForegroundColor(
+            phantom_color, MARKER_PHANTOM_BREAKPOINT
+        )
+        self.setMarkerBackgroundColor(
+            phantom_color, MARKER_PHANTOM_BREAKPOINT
+        )
 
     def refresh_marker_colors(self) -> None:
         """Re-apply breakpoint / current-line marker colors after a theme change."""
         self._apply_marker_colors()
 
     # --- Breakpoint methods ---
+
+    def _breakpoint_lines_from_markers(self) -> set[int]:
+        """Return breakpoint line numbers from Scintilla's marker state."""
+        marker_mask = 1 << MARKER_BREAKPOINT
+        return {
+            line
+            for line in range(self.lines())
+            if self.markersAtLine(line) & marker_mask
+        }
+
+    def _has_breakpoint_marker(self, line: int) -> bool:
+        """Return True if the given line currently has a breakpoint marker."""
+        if line < 0 or line >= self.lines():
+            return False
+        return bool(self.markersAtLine(line) & (1 << MARKER_BREAKPOINT))
+
+    def _sync_breakpoints_from_markers(self) -> None:
+        """Keep cached breakpoint lines aligned with movable editor markers."""
+        self._breakpoints = self._breakpoint_lines_from_markers()
+
+    def _breakpoint_hover_margin_at_x(self, x: int) -> bool:
+        """Return True when x is over a margin that toggles breakpoints."""
+        line_number_width = int(self.marginWidth(0) or 0)
+        fold_width = int(self.marginWidth(1) or 0)
+        breakpoint_width = int(self.marginWidth(2) or 0)
+
+        if 0 <= x < line_number_width:
+            return True
+
+        breakpoint_start = line_number_width + fold_width
+        breakpoint_end = breakpoint_start + breakpoint_width
+        return breakpoint_start <= x < breakpoint_end
+
+    def _line_from_mouse_y(self, y: int) -> int | None:
+        """Resolve a widget y-coordinate to a document line."""
+        lookup_x = sum(int(self.marginWidth(i) or 0) for i in range(5)) + 1
+        pos = self.SendScintilla(2022, lookup_x, y)  # SCI_POSITIONFROMPOINT
+        if pos < 0:
+            return None
+
+        line, _column = self.lineIndexFromPosition(pos)
+        if line < 0 or line >= self.lines():
+            return None
+        return line
+
+    def _set_phantom_breakpoint(self, line: int | None) -> None:
+        """Move or hide the hover-only breakpoint marker."""
+        if self._phantom_breakpoint_line == line:
+            return
+
+        self._clear_phantom_breakpoint()
+        if line is None:
+            return
+
+        self.markerAdd(line, MARKER_PHANTOM_BREAKPOINT)
+        self._phantom_breakpoint_line = line
+
+    def _clear_phantom_breakpoint(self) -> None:
+        """Remove the hover-only breakpoint marker."""
+        if self._phantom_breakpoint_line is not None:
+            self.markerDeleteAll(MARKER_PHANTOM_BREAKPOINT)
+            self._phantom_breakpoint_line = None
+
+    def _update_phantom_breakpoint(self, x: int, y: int) -> None:
+        """Show a ghost breakpoint on the executable line under the gutter."""
+        if not self._breakpoint_hover_margin_at_x(x):
+            self._clear_phantom_breakpoint()
+            return
+
+        line = self._line_from_mouse_y(y)
+        if line is None:
+            self._clear_phantom_breakpoint()
+            return
+
+        resolved = self._resolve_breakpoint_line(line)
+        if resolved is None or self._has_breakpoint_marker(resolved):
+            self._clear_phantom_breakpoint()
+            return
+
+        self._set_phantom_breakpoint(resolved)
+
+    def _breakable_lines(self) -> set[int]:
+        """Return 0-based lines that can reasonably hold Python breakpoints."""
+        try:
+            tree = ast.parse(self.text())
+        except SyntaxError:
+            return {
+                line
+                for line in range(self.lines())
+                if self.text(line).strip()
+                and not self.text(line).lstrip().startswith("#")
+            }
+
+        return {
+            node.lineno - 1
+            for node in ast.walk(tree)
+            if isinstance(node, ast.stmt) and hasattr(node, "lineno")
+        }
+
+    def _resolve_breakpoint_line(self, line: int) -> int | None:
+        """Map a gutter click/hover to a nearby executable line."""
+        if line < 0 or line >= self.lines():
+            return None
+
+        breakable_lines = sorted(self._breakable_lines())
+        if line in breakable_lines:
+            return line
+
+        for candidate in breakable_lines:
+            if candidate > line:
+                return candidate
+        for candidate in reversed(breakable_lines):
+            if candidate < line:
+                return candidate
+        return None
 
     def _on_margin_clicked(self, margin: int, line: int, state) -> None:
         """Handle clicks on the breakpoint margin (2) or line number margin (0)."""
@@ -675,19 +819,26 @@ class CodeEditor(QsciScintilla):
 
     def toggle_breakpoint(self, line: int) -> None:
         """Toggle a breakpoint on the given 0-based line number."""
-        if line in self._breakpoints:
-            self._breakpoints.discard(line)
+        line = self._resolve_breakpoint_line(line)
+        if line is None:
+            self._clear_phantom_breakpoint()
+            return
+
+        self._clear_phantom_breakpoint()
+        if self._has_breakpoint_marker(line):
             self.markerDelete(line, MARKER_BREAKPOINT)
         else:
-            self._breakpoints.add(line)
             self.markerAdd(line, MARKER_BREAKPOINT)
+        self._sync_breakpoints_from_markers()
 
     def get_breakpoints(self) -> set[int]:
         """Return the set of 0-based line numbers with breakpoints."""
+        self._sync_breakpoints_from_markers()
         return self._breakpoints.copy()
 
     def clear_breakpoints(self) -> None:
         """Remove all breakpoint markers."""
+        self._clear_phantom_breakpoint()
         self._breakpoints.clear()
         self.markerDeleteAll(MARKER_BREAKPOINT)
 

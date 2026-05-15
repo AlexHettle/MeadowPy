@@ -212,9 +212,18 @@ class EditorConfigurator:
         editor.setMarginSensitivity(2, True)
 
         # Show breakpoint + current-line markers in this margin
-        from meadowpy.editor.code_editor import MARKER_BREAKPOINT, MARKER_CURRENT_LINE
+        from meadowpy.editor.code_editor import (
+            MARKER_BREAKPOINT,
+            MARKER_CURRENT_LINE,
+            MARKER_PHANTOM_BREAKPOINT,
+        )
         editor.setMarginMarkerMask(
-            2, (1 << MARKER_BREAKPOINT) | (1 << MARKER_CURRENT_LINE)
+            2,
+            (
+                (1 << MARKER_BREAKPOINT)
+                | (1 << MARKER_CURRENT_LINE)
+                | (1 << MARKER_PHANTOM_BREAKPOINT)
+            ),
         )
 
         # Match margin background to theme
