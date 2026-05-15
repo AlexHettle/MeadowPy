@@ -9,7 +9,7 @@
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
   <img alt="AI" src="https://img.shields.io/badge/AI-Ollama-orange">
   <img alt="Active Development" src="https://img.shields.io/badge/Status-Active%20Development-brightgreen">
-  <img alt="Coverage" src="https://img.shields.io/badge/Coverage-87%25-brightgreen">
+  <img alt="Coverage" src="https://img.shields.io/badge/Coverage-92%25-brightgreen">
 </p>
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
@@ -92,7 +92,7 @@ If you're just starting out, MeadowPy removes the friction so you can focus on l
 1. **Download** — Click the green **Code** button on GitHub, then **Download ZIP**.
 2. **Extract** — Right-click the ZIP and choose **Extract All**. Pick any folder you like.
 3. **Setup** — Open the extracted folder and double-click **`setup.bat`**. This creates a virtual environment and installs everything MeadowPy needs. You only need to do this once.
-4. **Launch** — Double-click the **MeadowPy** shortcut (created by setup) to start the IDE.
+4. **Launch** — Double-click the **MeadowPy** shortcut created by setup, or use **`Run MeadowPy.bat`** if shortcut creation was blocked.
 
 ## AI Assistant
 
@@ -160,6 +160,7 @@ Running your code is one keypress away. When something goes wrong, the debugger 
 - **Variable inspector** — see all local and global variables update in real time as you step through code
 - **Watch expressions** — monitor custom expressions like `len(my_list)` or `x + y`
 - **Call stack viewer** — click any frame to inspect variables at that level
+- **Clickable tracebacks** — jump from output errors directly to the relevant file and line
 
 ### Code Quality
 MeadowPy catches mistakes before you run your code, and explains them in terms you can actually act on.
@@ -167,8 +168,8 @@ MeadowPy catches mistakes before you run your code, and explains them in terms y
 - Real-time linting with flake8 and pylint
 - Lint-on-save option
 - Problems panel with click-to-jump-to-line
-- Beginner-friendly error explanations for every issue
-- AI explanations for more complicated problems
+- Beginner-friendly explanations for common runtime errors
+- Optional AI analysis for lint issues and runtime errors
 
 ![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](meadowpy/resources/Images/Error%20AI%20tool.png)
 
@@ -195,7 +196,7 @@ If MeadowPy or the test runner says the virtual environment is broken, rerun `se
 Try running `setup.bat` again to reinstall dependencies. If the problem persists, make sure no antivirus software is blocking Python.
 
 **Window closes immediately**
-Open Command Prompt, navigate to the MeadowPy folder, and run `.venv\Scripts\python.exe main.py` to see the error message.
+Open Command Prompt, navigate to the MeadowPy folder, and run `Run MeadowPy.bat` or `.venv\Scripts\python.exe -m meadowpy` to see startup errors. The launcher also writes details to `%USERPROFILE%\.meadowpy\meadowpy.log`.
 
 **AI features not working**
 Make sure [Ollama](https://ollama.com/download) is installed and running. MeadowPy connects to it automatically at `localhost:11434`. You need at least one model installed.
@@ -211,25 +212,26 @@ MeadowPy is actively developed. Here's what's coming next:
 | More starter project templates                     | ✅ Completed    |
 | Custom theming options                             | ✅ Completed    |
 | Comment / uncomment toggle (Ctrl+/)                | ✅ Completed    |
-| High Contrast mode for visually impaired                       |  ✅ Completed     |
-| Add splash screen                           | ✅ Completed |
+| High Contrast mode for visually impaired           | ✅ Completed    |
+| Add splash screen                                  | ✅ Completed    |
+| Clickable tracebacks in output panel               | ✅ Completed    |
 | macOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
 | Improved styling cohesion                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
-| UI overhaul                       | 🔄 In progress     |
-| Improve linter customization                      | 🔄 In progress     |
+| UI overhaul                                        | 🔄 In progress |
+| Improve linter customization                       | 🔄 In progress |
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
-| Implement Github actions                                  | 📋 Planned     |
+| Implement Github actions                           | 📋 Planned     |
 | Claude API integration                             | 📋 Planned     |
 | Enhanced AI features/capabilities                  | 📋 Planned     |
+| Internationalization and localization              | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
 | Snippet / template expansion (e.g. `for`+Tab)      | 📋 Planned     |
-| Clickable tracebacks in output panel               | 📋 Planned     |
 | Hover docstring & signature tooltips               | 📋 Planned     |
 | Quick-fix lightbulb (auto-import, unused var, …)   | 📋 Planned     |
 | Breadcrumb navigation bar (file › class › method)  | 📋 Planned     |
@@ -256,7 +258,7 @@ If you're working on MeadowPy itself, use the developer setup path so the test t
 
 1. Run **`dev\setup-dev.bat`** once. This installs the app dependencies plus `pytest` and coverage reporting tools.
 2. Run **`dev\Run Tests.bat`** to execute the full automated test suite with coverage.
-3. If you prefer the terminal, you can also run `.venv\Scripts\python.exe -m pytest -c dev\pytest.ini`.
+3. If you prefer the terminal, you can also run `.venv\Scripts\python.exe -m pytest -c dev\pytest.ini --cov-report=html:dev\htmlcov`.
 
 When you change code under `meadowpy\`, make sure the change is covered by the test suite before calling it done. Run the relevant tests while you work, run the full suite before committing, and add or update tests whenever the behavior, bug fix, or edge case calls for it.
 
