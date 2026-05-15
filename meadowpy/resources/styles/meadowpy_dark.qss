@@ -1305,7 +1305,7 @@ QDockWidget::title {
 }
 
 #outputFixAIBtn {
-    background: #2F5C88;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 3px;
@@ -1315,7 +1315,11 @@ QDockWidget::title {
 }
 
 #outputFixAIBtn:hover {
-    background: #3A6FA0;
+    background: {{ACCENT_HOVER}};
+}
+
+#outputFixAIBtn:pressed {
+    background: {{ACCENT_HOVER}};
 }
 
 /* ===== Welcome Screen ===== */

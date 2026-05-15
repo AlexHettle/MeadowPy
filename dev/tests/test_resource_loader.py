@@ -38,6 +38,20 @@ def test_get_stylesheet_replaces_placeholders_for_custom_theme():
     assert "#kwHelpTitle {\n    color: #123456;" in stylesheet
 
 
+def test_output_ai_analysis_button_uses_theme_accent():
+    stylesheet = resource_loader.get_stylesheet(
+        "custom",
+        custom_base="dark",
+        custom_accent="#123456",
+    )
+    hover = resource_loader.darken_color("#123456", 0.12)
+
+    assert "#outputFixAIBtn {\n    background: #123456;" in stylesheet
+    assert f"#outputFixAIBtn:hover {{\n    background: {hover};" in stylesheet
+    assert "#outputFixAIBtn {\n    background: #2F5C88;" not in stylesheet
+    assert "#outputFixAIBtn:hover {\n    background: #3A6FA0;" not in stylesheet
+
+
 def test_keyword_help_title_uses_theme_accent_text_color():
     light_stylesheet = resource_loader.get_stylesheet("default_light")
     dark_stylesheet = resource_loader.get_stylesheet("default_dark")

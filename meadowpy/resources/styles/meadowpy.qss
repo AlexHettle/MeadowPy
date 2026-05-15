@@ -1021,7 +1021,7 @@ QRadioButton::indicator:checked {
 }
 
 #outputFixAIBtn {
-    background: #4A90D9;
+    background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
     border-radius: 3px;
@@ -1031,7 +1031,11 @@ QRadioButton::indicator:checked {
 }
 
 #outputFixAIBtn:hover {
-    background: #5A9FE8;
+    background: {{ACCENT_HOVER}};
+}
+
+#outputFixAIBtn:pressed {
+    background: {{ACCENT_HOVER}};
 }
 
 /* ===== Welcome Screen ===== */

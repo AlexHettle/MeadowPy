@@ -181,6 +181,7 @@ QTabBar::tab:hover:!selected { background: #2A2A2A; color: #FFFFFF; }
 #aiChatSetupBtn,
 #SearchPanel #searchRunBtn,
 #OutputPanel #replRunBtn,
+#outputFixAIBtn,
 #exLibOpenBtn,
 #findToggleBtn:checked,
 #welcomeActionBtn,
@@ -217,6 +218,7 @@ QPushButton:default:hover {
 #aiChatSetupBtn:hover,
 #SearchPanel #searchRunBtn:hover,
 #OutputPanel #replRunBtn:hover,
+#outputFixAIBtn:hover,
 #exLibOpenBtn:hover,
 #welcomeActionBtn:hover {
     background: #CCCCCC;
