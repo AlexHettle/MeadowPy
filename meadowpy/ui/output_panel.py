@@ -1,7 +1,7 @@
 """Output panel — displays program output with stdin support."""
 
-from PyQt6.QtCore import QEvent, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QTextCursor
+from PyQt6.QtCore import QEvent, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QIcon, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from meadowpy.resources.resource_loader import (
     load_themed_icon,
+    load_tinted_icon,
     theme_is_high_contrast,
 )
 from meadowpy.ui.output_panel_glow import HeaderGlowPainter
@@ -216,22 +217,31 @@ class OutputPanel(QDockWidget):
         self._input_line = QLineEdit()
         self._input_line.setObjectName("outputInput")
         self._input_line.setFont(font)
-        self._input_line.setFixedHeight(28)
+        self._input_line.setFixedHeight(32)
         self._input_line.setPlaceholderText("Type Python here...")
         self._input_line.setToolTip(
             "Type Python commands here (press Enter to run, "
             "Up/Down arrows for history)"
         )
         self._input_line.returnPressed.connect(self._on_input_submitted)
+        self._input_line.textChanged.connect(self._update_send_button_state)
         self._input_line.installEventFilter(self)
-        input_layout.addWidget(self._input_line)
+        input_layout.addWidget(
+            self._input_line, 1, Qt.AlignmentFlag.AlignVCenter
+        )
 
-        self._send_btn = QPushButton("Run")
+        self._send_btn = QPushButton("")
         self._send_btn.setObjectName("replRunBtn")
         self._send_btn.setToolTip("Run the command (Enter)")
-        self._send_btn.setFixedHeight(28)
+        self._send_btn.setAccessibleName("Run command")
+        self._send_btn.setFixedSize(32, 32)
+        self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._send_btn.setEnabled(False)
+        self._refresh_send_arrow_icon()
         self._send_btn.clicked.connect(self._on_input_submitted)
-        input_layout.addWidget(self._send_btn)
+        input_layout.addWidget(
+            self._send_btn, 0, Qt.AlignmentFlag.AlignVCenter
+        )
 
         layout.addWidget(self._input_area)
 
@@ -337,13 +347,14 @@ class OutputPanel(QDockWidget):
         if running:
             self._mode = self._MODE_STDIN
             self._prompt_label.setText("Input:")
-            self._send_btn.setText("Send")
             self._send_btn.setToolTip("Send input to the running program (Enter)")
+            self._send_btn.setAccessibleName("Send input")
             self._input_line.setPlaceholderText("Enter input...")
             self._input_line.setToolTip(
                 "Type here when your program asks for input (press Enter to send)"
             )
             self._input_line.clear()
+            self._update_send_button_state()
             self._input_line.setFocus()
             # Reset error state for the new run
             self._last_error_text = ""
@@ -352,13 +363,14 @@ class OutputPanel(QDockWidget):
         else:
             self._mode = self._MODE_REPL
             self._prompt_label.setText(">>>")
-            self._send_btn.setText("Run")
             self._send_btn.setToolTip("Run the command (Enter)")
+            self._send_btn.setAccessibleName("Run command")
             self._input_line.setPlaceholderText("Type Python here...")
             self._input_line.setToolTip(
                 "Type Python commands here (press Enter to run, "
                 "Up/Down arrows for history)"
             )
+            self._update_send_button_state()
 
     def set_max_lines(self, max_lines: int) -> None:
         self._max_lines = max_lines
@@ -366,6 +378,7 @@ class OutputPanel(QDockWidget):
     def update_accent_color(self, hex_color: str) -> None:
         """Refresh the Run button's glow color (called on theme change)."""
         self._header_glow.set_button_color(self._run_btn, QColor(hex_color))
+        self._refresh_send_arrow_icon()
 
     def update_font(self, family: str, size: int) -> None:
         """Update the monospace font for output and input."""
@@ -453,6 +466,37 @@ class OutputPanel(QDockWidget):
         """Set the input line text (used for command history navigation)."""
         self._input_line.setText(text)
         self._input_line.setCursorPosition(len(text))
+        self._update_send_button_state()
+
+    def _update_send_button_state(self) -> None:
+        """Enable the arrow button only when the input contains text."""
+        self._send_btn.setEnabled(bool(self._input_line.text().strip()))
+
+    def _refresh_send_arrow_icon(self) -> None:
+        """Refresh the input submit arrow for the current theme."""
+        is_hc = theme_is_high_contrast(self._current_theme_name())
+        normal_color = "#000000" if is_hc else "#FFFFFF"
+        disabled_color = "#7F7F7F" if is_hc else "#FFFFFF"
+        size = QSize(18, 18)
+
+        normal = load_tinted_icon("arrow_left_thick", normal_color, size=18)
+        disabled = load_tinted_icon(
+            "arrow_left_thick", disabled_color, size=18
+        )
+        icon = QIcon()
+        normal_pixmap = normal.pixmap(size)
+        disabled_pixmap = disabled.pixmap(size)
+        for state in (QIcon.State.Off, QIcon.State.On):
+            for mode in (
+                QIcon.Mode.Normal,
+                QIcon.Mode.Active,
+                QIcon.Mode.Selected,
+            ):
+                icon.addPixmap(normal_pixmap, mode, state)
+            icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, state)
+
+        self._send_btn.setIcon(icon)
+        self._send_btn.setIconSize(size)
 
     def _on_input_submitted(self) -> None:
         text = self._input_line.text()

@@ -76,6 +76,12 @@ def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):
     panel.repl_history_down.connect(history_down)
     panel.ai_fix_requested.connect(ai_fix)
 
+    assert panel._send_btn.text() == ""
+    assert not panel._send_btn.icon().isNull()
+    assert panel._send_btn.width() == 32
+    assert panel._send_btn.height() == 32
+    assert not panel._send_btn.isEnabled()
+
     panel.append_output("hello\r\n", "stdout")
     panel.append_output("friendly hint\n", "hint")
     panel.append_output(
@@ -93,7 +99,9 @@ def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):
 
     panel.update_repl_prompt("...   ")
     panel.set_input_text("x + 1")
+    assert panel._send_btn.isEnabled()
     panel._on_input_submitted()
+    assert not panel._send_btn.isEnabled()
     assert repl_input.calls == [("x + 1",)]
     assert "... x + 1" in panel._output_text.toPlainText()
 
@@ -107,8 +115,11 @@ def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):
     panel.set_running(True)
     assert not panel.run_button.isEnabled()
     assert panel.stop_button.isEnabled()
+    assert not panel._send_btn.isEnabled()
     panel.set_input_text("Ada")
+    assert panel._send_btn.isEnabled()
     panel._on_input_submitted()
+    assert not panel._send_btn.isEnabled()
     assert stdin_input.calls == [("Ada\n",)]
 
     panel.copy_output()

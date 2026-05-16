@@ -217,7 +217,7 @@ QPushButton:default:hover {
 #aiChatSendBtn:hover,
 #aiChatSetupBtn:hover,
 #SearchPanel #searchRunBtn:hover,
-#OutputPanel #replRunBtn:hover,
+#OutputPanel #replRunBtn:enabled:hover,
 #outputFixAIBtn:hover,
 #exLibOpenBtn:hover,
 #welcomeActionBtn:hover {

@@ -1281,13 +1281,21 @@ QDockWidget::title {
     background: {{ACCENT}};
     color: #FFFFFF;
     border: none;
-    border-radius: 4px;
-    padding: 4px 12px;
-    font-weight: bold;
+    border-radius: 16px;
+    padding: 0;
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
 }
 
-#OutputPanel #replRunBtn:hover {
+#OutputPanel #replRunBtn:enabled:hover {
     background: {{ACCENT_HOVER}};
+}
+
+#OutputPanel #replRunBtn:disabled {
+    background: #4B5563;
+    color: #BFC6D1;
 }
 
 #outputInput {
