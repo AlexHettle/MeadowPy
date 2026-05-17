@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QInputDialog, QMessageBox
 
 from meadowpy.core.process_runner import ProcessRunner
 from meadowpy.core.repl_manager import ReplManager
+from meadowpy.ui.controllers.run_eligibility import can_run_editor
 from meadowpy.ui.controllers.window_context import MainWindowController
 
 
@@ -56,6 +57,8 @@ class ExecutionController(MainWindowController):
         editor = self._tab_manager.current_editor()
         if not editor:
             return
+        if not can_run_editor(editor):
+            return
 
         # Confirm if already running
         if self._process_runner.is_running():
@@ -81,6 +84,8 @@ class ExecutionController(MainWindowController):
             file_path = editor.file_path
             if not file_path:
                 return  # user cancelled save-as
+            if not can_run_editor(editor):
+                return
 
         # Resolve interpreter and working directory
         interpreter = self._interpreter_manager.get_interpreter(
@@ -198,6 +203,7 @@ class ExecutionController(MainWindowController):
         self._run_action.setEnabled(True)
         self._debug_action.setEnabled(True)
         self._stop_action.setEnabled(False)
+        self._refresh_run_action_enabled()
         self._output_panel.append_output(f">>> {desc}\n", "system")
         self._status_bar_manager.show_message(desc)
 

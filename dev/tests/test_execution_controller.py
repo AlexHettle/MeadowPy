@@ -176,6 +176,35 @@ def test_run_file_saves_modified_editor_and_uses_project_working_dir(tmp_path):
     assert runner.file_calls == [(str(script), "python.exe", str(tmp_path))]
 
 
+def test_run_file_ignores_saved_non_python_file(tmp_path):
+    notes = tmp_path / "notes.txt"
+    notes.write_text("not python", encoding="utf-8")
+    settings = FakeSettings({
+        "run.working_directory": "file",
+        "run.save_before_run": False,
+        "run.clear_output_before_run": True,
+        "run.show_output_panel": True,
+    })
+    runner = FakeProcessRunner()
+    editor = FakeEditor(str(notes))
+    output = FakeOutputPanel()
+    window = SimpleNamespace(
+        _settings=settings,
+        _process_runner=runner,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _output_panel=output,
+    )
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    controller.action_run_file()
+
+    assert runner.file_calls == []
+    assert output.cleared == 0
+    assert output.shown == 0
+
+
 def test_run_selection_falls_back_to_current_line_when_selection_is_empty():
     settings = FakeSettings({
         "run.working_directory": "file",
@@ -207,6 +236,8 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
         _debug_manager=debug_manager,
         _process_runner=runner,
     )
+    refreshes = []
+    window._update_run_action_enabled = lambda: refreshes.append("refresh")
     controller = ExecutionController(
         MainWindowContext(window=window, settings=None, file_manager=None, recent_files=None)
     )
@@ -223,6 +254,7 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     assert window._run_action.enabled is True
     assert window._debug_action.enabled is True
     assert window._stop_action.enabled is False
+    assert refreshes == ["refresh"]
     assert status.messages == ["Running: demo.py", "Process finished successfully"]
     assert runner.stdin == ["hello\n"]
 

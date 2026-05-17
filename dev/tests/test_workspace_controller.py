@@ -63,6 +63,14 @@ class FakeSignal:
         raise TypeError("not connected")
 
 
+class FakeAction:
+    def __init__(self):
+        self.enabled = None
+
+    def setEnabled(self, value):
+        self.enabled = value
+
+
 class FakeWelcome:
     def __init__(self):
         self.action_new_file = FakeSignal()
@@ -326,6 +334,41 @@ def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path
     assert tabs.tab_text == [(0, "new.py")]
     assert tabs.tooltips == [(0, str(new_path))]
     assert tabs.removed == [1]
+
+
+def test_run_action_follows_active_editor_file_type(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
+    py_editor = WorkspaceEditor(str(tmp_path / "demo.py"))
+    pyw_editor = WorkspaceEditor(str(tmp_path / "window.pyw"))
+    text_editor = WorkspaceEditor(str(tmp_path / "notes.txt"))
+    unsaved_editor = WorkspaceEditor(None)
+    tabs = WorkspaceTabs([py_editor])
+    run_action = FakeAction()
+    labels = []
+    toolbar = SimpleNamespace(labels=labels, update_run_file_label=labels.append)
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _run_action=run_action,
+        _toolbar_builder=toolbar,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), None, None)
+    )
+
+    controller._update_run_file_button(py_editor)
+    assert run_action.enabled is True
+
+    controller._update_run_file_button(pyw_editor)
+    assert run_action.enabled is True
+
+    controller._update_run_file_button(text_editor)
+    assert run_action.enabled is False
+
+    controller._update_run_file_button(unsaved_editor)
+    assert run_action.enabled is True
+
+    controller._update_run_file_button(None)
+    assert run_action.enabled is False
 
 
 def test_goto_zoom_and_word_wrap_actions_update_current_editor(monkeypatch):

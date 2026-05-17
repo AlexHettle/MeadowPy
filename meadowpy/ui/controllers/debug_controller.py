@@ -163,6 +163,7 @@ class DebugController(MainWindowController):
         else:
             self._set_run_as_continue(False)
             self._run_action.setEnabled(True)
+            self._refresh_run_action_enabled()
 
         self._debug_action.setEnabled(not is_debugging)
 
@@ -246,6 +247,7 @@ class DebugController(MainWindowController):
         self._run_action.setEnabled(True)
         self._debug_action.setEnabled(True)
         self._stop_action.setEnabled(False)
+        self._refresh_run_action_enabled()
         self._output_panel.append_output(f">>> {desc}\n", "system")
         self._status_bar_manager.show_message(desc)
 

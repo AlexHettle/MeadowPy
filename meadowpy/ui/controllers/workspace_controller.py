@@ -18,7 +18,11 @@ from meadowpy.resources.resource_loader import (
     get_stylesheet,
     theme_is_dark,
 )
+from meadowpy.ui.controllers.run_eligibility import can_run_editor
 from meadowpy.ui.controllers.window_context import MainWindowController
+
+
+_RUN_EDITOR_UNSET = object()
 
 
 class WorkspaceController(MainWindowController):
@@ -377,6 +381,26 @@ class WorkspaceController(MainWindowController):
         update_label = getattr(builder, "update_run_file_label", None)
         if callable(update_label):
             update_label(editor)
+        self._update_run_action_enabled(editor)
+
+    def _update_run_action_enabled(self, editor=_RUN_EDITOR_UNSET) -> None:
+        """Enable Run only for Python editors when no run/debug work is active."""
+        action = getattr(self.window, "_run_action", None)
+        if action is None or self._run_control_owned_by_running_work():
+            return
+        if editor is _RUN_EDITOR_UNSET:
+            current_editor = getattr(self._tab_manager, "current_editor", None)
+            editor = current_editor() if callable(current_editor) else None
+        action.setEnabled(can_run_editor(editor, CodeEditor))
+
+    def _run_control_owned_by_running_work(self) -> bool:
+        """Return True when process/debug controllers temporarily own Run state."""
+        for attr in ("_process_runner", "_debug_manager"):
+            manager = getattr(self.window, attr, None)
+            is_running = getattr(manager, "is_running", None)
+            if callable(is_running) and is_running():
+                return True
+        return False
 
     def _on_cursor_moved(self, line: int, col: int) -> None:
         self._status_bar_manager.update_cursor_position(line, col)
