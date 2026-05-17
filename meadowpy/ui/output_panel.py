@@ -91,14 +91,6 @@ class OutputPanel(QDockWidget):
 
         header_layout.addStretch()
 
-        self._run_btn = self._make_tool_button(
-            "run", "Run (F5)"
-        )
-        self._stop_btn = self._make_tool_button(
-            "stop", "Stop (Ctrl+F5)"
-        )
-        self._stop_btn.setEnabled(False)
-
         self._fix_btn = QPushButton("AI Analysis")
         self._fix_btn.setObjectName("outputFixAIBtn")
         self._fix_btn.setToolTip("Ask the AI to analyze the last error")
@@ -120,8 +112,8 @@ class OutputPanel(QDockWidget):
             lambda: self.repl_restart_requested.emit()
         )
 
-        # Transparent hover/press for run/stop/restart so only the glow shows
-        for btn in (self._run_btn, self._stop_btn, self._restart_repl_btn):
+        # Transparent hover/press for restart so only the glow shows.
+        for btn in (self._restart_repl_btn,):
             btn.setStyleSheet(
                 """
                 QToolButton {
@@ -142,15 +134,11 @@ class OutputPanel(QDockWidget):
             )
             header_layout.addWidget(btn)
 
-        # Glow painter for run/stop/restart buttons. HC mode collapses every
+        # Glow painter for the restart button. HC mode collapses every
         # glow onto pure white (no chroma anywhere) for accessibility.
         is_hc = theme_is_high_contrast(self._current_theme_name())
-        run_glow = QColor("#FFFFFF") if is_hc else QColor("#4CAF50")
-        stop_glow = QColor("#FFFFFF") if is_hc else QColor("#E51400")
         restart_glow = QColor("#FFFFFF") if is_hc else QColor("#FF9800")
         self._header_glow = HeaderGlowPainter(title_bar, title_bar)
-        self._header_glow.add_button(self._run_btn, run_glow)
-        self._header_glow.add_button(self._stop_btn, stop_glow)
         self._header_glow.add_button(self._restart_repl_btn, restart_glow)
 
         # Visual separator
@@ -342,8 +330,6 @@ class OutputPanel(QDockWidget):
 
     def set_running(self, running: bool) -> None:
         """Switch between script-stdin mode and REPL mode."""
-        self._run_btn.setEnabled(not running)
-        self._stop_btn.setEnabled(running)
         if running:
             self._mode = self._MODE_STDIN
             self._prompt_label.setText("Input:")
@@ -376,8 +362,8 @@ class OutputPanel(QDockWidget):
         self._max_lines = max_lines
 
     def update_accent_color(self, hex_color: str) -> None:
-        """Refresh the Run button's glow color (called on theme change)."""
-        self._header_glow.set_button_color(self._run_btn, QColor(hex_color))
+        """Refresh themed controls after accent changes."""
+        _ = hex_color
         self._refresh_send_arrow_icon()
 
     def update_font(self, family: str, size: int) -> None:
@@ -386,14 +372,6 @@ class OutputPanel(QDockWidget):
         font.setStyleHint(QFont.StyleHint.Monospace)
         self._output_text.setFont(font)
         self._input_line.setFont(font)
-
-    @property
-    def run_button(self) -> QToolButton:
-        return self._run_btn
-
-    @property
-    def stop_button(self) -> QToolButton:
-        return self._stop_btn
 
     # ------------------------------------------------------------------
     # Event filter — click & hover on traceback lines

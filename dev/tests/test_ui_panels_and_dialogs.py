@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QKeyEvent, QPalette
-from PyQt6.QtWidgets import QTextEdit, QWidget
+from PyQt6.QtWidgets import QTextEdit, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
 from meadowpy.ui.ai_chat_panel import AIChatPanel
@@ -81,6 +81,11 @@ def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):
     assert panel._send_btn.width() == 32
     assert panel._send_btn.height() == 32
     assert not panel._send_btn.isEnabled()
+    title_tooltips = {
+        btn.toolTip() for btn in panel._title_bar.findChildren(QToolButton)
+    }
+    assert "Run (F5)" not in title_tooltips
+    assert "Stop (Ctrl+F5)" not in title_tooltips
 
     panel.append_output("hello\r\n", "stdout")
     panel.append_output("friendly hint\n", "hint")
@@ -113,8 +118,7 @@ def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):
     assert history_down.calls == [()]
 
     panel.set_running(True)
-    assert not panel.run_button.isEnabled()
-    assert panel.stop_button.isEnabled()
+    assert panel._mode == panel._MODE_STDIN
     assert not panel._send_btn.isEnabled()
     panel.set_input_text("Ada")
     assert panel._send_btn.isEnabled()
@@ -126,8 +130,7 @@ def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):
     assert "Ada" in qapp.clipboard().text()
 
     panel.set_running(False)
-    assert panel.run_button.isEnabled()
-    assert not panel.stop_button.isEnabled()
+    assert panel._mode == panel._MODE_REPL
     panel.set_max_lines(2)
     panel.append_output("one\ntwo\nthree\n", "stdout")
     assert panel._output_text.document().blockCount() <= 2
@@ -819,6 +822,7 @@ class FakeToolbarWindow(QWidget):
         self._debug_action = QAction("Debug", self)
         self._tab_manager = SimpleNamespace(current_editor=lambda: self.editor)
         self.editor = SimpleNamespace(
+            display_name="World_Counter.py",
             undo=lambda: self.actions_called.append("undo"),
             redo=lambda: self.actions_called.append("redo"),
         )
@@ -845,7 +849,16 @@ def test_toolbar_builder_creates_shared_actions_editor_calls_and_glow_state(qapp
     toolbar = builder.build()
 
     assert toolbar.objectName() == "MainToolBar"
-    assert toolbar.widgetForAction(window._run_action).objectName() == "runButton"
+    assert builder._run_btn.objectName() == "runButton"
+    assert builder._run_btn.size().width() == builder._run_btn.minimumWidth()
+    assert builder._run_btn.height() == 32
+    assert builder._run_btn._label_font.bold()
+    assert builder._run_btn._label_font.pixelSize() == 13
+    oversized_font = builder._run_btn.font()
+    oversized_font.setPointSize(24)
+    builder._run_btn.setFont(oversized_font)
+    assert builder._run_btn._label_font.pixelSize() == 13
+    assert builder._run_btn.text() == "Run World_Counter.py"
     assert toolbar.widgetForAction(window._stop_action).objectName() == "stopButton"
     assert toolbar.widgetForAction(window._debug_action).objectName() == "debugButton"
     assert window.toolbars == [toolbar]
@@ -857,23 +870,30 @@ def test_toolbar_builder_creates_shared_actions_editor_calls_and_glow_state(qapp
     builder._editor_call("missing")
     assert window.actions_called == ["undo", "redo"]
 
-    run_button = toolbar.widgetForAction(window._run_action)
+    builder.update_run_file_label(
+        SimpleNamespace(display_name="World_Counter_With_A_Very_Long_Name.py")
+    )
+    assert builder._run_btn.displayed_text().endswith("...")
+    assert builder._run_btn.width() == builder._run_btn.minimumWidth()
+
     builder.update_accent_color("#112233")
-    run_entry = [
+    assert builder._run_btn._accent.name().upper() == "#112233"
+
+    stop_button = toolbar.widgetForAction(window._stop_action)
+    stop_entry = [
         entry for entry in builder._glow._entries
-        if entry["btn"] is run_button
+        if entry["btn"] is stop_button
     ][0]
-    assert run_entry["color"].name().upper() == "#112233"
 
     hover = QEvent(QEvent.Type.HoverEnter)
     press = QEvent(QEvent.Type.MouseButtonPress)
     leave = QEvent(QEvent.Type.HoverLeave)
-    assert builder._glow.eventFilter(run_button, hover) is False
-    assert run_entry["state"] == "hover"
-    assert builder._glow.eventFilter(run_button, press) is False
-    assert run_entry["state"] == "press"
-    assert builder._glow.eventFilter(run_button, leave) is False
-    assert run_entry["state"] == "idle"
+    assert builder._glow.eventFilter(stop_button, hover) is False
+    assert stop_entry["state"] == "hover"
+    assert builder._glow.eventFilter(stop_button, press) is False
+    assert stop_entry["state"] == "press"
+    assert builder._glow.eventFilter(stop_button, leave) is False
+    assert stop_entry["state"] == "idle"
 
     toolbar.deleteLater()
     window.deleteLater()

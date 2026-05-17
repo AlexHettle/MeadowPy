@@ -16,7 +16,6 @@ from meadowpy.editor.editor_config import EditorConfigurator
 from meadowpy.resources.resource_loader import (
     current_accent_hex,
     get_stylesheet,
-    run_button_accent_hex,
     theme_is_dark,
 )
 from meadowpy.ui.controllers.window_context import MainWindowController
@@ -125,6 +124,8 @@ class WorkspaceController(MainWindowController):
                 editor._is_modified = False
                 self._tab_manager.setTabText(i, Path(new_path).name)
                 self._tab_manager.setTabToolTip(i, new_path)
+                if i == self._tab_manager.currentIndex():
+                    self._update_run_file_button(editor)
                 break
 
     def _on_explorer_file_deleted(self, deleted_path: str) -> None:
@@ -151,6 +152,7 @@ class WorkspaceController(MainWindowController):
             self._file_manager.save_file(editor.file_path, editor.text())
             editor.setModified(False)
             self._tab_manager.update_tab_title(self._tab_manager.currentIndex())
+            self._update_run_file_button(editor)
         else:
             self.action_save_as()
 
@@ -163,6 +165,7 @@ class WorkspaceController(MainWindowController):
             editor.file_path = path
             editor.setModified(False)
             self._tab_manager.update_tab_title(self._tab_manager.currentIndex())
+            self._update_run_file_button(editor)
 
     def action_close_tab(self) -> None:
         index = self._tab_manager.currentIndex()
@@ -309,6 +312,8 @@ class WorkspaceController(MainWindowController):
 
     def _on_tab_changed(self, editor) -> None:
         """Update status bar, outline, and lint when active tab changes."""
+        self._update_run_file_button(editor)
+
         if isinstance(editor, CodeEditor):
             # Auto-close the Welcome tab once a real editor is active
             self._tab_manager.close_welcome_tab()
@@ -366,6 +371,13 @@ class WorkspaceController(MainWindowController):
             self._symbol_outline.clear_symbols()
             self._problems_panel.clear_issues()
 
+    def _update_run_file_button(self, editor) -> None:
+        """Keep the toolbar Run button label in sync with the active file."""
+        builder = getattr(self, "_toolbar_builder", None)
+        update_label = getattr(builder, "update_run_file_label", None)
+        if callable(update_label):
+            update_label(editor)
+
     def _on_cursor_moved(self, line: int, col: int) -> None:
         self._status_bar_manager.update_cursor_position(line, col)
         # Update AI context with current cursor position
@@ -401,10 +413,11 @@ class WorkspaceController(MainWindowController):
                     ),
                     theme_is_dark(theme_name, base),
                 )
-            # Re-tint the "Run" button glow in the toolbar & output panel to
-            # match the current theme's accent (only Custom theme changes it).
-            accent = run_button_accent_hex(
+            # Re-tint the Run button to match the Send button accent and
+            # refresh output panel theme-sensitive controls.
+            accent = current_accent_hex(
                 self._settings.get("editor.theme"),
+                self._settings.get("editor.custom_theme.base"),
                 self._settings.get("editor.custom_theme.accent"),
             )
             if hasattr(self, "_toolbar_builder"):

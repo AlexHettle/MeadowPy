@@ -59,17 +59,16 @@ def test_toolbar_glow_painter_renders_hover_and_disabled_states(qapp):
     toolbar = builder.build()
     toolbar.resize(360, 42)
 
-    run_button = toolbar.widgetForAction(window._run_action)
     stop_button = toolbar.widgetForAction(window._stop_action)
     builder._glow.set_button_color(stop_button, QColor("#ABCDEF"))
 
-    assert builder._glow.eventFilter(run_button, QEvent(QEvent.Type.HoverEnter)) is False
+    assert builder._glow.eventFilter(stop_button, QEvent(QEvent.Type.HoverEnter)) is False
     assert toolbar.grab().isNull() is False
 
-    window._run_action.setEnabled(False)
+    window._stop_action.setEnabled(False)
     assert builder._glow.eventFilter(toolbar, QEvent(QEvent.Type.Paint)) is True
-    run_entry = next(entry for entry in builder._glow._entries if entry["btn"] is run_button)
-    assert run_entry["state"] == "idle"
+    stop_entry = next(entry for entry in builder._glow._entries if entry["btn"] is stop_button)
+    assert stop_entry["state"] == "idle"
 
     toolbar.deleteLater()
     window.deleteLater()

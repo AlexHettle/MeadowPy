@@ -15,7 +15,6 @@ from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.resources.resource_loader import (
     current_accent_hex,
     load_themed_icon,
-    run_button_accent_hex,
     theme_is_dark,
 )
 from meadowpy.ui.tab_manager import TabManager
@@ -105,11 +104,12 @@ class MainWindow(QMainWindow):
         self._restore_state()
         self._initial_refresh_pending = True
 
-        # Apply the current theme's accent to the Run button glows. Light/Dark
-        # themes pass through the original green; Custom passes the user's
-        # chosen accent color.
-        initial_accent = run_button_accent_hex(
+        # Apply the current theme's accent to the shared toolbar controls.
+        # This keeps the Run button visually aligned with accent-filled
+        # controls like the AI chat Send button.
+        initial_accent = current_accent_hex(
             self._settings.get("editor.theme"),
+            self._settings.get("editor.custom_theme.base"),
             self._settings.get("editor.custom_theme.accent"),
         )
         self._toolbar_builder.update_accent_color(initial_accent)
@@ -264,9 +264,6 @@ class MainWindow(QMainWindow):
             self._settings.get("run.max_output_lines")
         )
 
-        # Wire the output panel's Run/Stop buttons
-        self._output_panel.run_button.clicked.connect(self.action_run_file)
-        self._output_panel.stop_button.clicked.connect(self.action_stop_process)
         self._output_panel.input_submitted.connect(self._on_stdin_submitted)
         self._output_panel.traceback_navigate.connect(
             self._on_traceback_navigate
@@ -296,7 +293,7 @@ class MainWindow(QMainWindow):
         )
 
     def _create_run_actions(self) -> None:
-        """Create shared Run/Stop QActions used by menu, toolbar, and output panel."""
+        """Create shared Run/Stop QActions used by menu and toolbar."""
         theme_name = self._settings.get("editor.theme") or ""
 
         self._run_action = self._make_action(
@@ -331,12 +328,10 @@ class MainWindow(QMainWindow):
             if action is not None:
                 action.setIcon(load_themed_icon(icon_name, theme_name))
 
-        # Output panel's own toolbar buttons (run / stop / restart REPL)
+        # Output panel's own toolbar button (restart REPL)
         op = getattr(self, "_output_panel", None)
         if op is not None:
             for attr, icon_name in (
-                ("_run_btn", "run"),
-                ("_stop_btn", "stop"),
                 ("_restart_repl_btn", "restart"),
             ):
                 btn = getattr(op, attr, None)
