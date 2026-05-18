@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import meadowpy.editor.code_editor as code_editor_module
+import meadowpy.editor.editor_fonts as editor_fonts
 from helpers import DummySignal
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QKeyEvent, QWheelEvent
@@ -255,6 +256,22 @@ def test_editor_font_survives_global_app_stylesheet(qapp, tmp_path):
         if editor is not None:
             editor.deleteLater()
         qapp.setStyleSheet(old_stylesheet)
+
+
+def test_editor_font_family_falls_back_to_safe_scalable_font(monkeypatch):
+    monkeypatch.setattr(
+        editor_fonts,
+        "_families",
+        lambda: ["Laggy Display", "Consolas"],
+    )
+    monkeypatch.setattr(
+        editor_fonts,
+        "_is_smoothly_scalable",
+        lambda family: family == "Consolas",
+    )
+
+    assert not editor_fonts.is_editor_safe_font_family("Laggy Display")
+    assert editor_fonts.editor_font_family("Laggy Display") == "Consolas"
 
 
 class GuideStyleHarness:

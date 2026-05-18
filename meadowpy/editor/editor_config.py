@@ -6,6 +6,7 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython
 
 from meadowpy.core.settings import Settings
+from meadowpy.editor.editor_fonts import editor_font_family
 from meadowpy.editor.themes import get_theme
 from meadowpy.resources.resource_loader import current_accent_hex, theme_is_dark
 
@@ -33,7 +34,7 @@ class EditorConfigurator:
     @staticmethod
     def _apply_font(editor: QsciScintilla, settings: Settings) -> None:
         font = QFont(
-            settings.get("editor.font_family"),
+            editor_font_family(settings.get("editor.font_family")),
             settings.get("editor.font_size"),
         )
         font.setFixedPitch(True)

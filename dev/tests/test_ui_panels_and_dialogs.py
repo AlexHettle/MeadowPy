@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
-from PyQt6.QtWidgets import QTextEdit, QToolButton, QWidget
+from PyQt6.QtWidgets import QFontComboBox, QTextEdit, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
 from meadowpy.ui.ai_chat_panel import AIChatPanel
@@ -704,6 +704,8 @@ def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qap
     prefs = PreferencesDialog(settings)
     prefs._on_category_changed(5)
     assert prefs._pages.currentIndex() == 5
+    filters = prefs._font_combo.fontFilters()
+    assert filters & QFontComboBox.FontFilter.ScalableFonts
 
     current_family = settings.get("editor.font_family")
     target_family = next(

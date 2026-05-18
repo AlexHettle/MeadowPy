@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 )
 
 from meadowpy.core.settings import Settings
+from meadowpy.editor.editor_fonts import editor_font_family
 from meadowpy.editor.themes import THEMES
 
 
@@ -76,7 +77,8 @@ class PreferencesDialog(QDialog):
 
         # Font family
         self._font_combo = QFontComboBox()
-        current_family = self._settings.get("editor.font_family")
+        self._font_combo.setFontFilters(QFontComboBox.FontFilter.ScalableFonts)
+        current_family = editor_font_family(self._settings.get("editor.font_family"))
         self._font_combo.setCurrentFont(QFont(current_family))
         self._font_combo.currentFontChanged.connect(self._stage_font_family)
         form.addRow("Editor Font Family:", self._font_combo)
