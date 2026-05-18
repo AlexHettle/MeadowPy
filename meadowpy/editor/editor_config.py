@@ -37,8 +37,39 @@ class EditorConfigurator:
             settings.get("editor.font_size"),
         )
         font.setFixedPitch(True)
+        EditorConfigurator._apply_editor_font_stylesheet(editor, font)
         editor.setFont(font)
         editor.setMarginsFont(font)
+        try:
+            editor.SendScintilla(
+                QsciScintilla.SCI_STYLESETFONT,
+                QsciScintilla.STYLE_DEFAULT,
+                font.family().encode("utf-8"),
+            )
+            editor.SendScintilla(
+                QsciScintilla.SCI_STYLESETSIZE,
+                QsciScintilla.STYLE_DEFAULT,
+                font.pointSize(),
+            )
+            editor.SendScintilla(QsciScintilla.SCI_STYLECLEARALL)
+        except (AttributeError, TypeError, RuntimeError):
+            pass
+
+    @staticmethod
+    def _apply_editor_font_stylesheet(editor: QsciScintilla, font: QFont) -> None:
+        """Keep the global app QSS font rule from overriding editor text."""
+        family = font.family().replace("\\", "\\\\").replace('"', '\\"')
+        size = max(font.pointSize(), 1)
+        editor.setStyleSheet(
+            "QsciScintilla#codeEditor { "
+            f'font-family: "{family}"; '
+            f"font-size: {size}pt; "
+            "}"
+        )
+        style = editor.style()
+        style.unpolish(editor)
+        style.polish(editor)
+        editor.ensurePolished()
 
     @staticmethod
     def _apply_indentation(editor: QsciScintilla, settings: Settings) -> None:
@@ -167,6 +198,10 @@ class EditorConfigurator:
         # Add Python built-in names as keyword set 2 for HighlightedIdentifier
         builtin_names = " ".join(dir(builtins))
         editor.SendScintilla(editor.SCI_SETKEYWORDS, 1, builtin_names.encode())
+        try:
+            editor.SendScintilla(QsciScintilla.SCI_COLOURISE, 0, -1)
+        except (AttributeError, TypeError, RuntimeError):
+            pass
 
     @staticmethod
     def _apply_autocompletion(editor: QsciScintilla, settings: Settings) -> None:

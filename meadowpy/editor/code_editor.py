@@ -55,6 +55,7 @@ class CodeEditor(QsciScintilla):
 
     def __init__(self, settings: Settings, parent=None):
         super().__init__(parent)
+        self.setObjectName("codeEditor")
         self._settings = settings
         self._file_path: str | None = None
         self._untitled_name: str = "Untitled"

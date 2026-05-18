@@ -11,6 +11,7 @@ from PyQt6.Qsci import QsciScintilla
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
+from meadowpy.resources.resource_loader import get_stylesheet
 
 
 def make_editor(qapp, tmp_path) -> CodeEditor:
@@ -225,11 +226,35 @@ def test_editor_configurator_applies_disabled_editor_features(qapp, tmp_path):
     editor = CodeEditor(settings)
     EditorConfigurator.apply(editor, settings)
 
+    assert editor.objectName() == "codeEditor"
+    assert 'font-family: "Consolas"' in editor.styleSheet()
     assert editor.wrapMode() == QsciScintilla.WrapMode.WrapNone
     assert editor.marginWidth(0) == 0
     assert editor.lexer() is not None
     assert not hasattr(editor, "_completion_apis")
     editor.deleteLater()
+
+
+def test_editor_font_survives_global_app_stylesheet(qapp, tmp_path):
+    old_stylesheet = qapp.styleSheet()
+    editor = None
+    try:
+        qapp.setStyleSheet(get_stylesheet("default_dark"))
+        settings = Settings(tmp_path)
+        settings.set("editor.font_family", "Consolas")
+        editor = CodeEditor(settings)
+
+        assert editor.font().family() == "Consolas"
+
+        settings.set("editor.font_family", "Arial")
+        EditorConfigurator.apply(editor, settings)
+
+        assert editor.font().family() == "Arial"
+        assert 'font-family: "Arial"' in editor.styleSheet()
+    finally:
+        if editor is not None:
+            editor.deleteLater()
+        qapp.setStyleSheet(old_stylesheet)
 
 
 class GuideStyleHarness:

@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
     QStackedWidget, QDialogButtonBox, QWidget, QFormLayout,
@@ -16,6 +18,8 @@ from meadowpy.editor.themes import THEMES
 
 class PreferencesDialog(QDialog):
     """Application preferences dialog with categorized settings."""
+
+    preferences_applied = pyqtSignal(object)
 
     def __init__(self, settings: Settings, parent=None):
         super().__init__(parent)
@@ -72,15 +76,10 @@ class PreferencesDialog(QDialog):
 
         # Font family
         self._font_combo = QFontComboBox()
-        self._font_combo.setCurrentFont(
-            self._font_combo.font()
-        )
         current_family = self._settings.get("editor.font_family")
-        self._font_combo.setCurrentText(current_family)
-        self._font_combo.currentTextChanged.connect(
-            lambda v: self._stage("editor.font_family", v)
-        )
-        form.addRow("Font Family:", self._font_combo)
+        self._font_combo.setCurrentFont(QFont(current_family))
+        self._font_combo.currentFontChanged.connect(self._stage_font_family)
+        form.addRow("Editor Font Family:", self._font_combo)
 
         # Font size
         self._font_size = QSpinBox()
@@ -466,6 +465,12 @@ class PreferencesDialog(QDialog):
         """Stage a change to be applied later."""
         self._pending_changes[key] = value
 
+    def _stage_font_family(self, font: QFont) -> None:
+        """Stage the selected font family from the font combo."""
+        family = font.family() or self._font_combo.currentText()
+        if family:
+            self._stage("editor.font_family", family)
+
     def _on_theme_changed(self, theme_name: str) -> None:
         """React to the theme combo: stage the change, toggle custom controls."""
         self._stage("editor.theme", theme_name)
@@ -499,10 +504,14 @@ class PreferencesDialog(QDialog):
 
     def _apply(self) -> None:
         """Apply pending changes to settings."""
+        self._stage_font_family(self._font_combo.currentFont())
+        changed_keys = tuple(self._pending_changes)
         for key, value in self._pending_changes.items():
             self._settings.set(key, value)
         self._settings.save()
         self._pending_changes.clear()
+        if changed_keys:
+            self.preferences_applied.emit(changed_keys)
 
     def _apply_and_close(self) -> None:
         self._apply()

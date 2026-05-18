@@ -273,6 +273,7 @@ class WorkspaceController(MainWindowController):
         from meadowpy.ui.dialogs.preferences_dialog import PreferencesDialog
 
         dialog = PreferencesDialog(self._settings, self.window)
+        dialog.preferences_applied.connect(self._on_preferences_applied)
         dialog.exec()
 
     def action_example_library(self) -> None:
@@ -476,13 +477,10 @@ class WorkspaceController(MainWindowController):
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)
             if isinstance(editor, CodeEditor):
-                EditorConfigurator.apply(editor, self._settings)
-                # Squiggle indicator colors are baked at set_lint_issues time
-                # and don't follow stylesheet changes — re-apply with the
-                # current theme's palette so HC switches refresh underlines.
-                if key in theme_keys:
-                    editor.refresh_lint_colors()
-                    editor.refresh_marker_colors()
+                self._refresh_editor_settings(
+                    editor,
+                    refresh_theme_dependent_colors=key in theme_keys,
+                )
 
         self._status_bar_manager.update_indent_info()
 
@@ -499,6 +497,57 @@ class WorkspaceController(MainWindowController):
             )
         if key == "explorer.show_file_explorer":
             self._file_explorer.setVisible(value)
+
+    def _on_preferences_applied(self, changed_keys) -> None:
+        """Force editors to repaint after the Preferences Apply button."""
+        editor_keys = {
+            key for key in (changed_keys or ())
+            if isinstance(key, str) and key.startswith("editor.")
+        }
+        if not editor_keys:
+            return
+
+        theme_keys = {
+            "editor.theme",
+            "editor.custom_theme.base",
+            "editor.custom_theme.accent",
+        }
+        refresh_theme_dependent_colors = bool(editor_keys & theme_keys)
+        for i in range(self._tab_manager.count()):
+            editor = self._tab_manager.widget(i)
+            if not isinstance(editor, CodeEditor):
+                continue
+            self._refresh_editor_settings(
+                editor,
+                refresh_theme_dependent_colors=refresh_theme_dependent_colors,
+            )
+
+    def _refresh_editor_settings(
+        self,
+        editor: CodeEditor,
+        *,
+        refresh_theme_dependent_colors: bool,
+    ) -> None:
+        """Reapply settings to one editor and schedule a repaint."""
+        apply_settings = getattr(editor, "apply_settings", None)
+        if callable(apply_settings):
+            apply_settings(self._settings)
+        else:
+            EditorConfigurator.apply(editor, self._settings)
+
+        # Squiggle/marker colors are baked at set_lint_issues time and don't
+        # follow stylesheet changes unless refreshed explicitly.
+        if refresh_theme_dependent_colors:
+            editor.refresh_lint_colors()
+            editor.refresh_marker_colors()
+
+        viewport = getattr(editor, "viewport", None)
+        viewport_widget = viewport() if callable(viewport) else None
+        if viewport_widget is not None:
+            viewport_widget.update()
+        update = getattr(editor, "update", None)
+        if callable(update):
+            update()
 
     def _refresh_lint_after_settings_change(self, reveal_panel: bool = False) -> None:
         """Apply lint preference changes to the current editor immediately."""

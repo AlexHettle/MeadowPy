@@ -140,7 +140,11 @@ class FakeWindow:
         self.activated = False
         self.closed = False
         self.deleted = False
-        self.children = [FakeWidget("editor"), FakeWidget("outputText")]
+        self.children = [
+            FakeWidget("editor"),
+            FakeWidget("codeEditor"),
+            FakeWidget("outputText"),
+        ]
         FakeWindow.instances.append(self)
 
     def findChildren(self, widget_type):
@@ -225,6 +229,7 @@ def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
     ]
     assert window.children[0].fonts == ["app-font"]
     assert window.children[1].fonts == []
+    assert window.children[2].fonts == []
 
     exit_code = app.run()
 

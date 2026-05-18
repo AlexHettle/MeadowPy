@@ -392,7 +392,7 @@ class MeadowPyApp:
         """
         if self._app_font is None:
             return
-        mono_names = {"outputText", "outputInput"}
+        mono_names = {"codeEditor", "outputText", "outputInput"}
         for widget in self._window.findChildren(QWidget):
             if widget.objectName() in mono_names:
                 continue

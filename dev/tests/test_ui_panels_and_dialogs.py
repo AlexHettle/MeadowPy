@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
-from PyQt6.QtGui import QAction, QColor, QKeyEvent, QPalette
+from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
 from PyQt6.QtWidgets import QTextEdit, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
@@ -705,6 +705,19 @@ def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qap
     prefs._on_category_changed(5)
     assert prefs._pages.currentIndex() == 5
 
+    current_family = settings.get("editor.font_family")
+    target_family = next(
+        (
+            prefs._font_combo.itemText(i)
+            for i in range(prefs._font_combo.count())
+            if prefs._font_combo.itemText(i) != current_family
+        ),
+        current_family,
+    )
+    prefs._font_combo.blockSignals(True)
+    prefs._font_combo.setCurrentFont(QFont(target_family))
+    prefs._font_combo.blockSignals(False)
+
     prefs._stage("editor.font_size", 17)
     prefs._on_theme_changed("custom")
     assert not prefs._custom_theme_container.isHidden()
@@ -732,12 +745,19 @@ def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qap
     prefs._on_pick_accent()
     assert prefs._pending_changes["editor.custom_theme.accent"] == "#445566"
 
+    applied_keys = []
+    prefs.preferences_applied.connect(applied_keys.append)
     prefs._apply()
+    assert (
+        settings.get("editor.font_family")
+        == prefs._font_combo.currentFont().family()
+    )
     assert settings.get("editor.font_size") == 17
     assert settings.get("editor.theme") == "custom"
     assert settings.get("editor.custom_theme.accent") == "#445566"
     assert settings.get("editor.show_lint_style_issues") is False
     assert prefs._pending_changes == {}
+    assert "editor.font_family" in applied_keys[-1]
 
     prefs.deleteLater()
     about_dialog.deleteLater()

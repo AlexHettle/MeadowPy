@@ -539,6 +539,9 @@ def test_open_folder_and_dialog_actions_wire_results(monkeypatch, tmp_path):
             self.example_selected = SimpleNamespace(
                 connect=lambda callback: connected.append(callback)
             )
+            self.preferences_applied = SimpleNamespace(
+                connect=lambda callback: setattr(self, "applied_callback", callback)
+            )
 
         def exec(self):
             exec_calls.append(type(self).__name__)
@@ -685,6 +688,7 @@ def test_tab_changed_and_settings_changed_refresh_dependent_ui(monkeypatch, qapp
     controller._on_settings_changed("editor.show_symbol_outline", False)
     controller._on_settings_changed("editor.linting_enabled", False)
     controller._on_settings_changed("explorer.show_file_explorer", True)
+    controller._on_preferences_applied(("editor.font_family",))
 
     assert ("title", "active.py - MeadowPy") in calls
     assert status.cursor_updates == [(1, 4), (2, 8)]
@@ -699,7 +703,7 @@ def test_tab_changed_and_settings_changed_refresh_dependent_ui(monkeypatch, qapp
     assert "icons" in calls
     assert output.recolored == 1
     assert getattr(status, "lint_refreshed") is True
-    assert applied == [(editor, settings)] * 4
+    assert applied == [(editor, settings)] * 5
     assert editor.refreshed_lint == 1
     assert editor.refreshed_markers == 1
     assert symbol_outline.visible is False
