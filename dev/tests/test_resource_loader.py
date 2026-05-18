@@ -38,6 +38,20 @@ def test_get_stylesheet_replaces_placeholders_for_custom_theme():
     assert "#kwHelpTitle {\n    color: #123456;" in stylesheet
 
 
+def test_preferences_inputs_use_accent_selection_color():
+    stylesheet = resource_loader.get_stylesheet(
+        "custom",
+        custom_base="dark",
+        custom_accent="#123456",
+    )
+
+    assert (
+        "QSpinBox, QComboBox, QFontComboBox {\n"
+        "    border: 1px solid #555555;"
+    ) in stylesheet
+    assert "selection-background-color: #123456;" in stylesheet
+
+
 def test_output_ai_analysis_button_uses_theme_accent():
     stylesheet = resource_loader.get_stylesheet(
         "custom",

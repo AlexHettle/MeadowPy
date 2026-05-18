@@ -536,6 +536,8 @@ QSpinBox, QComboBox, QFontComboBox {
     padding: 4px 8px;
     background: #FFFFFF;
     min-height: 24px;
+    selection-background-color: {{ACCENT}};
+    selection-color: #FFFFFF;
 }
 
 QSpinBox:focus, QComboBox:focus, QFontComboBox:focus {
