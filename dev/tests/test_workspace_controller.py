@@ -740,7 +740,7 @@ def test_tab_changed_and_settings_changed_refresh_dependent_ui(monkeypatch, qapp
     assert editor.refreshed_markers == 1
     assert symbol_outline.visible is False
     assert problems.hidden == 1
-    assert status.lint_counts == [(0, 0)]
+    assert status.lint_counts == [(0, 0), (0, 0)]
     assert window._file_explorer.visible is True
 
 

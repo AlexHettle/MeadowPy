@@ -6,6 +6,7 @@ from PyQt6.QtCore import QTimer
 
 from meadowpy.core.linter import LintRunner
 from meadowpy.editor.code_editor import CodeEditor
+from meadowpy.ui.controllers.run_eligibility import can_run_editor
 from meadowpy.ui.controllers.window_context import MainWindowController
 
 
@@ -28,8 +29,13 @@ class CodeQualityController(MainWindowController):
     def _on_editor_text_changed(self) -> None:
         """Debounce both outline refresh and lint on text changes."""
         self._outline_timer.start()
-        if self._settings.get("editor.linting_enabled"):
+        if not self._settings.get("editor.linting_enabled"):
+            return
+        editor = self._tab_manager.current_editor()
+        if can_run_editor(editor, CodeEditor):
             self._lint_timer.start()
+        else:
+            self._clear_lint_state(editor)
 
     def _on_file_saved(self, path: str) -> None:
         """Handle file saved: show message + trigger lint."""
@@ -74,22 +80,28 @@ class CodeQualityController(MainWindowController):
     def _do_lint(self) -> None:
         """Actually run the linter (called after debounce or on save)."""
         editor = self._tab_manager.current_editor()
-        if editor and self._settings.get("editor.linting_enabled"):
-            self._lint_target_editor = editor
-            self._lint_runner.run_lint(
-                editor.text(),
-                editor.file_path,
-                self._settings.get("editor.linter"),
-                self._settings.get("editor.show_lint_style_issues", True),
-            )
+        if not self._settings.get("editor.linting_enabled"):
+            return
+        if not can_run_editor(editor, CodeEditor):
+            self._clear_lint_state(editor)
+            return
+        self._lint_target_editor = editor
+        self._lint_runner.run_lint(
+            editor.text(),
+            editor.file_path,
+            self._settings.get("editor.linter"),
+            self._settings.get("editor.show_lint_style_issues", True),
+        )
 
     def _on_lint_finished(self, issues: list) -> None:
         """Receive lint results and update UI."""
         editor = getattr(self, "_lint_target_editor", None)
         if editor is None:
             editor = self._tab_manager.current_editor()
-        if editor:
-            editor.set_lint_issues(issues)
+        if not can_run_editor(editor, CodeEditor):
+            self._clear_lint_state(editor)
+            return
+        editor.set_lint_issues(issues)
         self._problems_panel.update_issues(issues)
 
         # Update status bar with counts
@@ -100,6 +112,24 @@ class CodeQualityController(MainWindowController):
     def _on_lint_error(self, message: str) -> None:
         """Show a linter error (e.g. not installed) in the Problems panel."""
         self._problems_panel.show_linter_error(message)
+        self._status_bar_manager.update_lint_counts(0, 0)
+
+    def _clear_lint_state(self, editor=None) -> None:
+        """Clear lint UI and cancel pending results for a non-lintable tab."""
+        runner = getattr(self, "_lint_runner", None)
+        cancel = getattr(runner, "cancel", None)
+        if callable(cancel):
+            cancel()
+        if editor is not None:
+            clear_markers = getattr(editor, "clear_lint_markers", None)
+            if callable(clear_markers):
+                clear_markers()
+            else:
+                set_issues = getattr(editor, "set_lint_issues", None)
+                if callable(set_issues):
+                    set_issues([])
+        self._lint_target_editor = None
+        self._problems_panel.clear_issues()
         self._status_bar_manager.update_lint_counts(0, 0)
 
     # --- Ollama AI ---

@@ -374,7 +374,16 @@ class WorkspaceController(MainWindowController):
         else:
             self.setWindowTitle(APP_NAME)
             self._symbol_outline.clear_symbols()
+            lint_timer = getattr(self, "_lint_timer", None)
+            timer_stop = getattr(lint_timer, "stop", None)
+            if callable(timer_stop):
+                timer_stop()
+            lint_runner = getattr(self, "_lint_runner", None)
+            runner_cancel = getattr(lint_runner, "cancel", None)
+            if callable(runner_cancel):
+                runner_cancel()
             self._problems_panel.clear_issues()
+            self._status_bar_manager.update_lint_counts(0, 0)
 
     def _update_run_file_button(self, editor) -> None:
         """Keep the toolbar Run button label in sync with the active file."""
