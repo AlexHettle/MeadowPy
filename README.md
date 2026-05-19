@@ -216,10 +216,10 @@ MeadowPy is actively developed. Here's what's coming next:
 | Add splash screen                                  | ✅ Completed    |
 | Clickable tracebacks in output panel               | ✅ Completed    |
 | UI overhaul                                        | ✅ Completed    |
+| Improved styling cohesion                          | ✅ Completed    |
 | macOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
-| Improved styling cohesion                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
 | Improve linter customization                       | 🔄 In progress |
