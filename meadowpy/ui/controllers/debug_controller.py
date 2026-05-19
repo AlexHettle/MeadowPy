@@ -4,6 +4,7 @@ from pathlib import Path
 
 from meadowpy.core.debug_manager import DebugManager, DebugState
 from meadowpy.editor.code_editor import CodeEditor
+from meadowpy.ui.controllers.run_eligibility import can_run_editor
 from meadowpy.ui.controllers.window_context import MainWindowController
 
 
@@ -37,7 +38,7 @@ class DebugController(MainWindowController):
             return
 
         editor = self._tab_manager.current_editor()
-        if not editor:
+        if not can_run_editor(editor, CodeEditor):
             return
 
         # Save before debug
@@ -50,6 +51,8 @@ class DebugController(MainWindowController):
             self.action_save_as()
             file_path = editor.file_path
             if not file_path:
+                return
+            if not can_run_editor(editor, CodeEditor):
                 return
 
         interpreter = self._interpreter_manager.get_interpreter(
@@ -163,9 +166,15 @@ class DebugController(MainWindowController):
         else:
             self._set_run_as_continue(False)
             self._run_action.setEnabled(True)
-            self._refresh_run_action_enabled()
 
-        self._debug_action.setEnabled(not is_debugging)
+        if hasattr(self, "_run_selection_action"):
+            self._run_selection_action.setEnabled(not is_debugging)
+
+        if is_debugging:
+            self._debug_action.setEnabled(False)
+        else:
+            self._debug_action.setEnabled(True)
+            self._refresh_run_action_enabled()
 
         # Enable/disable debug menu actions
         # (these are created by MenuBarBuilder and stored on self)
@@ -245,6 +254,8 @@ class DebugController(MainWindowController):
         self._output_panel.set_running(False)
         self._set_run_as_continue(False)
         self._run_action.setEnabled(True)
+        if hasattr(self, "_run_selection_action"):
+            self._run_selection_action.setEnabled(True)
         self._debug_action.setEnabled(True)
         self._stop_action.setEnabled(False)
         self._refresh_run_action_enabled()

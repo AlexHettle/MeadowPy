@@ -342,13 +342,18 @@ def test_run_action_follows_active_editor_file_type(monkeypatch, tmp_path):
     pyw_editor = WorkspaceEditor(str(tmp_path / "window.pyw"))
     text_editor = WorkspaceEditor(str(tmp_path / "notes.txt"))
     unsaved_editor = WorkspaceEditor(None)
+    non_code_tab = object()
     tabs = WorkspaceTabs([py_editor])
     run_action = FakeAction()
+    run_selection_action = FakeAction()
+    debug_action = FakeAction()
     labels = []
     toolbar = SimpleNamespace(labels=labels, update_run_file_label=labels.append)
     window = SimpleNamespace(
         _tab_manager=tabs,
         _run_action=run_action,
+        _run_selection_action=run_selection_action,
+        _debug_action=debug_action,
         _toolbar_builder=toolbar,
     )
     controller = WorkspaceController(
@@ -356,19 +361,46 @@ def test_run_action_follows_active_editor_file_type(monkeypatch, tmp_path):
     )
 
     controller._update_run_file_button(py_editor)
-    assert run_action.enabled is True
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+    ) == (True, True, True)
 
     controller._update_run_file_button(pyw_editor)
-    assert run_action.enabled is True
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+    ) == (True, True, True)
 
     controller._update_run_file_button(text_editor)
-    assert run_action.enabled is False
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+    ) == (False, False, False)
 
     controller._update_run_file_button(unsaved_editor)
-    assert run_action.enabled is True
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+    ) == (True, True, True)
+
+    controller._update_run_file_button(non_code_tab)
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+    ) == (False, False, False)
 
     controller._update_run_file_button(None)
-    assert run_action.enabled is False
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+    ) == (False, False, False)
 
 
 def test_goto_zoom_and_word_wrap_actions_update_current_editor(monkeypatch):

@@ -167,6 +167,102 @@ def test_start_debug_saves_file_collects_breakpoints_and_shows_output(monkeypatc
     ]
 
 
+def test_start_debug_ignores_saved_non_python_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(debug_module, "CodeEditor", StartDebugEditor)
+    notes = tmp_path / "notes.txt"
+    notes.write_text("not python", encoding="utf-8")
+    editor = StartDebugEditor(str(notes), modified=True)
+    debug_calls = []
+    output = FakeOutputPanel()
+    calls = []
+    settings = SimpleNamespace(
+        get=lambda key, default=None: {
+            "run.save_before_run": True,
+            "run.clear_output_before_run": True,
+            "run.show_output_panel": True,
+        }.get(key, default)
+    )
+    window = SimpleNamespace(
+        _settings=settings,
+        _debug_manager=SimpleNamespace(
+            state=DebugState.IDLE,
+            start_debug=lambda *args: debug_calls.append(args),
+        ),
+        _tab_manager=FakeTabManager([editor]),
+        _output_panel=output,
+        action_save=lambda: calls.append("save"),
+    )
+    controller = DebugController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    controller.action_start_debug()
+
+    assert calls == []
+    assert output.cleared == 0
+    assert output.shown == 0
+    assert debug_calls == []
+
+
+def test_start_debug_rechecks_save_as_file_type(monkeypatch, tmp_path):
+    monkeypatch.setattr(debug_module, "CodeEditor", StartDebugEditor)
+    editor = StartDebugEditor(None)
+    debug_calls = []
+    output = FakeOutputPanel()
+    calls = []
+    settings = SimpleNamespace(
+        get=lambda key, default=None: {
+            "run.save_before_run": False,
+            "run.clear_output_before_run": True,
+            "run.show_output_panel": True,
+        }.get(key, default)
+    )
+    window = SimpleNamespace(
+        _settings=settings,
+        _debug_manager=SimpleNamespace(
+            state=DebugState.IDLE,
+            start_debug=lambda *args: debug_calls.append(args),
+        ),
+        _tab_manager=FakeTabManager([editor]),
+        _output_panel=output,
+        action_save_as=lambda: calls.append("save_as"),
+    )
+    controller = DebugController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+    controller.action_save_as = lambda: (
+        calls.append("save_as"),
+        setattr(editor, "file_path", str(tmp_path / "notes.txt")),
+    )
+
+    controller.action_start_debug()
+
+    assert calls == ["save_as"]
+    assert output.cleared == 0
+    assert output.shown == 0
+    assert debug_calls == []
+
+
+def test_start_debug_ignores_non_code_tab_object():
+    debug_calls = []
+    settings = SimpleNamespace(get=lambda key, default=None: False)
+    window = SimpleNamespace(
+        _settings=settings,
+        _debug_manager=SimpleNamespace(
+            state=DebugState.IDLE,
+            start_debug=lambda *args: debug_calls.append(args),
+        ),
+        _tab_manager=FakeTabManager([object()]),
+    )
+    controller = DebugController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    controller.action_start_debug()
+
+    assert debug_calls == []
+
+
 def test_debug_state_changes_swap_run_button_and_menu_state():
     run_file = lambda: None
     run_action = FakeAction()
@@ -175,6 +271,7 @@ def test_debug_state_changes_swap_run_button_and_menu_state():
     window = SimpleNamespace(
         action_run_file=run_file,
         _run_action=run_action,
+        _run_selection_action=FakeAction(),
         _debug_action=FakeAction(),
         _debug_separator=FakeAction(),
         _step_over_action=FakeAction(),
@@ -200,6 +297,7 @@ def test_debug_state_changes_swap_run_button_and_menu_state():
     controller._on_debug_state_changed(DebugState.PAUSED)
 
     assert run_action.enabled is True
+    assert window._run_selection_action.enabled is False
     assert run_action.tooltip == "Continue (F5)"
     assert window._step_over_action.enabled is True
     assert window._debug_stop_action.enabled is True
@@ -212,9 +310,44 @@ def test_debug_state_changes_swap_run_button_and_menu_state():
     controller._on_debug_state_changed(DebugState.IDLE)
 
     assert run_action.enabled is True
+    assert window._run_selection_action.enabled is True
     assert run_action.tooltip == "Run File (F5)"
     assert window._debug_action.enabled is True
     assert calls[-1] == ("state", DebugState.IDLE)
+
+
+def test_debug_idle_refresh_preserves_non_python_disabled_state():
+    calls = []
+    run_action = FakeAction()
+    run_selection_action = FakeAction()
+    debug_action = FakeAction()
+    window = SimpleNamespace(
+        action_run_file=lambda: None,
+        _run_action=run_action,
+        _run_selection_action=run_selection_action,
+        _debug_action=debug_action,
+        _debug_separator=FakeAction(),
+        _step_over_action=FakeAction(),
+        _step_into_action=FakeAction(),
+        _step_out_action=FakeAction(),
+        _status_bar_manager=SimpleNamespace(
+            update_debug_state=lambda state: calls.append(("state", state))
+        ),
+    )
+    window._update_run_action_enabled = lambda: (
+        calls.append("refresh"),
+        run_action.setEnabled(False),
+        run_selection_action.setEnabled(False),
+        debug_action.setEnabled(False),
+    )
+    controller = DebugController(MainWindowContext(window, None, None, None))
+
+    controller._on_debug_state_changed(DebugState.IDLE)
+
+    assert run_action.enabled is False
+    assert run_selection_action.enabled is False
+    assert debug_action.enabled is False
+    assert calls == ["refresh", ("state", DebugState.IDLE)]
 
 
 def test_debug_pause_updates_editor_panels_and_watch_expressions(monkeypatch, tmp_path):
@@ -397,7 +530,8 @@ def test_debug_control_actions_only_step_when_paused():
     assert manager.calls == ["stop", "continue", "step_over", "step_into", "step_out"]
 
 
-def test_start_debug_returns_for_busy_missing_editor_and_cancelled_save_as(tmp_path):
+def test_start_debug_returns_for_busy_missing_editor_and_cancelled_save_as(monkeypatch, tmp_path):
+    monkeypatch.setattr(debug_module, "CodeEditor", StartDebugEditor)
     calls = []
     settings = SimpleNamespace(get=lambda key, default=None: True)
     window = SimpleNamespace(
@@ -431,6 +565,7 @@ def test_debug_state_running_disables_run_without_showing_paused_panels():
     window = SimpleNamespace(
         action_run_file=lambda: None,
         _run_action=run_action,
+        _run_selection_action=FakeAction(),
         _debug_action=FakeAction(),
         _debug_separator=FakeAction(),
         _step_over_action=FakeAction(),
@@ -445,6 +580,7 @@ def test_debug_state_running_disables_run_without_showing_paused_panels():
     controller._on_debug_state_changed(DebugState.RUNNING)
 
     assert run_action.enabled is False
+    assert window._run_selection_action.enabled is False
     assert window._debug_action.enabled is False
     assert window._debug_separator.visible is True
     assert window._step_over_action.enabled is False
@@ -505,6 +641,7 @@ def test_debug_started_resumed_eval_and_finished_reset_ui(monkeypatch, tmp_path)
     controller_window = SimpleNamespace(
         action_run_file=run_file,
         _run_action=run_action,
+        _run_selection_action=FakeAction(),
         _debug_action=FakeAction(),
         _stop_action=FakeAction(),
         _debug_separator=FakeAction(),
@@ -546,6 +683,7 @@ def test_debug_started_resumed_eval_and_finished_reset_ui(monkeypatch, tmp_path)
         (">>> Debug finished\n", "system"),
     ]
     assert controller_window._stop_action.enabled is False
+    assert controller_window._run_selection_action.enabled is True
     assert run_action.tooltip == "Run File (F5)"
     assert editor.current_lines == []
     assert ("answer", "42", "") in calls

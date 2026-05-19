@@ -221,9 +221,13 @@ class MenuBarBuilder:
         # Use shared actions so enable/disable stays in sync
         run_menu.addAction(self._window._run_action)
 
-        run_sel = run_menu.addAction("Run &Selection / Line")
-        run_sel.setShortcut(QKeySequence("Shift+F5"))
-        run_sel.triggered.connect(self._window.action_run_selection)
+        self._window._run_selection_action = run_menu.addAction(
+            "Run &Selection / Line"
+        )
+        self._window._run_selection_action.setShortcut(QKeySequence("Shift+F5"))
+        self._window._run_selection_action.triggered.connect(
+            self._window.action_run_selection
+        )
 
         run_menu.addAction(self._window._stop_action)
 

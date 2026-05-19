@@ -38,7 +38,7 @@ class MainWindowController(QObject):
         return getattr(self.window, name)
 
     def _refresh_run_action_enabled(self) -> None:
-        """Let the workspace controller reapply current Run eligibility."""
+        """Let the workspace controller reapply run/debug action eligibility."""
         refresh = getattr(self.window, "_update_run_action_enabled", None)
         if callable(refresh):
             refresh()

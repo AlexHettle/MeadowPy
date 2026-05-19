@@ -385,14 +385,29 @@ class WorkspaceController(MainWindowController):
         self._update_run_action_enabled(editor)
 
     def _update_run_action_enabled(self, editor=_RUN_EDITOR_UNSET) -> None:
-        """Enable Run only for Python editors when no run/debug work is active."""
-        action = getattr(self.window, "_run_action", None)
-        if action is None or self._run_control_owned_by_running_work():
+        """Enable run/debug actions only for Python editors when no work is active."""
+        run_action = getattr(self.window, "_run_action", None)
+        run_selection_action = getattr(self.window, "_run_selection_action", None)
+        debug_action = getattr(self.window, "_debug_action", None)
+        if (
+            (
+                run_action is None
+                and run_selection_action is None
+                and debug_action is None
+            )
+            or self._run_control_owned_by_running_work()
+        ):
             return
         if editor is _RUN_EDITOR_UNSET:
             current_editor = getattr(self._tab_manager, "current_editor", None)
             editor = current_editor() if callable(current_editor) else None
-        action.setEnabled(can_run_editor(editor, CodeEditor))
+        enabled = can_run_editor(editor, CodeEditor)
+        if run_action is not None:
+            run_action.setEnabled(enabled)
+        if run_selection_action is not None:
+            run_selection_action.setEnabled(enabled)
+        if debug_action is not None:
+            debug_action.setEnabled(enabled)
 
     def _run_control_owned_by_running_work(self) -> bool:
         """Return True when process/debug controllers temporarily own Run state."""

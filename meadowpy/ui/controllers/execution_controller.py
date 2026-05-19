@@ -107,7 +107,7 @@ class ExecutionController(MainWindowController):
     def action_run_selection(self) -> None:
         """Run the selected text or current line (Shift+F5)."""
         editor = self._tab_manager.current_editor()
-        if not editor:
+        if not can_run_editor(editor):
             return
 
         # Confirm if already running
@@ -193,6 +193,8 @@ class ExecutionController(MainWindowController):
     def _on_process_started(self, desc: str) -> None:
         self._output_panel.set_running(True)
         self._run_action.setEnabled(False)
+        if hasattr(self, "_run_selection_action"):
+            self._run_selection_action.setEnabled(False)
         self._debug_action.setEnabled(False)
         self._stop_action.setEnabled(True)
         self._output_panel.append_output(f">>> {desc}\n", "system")
@@ -201,6 +203,8 @@ class ExecutionController(MainWindowController):
     def _on_process_finished(self, exit_code: int, desc: str) -> None:
         self._output_panel.set_running(False)
         self._run_action.setEnabled(True)
+        if hasattr(self, "_run_selection_action"):
+            self._run_selection_action.setEnabled(True)
         self._debug_action.setEnabled(True)
         self._stop_action.setEnabled(False)
         self._refresh_run_action_enabled()

@@ -100,6 +100,34 @@ def test_run_selection_uses_selected_code_and_interpreter():
     assert runner.calls == [("print('selected')", "python.exe", "work")]
 
 
+def test_run_selection_ignores_saved_non_python_file(tmp_path):
+    notes = tmp_path / "notes.txt"
+    notes.write_text("not python", encoding="utf-8")
+    settings = FakeSettings({
+        "run.working_directory": "file",
+        "run.clear_output_before_run": True,
+        "run.show_output_panel": True,
+    })
+    runner = FakeProcessRunner()
+    editor = FakeEditor(str(notes), selected="plain text")
+    output = FakeOutputPanel()
+    window = SimpleNamespace(
+        _settings=settings,
+        _process_runner=runner,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _output_panel=output,
+    )
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    controller.action_run_selection()
+
+    assert runner.calls == []
+    assert output.cleared == 0
+    assert output.shown == 0
+
+
 class FakeAction:
     def __init__(self):
         self.enabled = None
@@ -230,6 +258,7 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     window = SimpleNamespace(
         _output_panel=output,
         _run_action=FakeAction(),
+        _run_selection_action=FakeAction(),
         _debug_action=FakeAction(),
         _stop_action=FakeAction(),
         _status_bar_manager=status,
@@ -243,6 +272,7 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     )
 
     controller._on_process_started("Running: demo.py")
+    assert window._run_selection_action.enabled is False
     controller._on_process_finished(0, "Process finished successfully")
     controller._on_stdin_submitted("hello\n")
 
@@ -252,6 +282,7 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     ]
     assert output.running is False
     assert window._run_action.enabled is True
+    assert window._run_selection_action.enabled is True
     assert window._debug_action.enabled is True
     assert window._stop_action.enabled is False
     assert refreshes == ["refresh"]
