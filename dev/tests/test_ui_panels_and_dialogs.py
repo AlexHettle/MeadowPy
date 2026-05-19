@@ -354,6 +354,7 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
 
     panel.set_model_name("qwen3")
     assert "qwen3" in panel._model_label.text()
+    panel.apply_accent("#445566", True)
     panel.set_connected(False)
     assert not panel._input_area.isEnabled()
     assert panel._model_label.text() == "ollama"
@@ -373,6 +374,14 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     panel.append_token("Here is code:\n")
     panel.append_token("```python\nprint('hi')\n```")
     assert "print('hi')" in panel._current_assistant_text
+    assert "color:#445566" in panel._format_content_html(
+        panel._current_assistant_text,
+        allow_insert=True,
+    )
+    assert "#4A90D9" not in panel._format_content_html(
+        panel._current_assistant_text,
+        allow_insert=True,
+    )
     panel.finish_response()
     assert panel._messages[-1]["role"] == "assistant"
     assert panel._streaming is False

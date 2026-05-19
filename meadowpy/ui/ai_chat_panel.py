@@ -508,10 +508,11 @@ class AIChatPanel(QDockWidget):
 
             insert_link = ""
             if allow_insert:
+                link_color = html.escape(self._accent_hex, quote=True)
                 insert_link = (
                     f'<div style="text-align:right; margin-top:2px;">'
                     f'<a href="meadowpy://insert-code/{block_idx}" '
-                    f'style="color:#4A90D9; text-decoration:none; '
+                    f'style="color:{link_color}; text-decoration:none; '
                     f'font-size:11px;">Insert at Cursor Position \u21B5</a></div>'
                 )
 
