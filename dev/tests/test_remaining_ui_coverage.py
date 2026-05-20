@@ -6,7 +6,12 @@ from PyQt6.QtCore import QEvent, QFileInfo, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QIcon, QKeyEvent, QMouseEvent
 from PyQt6.QtWidgets import QFileIconProvider, QWidget
 
-from meadowpy.ui.file_explorer import FileExplorerPanel, _ClickableLabel, _ExplorerIconProvider
+from meadowpy.ui.file_explorer import (
+    FileExplorerPanel,
+    _ClickableLabel,
+    _ExplorerIconProvider,
+    _MAX_PREFETCH_SUBDIRS,
+)
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
 from meadowpy.ui.tool_bar import ToolBarBuilder
 
@@ -197,6 +202,14 @@ class FakeExplorerModel:
         return self.paths.get(index.key, index.key)
 
 
+class FakeLargeExplorerModel(FakeExplorerModel):
+    def rowCount(self, parent):
+        return _MAX_PREFETCH_SUBDIRS + 5 if parent.key == "big" else 0
+
+    def index(self, row, _column, parent):
+        return FakeModelIndex(True, f"{parent.key}-child-{row}")
+
+
 class FakeExplorerProxy:
     def __init__(self, source_index):
         self.source_index = source_index
@@ -282,6 +295,19 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     panel._on_directory_loaded(str(tmp_path))
     assert str(tmp_path) not in panel._pending_anim_paths
     assert tree.expanded[-1] == "proxy-loaded-dir"
+    assert model.fetched == ["dir-child-0", "dir-child-1", "dir"]
+
+    panel._on_directory_loaded(str(tmp_path))
+    assert model.fetched == ["dir-child-0", "dir-child-1", "dir"]
+
+    large_model = FakeLargeExplorerModel(paths={}, dirs={
+        f"big-child-{row}" for row in range(_MAX_PREFETCH_SUBDIRS + 5)
+    })
+    panel._fs_model = large_model
+    panel._prefetch_subdirs(FakeModelIndex(True, "big"))
+    assert len(large_model.fetched) == _MAX_PREFETCH_SUBDIRS
+    assert large_model.fetched[-1] == f"big-child-{_MAX_PREFETCH_SUBDIRS - 1}"
+    panel._fs_model = model
 
     enter = QKeyEvent(
         QEvent.Type.KeyPress,

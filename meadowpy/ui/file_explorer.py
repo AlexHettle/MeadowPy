@@ -36,6 +36,7 @@ _HIDDEN_NAMES = {
     "node_modules", ".mypy_cache", ".pytest_cache", ".eggs",
 }
 _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
+_MAX_PREFETCH_SUBDIRS = 40
 
 
 class _ExplorerIconProvider(QFileIconProvider):
@@ -273,11 +274,9 @@ class FileExplorerPanel(QDockWidget):
     # the animation is effectively skipped — the children then pop in
     # abruptly when ``directoryLoaded`` fires later.
     #
-    # Strategy: eagerly pre-fetch one level ahead. Whenever a directory
-    # finishes loading, we call ``fetchMore`` on each of its subdirectories
-    # so their contents are cached before the user can click them. When
-    # the user then expands a folder, ``rowCount`` already returns the
-    # real child count and the animation runs correctly.
+    # Strategy: pre-fetch one level ahead only from folders the user expands.
+    # Doing this from every ``directoryLoaded`` signal recursively walks large
+    # folders such as Documents and can make the app appear hung.
     #
     # As a safety net, if a user expands a directory before its cache is
     # populated, we collapse silently, wait for the load, and re-expand.
@@ -287,6 +286,8 @@ class FileExplorerPanel(QDockWidget):
             return
         row_count = self._fs_model.rowCount(source_parent_index)
         for row in range(row_count):
+            if row >= _MAX_PREFETCH_SUBDIRS:
+                break
             child = self._fs_model.index(row, 0, source_parent_index)
             if self._fs_model.isDir(child) and self._fs_model.canFetchMore(child):
                 self._fs_model.fetchMore(child)
@@ -295,9 +296,6 @@ class FileExplorerPanel(QDockWidget):
         if self._suppress_expand_handler or not self._fs_model or not self._proxy:
             return
         source_index = self._proxy.mapToSource(proxy_index)
-
-        # Pre-fetch grandchildren so the NEXT expand down also animates.
-        self._prefetch_subdirs(source_index)
 
         # Fallback: if this folder's own contents aren't cached yet, the
         # animation we just ran was a no-op. Collapse silently, fetch,
@@ -310,16 +308,16 @@ class FileExplorerPanel(QDockWidget):
                 self._tree.collapse(proxy_index)
                 self._suppress_expand_handler = False
                 self._fs_model.fetchMore(source_index)
+                return
+
+        # Pre-fetch grandchildren so the NEXT expand down also animates.
+        self._prefetch_subdirs(source_index)
 
     def _on_directory_loaded(self, path: str) -> None:
         if not self._fs_model or not self._proxy:
             return
 
-        # Eager look-ahead: when any directory loads, pre-fetch each of
-        # its subdirectories so the user's first expand there will animate.
         source_index = self._fs_model.index(path)
-        if source_index.isValid():
-            self._prefetch_subdirs(source_index)
 
         # If this load fulfils a pending re-expand, animate it now.
         if path in self._pending_anim_paths:
@@ -335,6 +333,7 @@ class FileExplorerPanel(QDockWidget):
     def set_root_folder(self, folder_path: str) -> None:
         """Set (or change) the root directory shown in the tree."""
         self._root_path = folder_path
+        self._pending_anim_paths.clear()
 
         # Create model + proxy once, reuse on subsequent calls
         if self._fs_model is None:
