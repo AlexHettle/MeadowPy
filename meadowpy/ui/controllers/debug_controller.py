@@ -25,7 +25,7 @@ class DebugController(MainWindowController):
     def action_toggle_breakpoint(self) -> None:
         """Toggle a breakpoint on the current cursor line (F9)."""
         editor = self._tab_manager.current_editor()
-        if editor:
+        if can_run_editor(editor, CodeEditor):
             line, _ = editor.getCursorPosition()
             editor.toggle_breakpoint(line)
             self._update_active_debug_breakpoints()
@@ -111,7 +111,7 @@ class DebugController(MainWindowController):
         result = {}
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)
-            if isinstance(editor, CodeEditor) and editor.file_path:
+            if can_run_editor(editor, CodeEditor) and editor.file_path:
                 bp_lines = editor.get_breakpoints()
                 if bp_lines:
                     # Convert 0-based to 1-based for the protocol

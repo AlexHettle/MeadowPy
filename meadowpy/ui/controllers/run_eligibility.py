@@ -2,17 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-PYTHON_FILE_SUFFIXES = {".py", ".pyw"}
-
-
-def is_python_file_path(file_path: str | None) -> bool:
-    """Return True when ``file_path`` points at a runnable Python file."""
-    if not file_path:
-        return True
-    return Path(file_path).suffix.lower() in PYTHON_FILE_SUFFIXES
+from meadowpy.core.file_types import PYTHON_FILE_SUFFIXES, is_python_file_path
 
 
 def can_run_editor(editor: Any, expected_type: type | tuple[type, ...] | None = None) -> bool:

@@ -132,6 +132,28 @@ def test_breakpoints_on_non_code_lines_snap_to_next_statement(qapp, tmp_path):
     editor.deleteLater()
 
 
+def test_non_python_file_path_blocks_breakpoints(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("print('hi')\n")
+    editor.file_path = str(tmp_path / "demo.py")
+
+    editor.toggle_breakpoint(0)
+    assert editor.get_breakpoints() == {0}
+
+    editor.file_path = str(tmp_path / "requirements.txt")
+    assert editor.get_breakpoints() == set()
+    assert not (
+        editor.markersAtLine(0)
+        & (1 << code_editor_module.MARKER_BREAKPOINT)
+    )
+
+    editor.setText("PyQt6>=6.7.1\nflake8>=7.0.0\n")
+    editor.toggle_breakpoint(0)
+
+    assert editor.get_breakpoints() == set()
+    editor.deleteLater()
+
+
 class PhantomBreakpointHarness:
     _breakpoint_hover_margin_at_x = CodeEditor._breakpoint_hover_margin_at_x
     _line_from_mouse_y = CodeEditor._line_from_mouse_y
@@ -146,6 +168,10 @@ class PhantomBreakpointHarness:
         self.real_breakpoints = set()
         self.added = []
         self.deleted = []
+        self.supports_breakpoints = True
+
+    def _breakpoints_supported(self):
+        return self.supports_breakpoints
 
     def marginWidth(self, index):
         return self.widths.get(index, 0)
@@ -191,6 +217,17 @@ def test_phantom_breakpoint_follows_hoverable_gutter_and_skips_real_breakpoints(
     harness.real_breakpoints = {2}
     CodeEditor._update_phantom_breakpoint(harness, 40, 12)
     assert harness.added == [(2, marker)]
+
+
+def test_phantom_breakpoint_hides_when_file_does_not_support_breakpoints():
+    harness = PhantomBreakpointHarness()
+    harness.supports_breakpoints = False
+    harness._phantom_breakpoint_line = 2
+
+    CodeEditor._update_phantom_breakpoint(harness, 5, 12)
+
+    assert harness._phantom_breakpoint_line is None
+    assert harness.deleted == [("all", code_editor_module.MARKER_PHANTOM_BREAKPOINT)]
 
 
 def test_lint_markers_use_high_contrast_indicator_colors(qapp, tmp_path):

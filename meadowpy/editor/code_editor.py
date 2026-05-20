@@ -8,6 +8,7 @@ from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
 from PyQt6.QtWidgets import QToolTip, QWidget
 from PyQt6.Qsci import QsciScintilla
 
+from meadowpy.core.file_types import is_python_file_path
 from meadowpy.core.settings import Settings
 from meadowpy.editor.editor_config import EditorConfigurator
 from meadowpy.editor.smart_indent import SmartIndentHandler
@@ -115,6 +116,8 @@ class CodeEditor(QsciScintilla):
     @file_path.setter
     def file_path(self, path: str | None) -> None:
         self._file_path = path
+        if not self._breakpoints_supported():
+            self.clear_breakpoints()
 
     @property
     def is_modified(self) -> bool:
@@ -717,6 +720,10 @@ class CodeEditor(QsciScintilla):
         """Keep cached breakpoint lines aligned with movable editor markers."""
         self._breakpoints = self._breakpoint_lines_from_markers()
 
+    def _breakpoints_supported(self) -> bool:
+        """Return True when this tab can display debugger breakpoints."""
+        return is_python_file_path(self._file_path)
+
     def _breakpoint_hover_margin_at_x(self, x: int) -> bool:
         """Return True when x is over a margin that toggles breakpoints."""
         line_number_width = int(self.marginWidth(0) or 0)
@@ -762,6 +769,10 @@ class CodeEditor(QsciScintilla):
 
     def _update_phantom_breakpoint(self, x: int, y: int) -> None:
         """Show a ghost breakpoint on the executable line under the gutter."""
+        if not self._breakpoints_supported():
+            self._clear_phantom_breakpoint()
+            return
+
         if not self._breakpoint_hover_margin_at_x(x):
             self._clear_phantom_breakpoint()
             return
@@ -820,6 +831,10 @@ class CodeEditor(QsciScintilla):
 
     def toggle_breakpoint(self, line: int) -> None:
         """Toggle a breakpoint on the given 0-based line number."""
+        if not self._breakpoints_supported():
+            self.clear_breakpoints()
+            return
+
         line = self._resolve_breakpoint_line(line)
         if line is None:
             self._clear_phantom_breakpoint()
@@ -834,6 +849,10 @@ class CodeEditor(QsciScintilla):
 
     def get_breakpoints(self) -> set[int]:
         """Return the set of 0-based line numbers with breakpoints."""
+        if not self._breakpoints_supported():
+            self.clear_breakpoints()
+            return set()
+
         self._sync_breakpoints_from_markers()
         return self._breakpoints.copy()
 

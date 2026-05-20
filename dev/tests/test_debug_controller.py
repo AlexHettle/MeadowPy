@@ -39,6 +39,7 @@ def test_collect_all_breakpoints_converts_to_protocol_lines(monkeypatch):
     tabs = FakeTabManager([
         FakeEditor("a.py", {0, 2}),
         FakeEditor("b.py", set()),
+        FakeEditor("requirements.txt", {1}),
     ])
     window = SimpleNamespace(_tab_manager=tabs)
     controller = DebugController(MainWindowContext(window, None, None, None))
@@ -461,6 +462,19 @@ def test_breakpoint_actions_use_current_editor_and_all_open_tabs(monkeypatch):
     assert editor.toggled == [12]
     assert editor.cleared == 1
     assert other_editor.cleared == 1
+
+
+def test_toggle_breakpoint_ignores_non_python_current_editor(monkeypatch):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("requirements.txt")
+    tabs = FakeTabManager([editor])
+    controller = DebugController(
+        MainWindowContext(SimpleNamespace(_tab_manager=tabs), None, None, None)
+    )
+
+    controller.action_toggle_breakpoint()
+
+    assert editor.toggled == []
 
 
 def test_breakpoint_actions_update_active_debug_session(monkeypatch):
