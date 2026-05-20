@@ -3,8 +3,17 @@
 import ast
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal, Qt, QEvent
-from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
+from PyQt6.QtCore import pyqtSignal, Qt, QEvent, QRectF
+from PyQt6.QtGui import (
+    QColor,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QBrush,
+    QPixmap,
+    QLinearGradient,
+    QPainterPath,
+)
 from PyQt6.QtWidgets import QToolTip, QWidget
 from PyQt6.Qsci import QsciScintilla
 
@@ -20,6 +29,8 @@ from meadowpy.resources.resource_loader import theme_is_dark
 MARKER_BREAKPOINT = 0    # Red filled circle for breakpoints
 MARKER_CURRENT_LINE = 1  # Yellow arrow for current execution line during debug
 MARKER_PHANTOM_BREAKPOINT = 2  # Muted circle shown while hovering the gutter
+BREAKPOINT_MARGIN_WIDTH = 26
+BREAKPOINT_MARKER_SIZE = 18
 
 # Indicator IDs for squiggle underlines
 # QScintilla reserves indicators 0-7 for lexer use and 8-10 internally
@@ -75,11 +86,7 @@ class CodeEditor(QsciScintilla):
 
         # Define gutter marker shapes; colors are applied separately so they
         # can be refreshed when the theme changes.
-        self.markerDefine(QsciScintilla.MarkerSymbol.Circle, MARKER_BREAKPOINT)
         self.markerDefine(QsciScintilla.MarkerSymbol.RightArrow, MARKER_CURRENT_LINE)
-        self.markerDefine(
-            QsciScintilla.MarkerSymbol.Circle, MARKER_PHANTOM_BREAKPOINT
-        )
         self._apply_marker_colors()
 
         EditorConfigurator.apply(self, settings)
@@ -662,19 +669,112 @@ class CodeEditor(QsciScintilla):
 
     # --- Marker color theming ---
 
+    @staticmethod
+    def _breakpoint_marker_pixmap(
+        fill: QColor,
+        border: QColor,
+        *,
+        filled: bool,
+    ) -> QPixmap:
+        """Return an antialiased breakpoint marker pixmap for the gutter."""
+        size = BREAKPOINT_MARKER_SIZE
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            if filled:
+                outer = QRectF(3.0, 3.0, 12.0, 12.0)
+                inner_edge = outer.adjusted(0.55, 0.55, -0.55, -0.55)
+                clip = QPainterPath()
+                clip.addEllipse(outer)
+                painter.setClipPath(clip)
+
+                painter.setPen(Qt.PenStyle.NoPen)
+                gradient = QLinearGradient(0, outer.top(), 0, outer.bottom())
+                gradient.setColorAt(0.0, fill.lighter(112))
+                gradient.setColorAt(1.0, fill.darker(106))
+                painter.setBrush(QBrush(gradient))
+                painter.drawEllipse(outer)
+
+                painter.setPen(QPen(border, 1.0))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(inner_edge)
+                painter.setClipping(False)
+            else:
+                ghost_fill = QColor(fill)
+                ghost_fill.setAlpha(22)
+                ghost_border = QColor(border)
+                ghost_border.setAlpha(155)
+                outer = QRectF(3.0, 3.0, 12.0, 12.0)
+                inner_edge = outer.adjusted(0.7, 0.7, -0.7, -0.7)
+                clip = QPainterPath()
+                clip.addEllipse(outer)
+                painter.setClipPath(clip)
+
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(ghost_fill))
+                painter.drawEllipse(outer)
+
+                painter.setPen(QPen(ghost_border, 1.45))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(inner_edge)
+                painter.setClipping(False)
+        finally:
+            painter.end()
+
+        return pixmap
+
+    def _define_breakpoint_markers(self) -> None:
+        """Install custom breakpoint marker artwork for the current theme."""
+        is_hc = self._settings.get("editor.theme") == "default_high_contrast"
+        theme_name = self._settings.get("editor.theme")
+        custom_base = self._settings.get("editor.custom_theme.base")
+        is_dark = theme_is_dark(theme_name, custom_base)
+
+        if is_hc:
+            bp_fill = QColor("#FFFFFF")
+            bp_border = QColor("#FFFFFF")
+            ghost_fill = QColor("#FFFFFF")
+            ghost_border = QColor("#FFFFFF")
+        else:
+            bp_fill = QColor("#E9483F")
+            bp_border = QColor("#9E2F2B" if is_dark else "#B8322E")
+            ghost_fill = QColor("#E9483F")
+            ghost_border = QColor("#E9483F")
+
+        self.markerDefine(
+            self._breakpoint_marker_pixmap(
+                bp_fill,
+                bp_border,
+                filled=True,
+            ),
+            MARKER_BREAKPOINT,
+        )
+        self.markerDefine(
+            self._breakpoint_marker_pixmap(
+                ghost_fill,
+                ghost_border,
+                filled=False,
+            ),
+            MARKER_PHANTOM_BREAKPOINT,
+        )
+
     def _apply_marker_colors(self) -> None:
         """Set breakpoint / current-line marker colors for the active theme.
 
         High-contrast collapses both markers onto pure black & white so the
         gutter stays monochrome alongside everything else.
         """
+        self._define_breakpoint_markers()
         is_hc = self._settings.get("editor.theme") == "default_high_contrast"
         if is_hc:
             bp_color = QColor("#FFFFFF")
             cur_fg = QColor("#000000")
             cur_bg = QColor("#FFFFFF")
         else:
-            bp_color = QColor("#E51400")
+            bp_color = QColor("#E9483F")
             cur_fg = QColor("#000000")
             cur_bg = QColor("#FFCC00")
             theme_name = self._settings.get("editor.theme")

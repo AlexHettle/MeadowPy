@@ -6,7 +6,7 @@ import meadowpy.editor.code_editor as code_editor_module
 import meadowpy.editor.editor_fonts as editor_fonts
 from helpers import DummySignal
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QKeyEvent, QWheelEvent
+from PyQt6.QtGui import QColor, QKeyEvent, QWheelEvent
 from PyQt6.Qsci import QsciScintilla
 
 from meadowpy.core.settings import Settings
@@ -74,6 +74,7 @@ def test_find_enclosing_def_returns_prompt_code_and_docstring_line(qapp, tmp_pat
 def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_path):
     editor = make_editor(qapp, tmp_path)
     editor.setText("print(missing)\n")
+    assert editor.marginWidth(2) >= code_editor_module.BREAKPOINT_MARGIN_WIDTH
 
     editor.toggle_breakpoint(0)
     assert editor.get_breakpoints() == {0}
@@ -98,6 +99,42 @@ def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_p
 
     assert editor._get_lint_tooltip(0, 2) is None
     editor.deleteLater()
+
+
+def test_breakpoint_marker_pixmaps_are_centered_and_antialiased(qapp):
+    size = code_editor_module.BREAKPOINT_MARKER_SIZE
+    marker = CodeEditor._breakpoint_marker_pixmap(
+        QColor("#E9483F"),
+        QColor("#9E2F2B"),
+        filled=True,
+    ).toImage()
+    ghost = CodeEditor._breakpoint_marker_pixmap(
+        QColor("#E9483F"),
+        QColor("#E9483F"),
+        filled=False,
+    ).toImage()
+
+    assert marker.pixelColor(0, 0).alpha() == 0
+    assert ghost.pixelColor(0, 0).alpha() == 0
+
+    center = marker.pixelColor(size // 2, size // 2)
+    rim = marker.pixelColor(3, size // 2)
+    ghost_center = ghost.pixelColor(size // 2, size // 2)
+    assert center.alpha() > 220
+    assert center.red() > 220
+    assert center.green() < 120
+    assert rim.red() < center.red()
+    assert ghost_center.alpha() < center.alpha()
+
+    # Keep the inset rim from leaking square pixels at the cardinal points.
+    assert marker.pixelColor(size // 2, 2).alpha() == 0
+    assert marker.pixelColor(size // 2, size - 3).alpha() == 0
+    assert marker.pixelColor(2, size // 2).alpha() == 0
+    assert marker.pixelColor(size - 3, size // 2).alpha() == 0
+    assert ghost.pixelColor(size // 2, 2).alpha() == 0
+    assert ghost.pixelColor(size // 2, size - 3).alpha() == 0
+    assert ghost.pixelColor(2, size // 2).alpha() == 0
+    assert ghost.pixelColor(size - 3, size // 2).alpha() == 0
 
 
 def test_breakpoints_follow_editor_marker_line_changes(qapp, tmp_path):

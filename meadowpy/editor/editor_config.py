@@ -241,18 +241,19 @@ class EditorConfigurator:
         )
 
         # Margin 2: narrow symbol margin for breakpoint dots. Width must
-        # leave room for the Circle marker (scales with font height) so
-        # the breakpoint doesn't clip into the text area.
+        # leave room for custom breakpoint artwork so it stays centered
+        # instead of clipping into the text area.
         editor.setMarginType(2, QsciScintilla.MarginType.SymbolMargin)
-        editor.setMarginWidth(2, 18)
-        editor.setMarginSensitivity(2, True)
-
-        # Show breakpoint + current-line markers in this margin
         from meadowpy.editor.code_editor import (
+            BREAKPOINT_MARGIN_WIDTH,
             MARKER_BREAKPOINT,
             MARKER_CURRENT_LINE,
             MARKER_PHANTOM_BREAKPOINT,
         )
+        editor.setMarginWidth(2, BREAKPOINT_MARGIN_WIDTH)
+        editor.setMarginSensitivity(2, True)
+
+        # Show breakpoint + current-line markers in this margin
         editor.setMarginMarkerMask(
             2,
             (
