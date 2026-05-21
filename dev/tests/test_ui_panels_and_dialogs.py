@@ -808,6 +808,9 @@ def test_ollama_setup_dialog_updates_results_and_saves(qapp, tmp_path):
 
     assert dialog._model_combo.isEnabled()
     assert "2 model" in dialog._models_status.text()
+    assert "color: #445566;" == dialog._server_status.styleSheet()
+    assert "color: #445566;" == dialog._models_status.styleSheet()
+    assert "color: #445566;" == dialog._selected_status.styleSheet()
 
     dialog._model_combo.setCurrentText("qwen3")
     dialog._save_settings()
@@ -815,6 +818,7 @@ def test_ollama_setup_dialog_updates_results_and_saves(qapp, tmp_path):
     assert settings.get("ollama.auto_connect") is False
     assert settings.get("ollama.selected_model") == "qwen3"
     assert "qwen3" in dialog._selected_status.text()
+    assert "color: #445566;" == dialog._selected_status.styleSheet()
     assert dialog._close_btn.text() == "Close"
 
     dialog._on_check_finished(False, "Cannot connect", [])

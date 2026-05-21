@@ -170,7 +170,7 @@ class OllamaSetupDialog(QDialog):
         return value
 
     def _set_status(self, label: QLabel, text: str, ok: bool | None) -> None:
-        color = "#2F7A44" if ok else "#B00020"
+        color = self._accent_hex() if ok else "#B00020"
         if ok is None:
             color = "#6B6B6B"
         label.setText(text)
@@ -297,7 +297,7 @@ class OllamaSetupDialog(QDialog):
             return
         super().closeEvent(event)
 
-    def _apply_link_accent(self, label: QLabel) -> None:
+    def _accent_hex(self) -> str:
         accent = QColor(
             current_accent_hex(
                 self._settings.get("editor.theme") or "default_dark",
@@ -306,12 +306,16 @@ class OllamaSetupDialog(QDialog):
             )
         )
         if not accent.isValid():
-            accent = QColor("#2F7A44")
+            accent = QColor(current_accent_hex("default_dark"))
+        return accent.name().upper()
+
+    def _apply_link_accent(self, label: QLabel) -> None:
+        accent_hex = self._accent_hex()
+        accent = QColor(accent_hex)
         palette = label.palette()
         palette.setColor(QPalette.ColorRole.Link, accent)
         palette.setColor(QPalette.ColorRole.LinkVisited, accent)
         label.setPalette(palette)
-        accent_hex = accent.name().upper()
         label.setText(
             '<a href="https://ollama.com/download" '
             f'style="color: {accent_hex};">Download Ollama</a>'
