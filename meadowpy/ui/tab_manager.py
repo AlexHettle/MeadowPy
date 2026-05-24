@@ -257,10 +257,22 @@ class TabManager(QTabWidget):
             if reply == QMessageBox.StandardButton.Save:
                 if self._file_manager:
                     if editor.file_path:
-                        self._file_manager.save_file(editor.file_path, editor.text())
+                        if not self._file_manager.save_file(
+                            editor.file_path, editor.text()
+                        ):
+                            self._show_save_failed(editor.file_path)
+                            return False
                     else:
                         path = self._file_manager.save_file_as(editor.text(), parent=self)
                         if not path:
+                            if getattr(self._file_manager, "last_save_error", None):
+                                self._show_save_failed(
+                                    getattr(
+                                        self._file_manager,
+                                        "last_save_error_path",
+                                        None,
+                                    )
+                                )
                             return False
         self.removeTab(index)
         return True
@@ -290,12 +302,34 @@ class TabManager(QTabWidget):
                 if reply == QMessageBox.StandardButton.Save:
                     if self._file_manager:
                         if editor.file_path:
-                            self._file_manager.save_file(editor.file_path, editor.text())
+                            if not self._file_manager.save_file(
+                                editor.file_path, editor.text()
+                            ):
+                                self._show_save_failed(editor.file_path)
+                                return False
                         else:
                             path = self._file_manager.save_file_as(editor.text(), parent=self)
                             if not path:
+                                if getattr(self._file_manager, "last_save_error", None):
+                                    self._show_save_failed(
+                                        getattr(
+                                            self._file_manager,
+                                            "last_save_error_path",
+                                            None,
+                                        )
+                                    )
                                 return False
         return True
+
+    def _show_save_failed(self, file_path: str | None) -> None:
+        error = getattr(self._file_manager, "last_save_error", None)
+        details = str(error) if error else "Unknown error."
+        path_text = file_path or "the selected file"
+        QMessageBox.critical(
+            self,
+            "Could Not Save File",
+            f"MeadowPy could not save this file:\n{path_text}\n\n{details}",
+        )
 
     def current_editor(self) -> CodeEditor | None:
         """Return the currently active CodeEditor, or None."""

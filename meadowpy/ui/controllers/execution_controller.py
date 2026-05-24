@@ -75,12 +75,14 @@ class ExecutionController(MainWindowController):
         # Save before run if configured
         if self._settings.get("run.save_before_run"):
             if editor.isModified():
-                self.action_save()
+                if self.action_save() is False:
+                    return
 
         # Need a file path to run
         file_path = editor.file_path
         if not file_path:
-            self.action_save_as()
+            if self.action_save_as() is False:
+                return
             file_path = editor.file_path
             if not file_path:
                 return  # user cancelled save-as

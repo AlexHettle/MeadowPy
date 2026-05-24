@@ -18,6 +18,8 @@ class FakeFileManager:
     def __init__(self):
         self.saved = 0
         self.saved_as = 0
+        self.last_save_error = None
+        self.last_save_error_path = None
 
     def save_file(self, file_path, content):
         self.saved += 1
@@ -144,6 +146,38 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     )
     assert tabs.close_all_tabs() is True
     assert tabs.count() == 0
+
+    tabs.deleteLater()
+    parent.deleteLater()
+
+
+def test_close_prompts_keep_tab_open_when_save_fails(monkeypatch, qapp, tmp_path):
+    monkeypatch.setattr(tab_module, "CodeEditor", FakeTabEditor)
+    settings = make_settings(tmp_path)
+    parent = ParentWindow()
+    fake_fm = FakeFileManager()
+    fake_fm.last_save_error = PermissionError("Permission denied")
+    tabs = TabManager(settings, fake_fm, parent)
+    editor = tabs.new_tab(str(tmp_path / "readonly.py"), "print('dirty')\n")
+    editor.setModified(True)
+    dialogs = []
+    monkeypatch.setattr(
+        tab_module.QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Save,
+    )
+    monkeypatch.setattr(
+        tab_module.QMessageBox,
+        "critical",
+        lambda parent, title, body: dialogs.append((title, body)),
+    )
+    fake_fm.save_file = lambda file_path, content: False
+
+    assert tabs.close_tab(tabs.indexOf(editor)) is False
+    assert tabs.indexOf(editor) >= 0
+    assert tabs.prompt_save_all() is False
+    assert dialogs[0][0] == "Could Not Save File"
+    assert "Permission denied" in dialogs[0][1]
 
     tabs.deleteLater()
     parent.deleteLater()

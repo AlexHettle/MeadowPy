@@ -55,6 +55,8 @@ def test_save_file_returns_false_on_oserror(monkeypatch):
     monkeypatch.setattr(manager, "write_file", raise_oserror)
 
     assert manager.save_file("bad.py", "data") is False
+    assert str(manager.last_save_error) == "boom"
+    assert manager.last_save_error_path == "bad.py"
     recent.add.assert_not_called()
 
 

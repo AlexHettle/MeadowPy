@@ -148,28 +148,54 @@ class WorkspaceController(MainWindowController):
 
     # ── Drag & Drop ──────────────────────────────────────────────────
 
-    def action_save(self) -> None:
+    def action_save(self) -> bool:
         editor = self._tab_manager.current_editor()
         if not editor:
-            return
+            return False
         if editor.file_path:
-            self._file_manager.save_file(editor.file_path, editor.text())
+            if not self._file_manager.save_file(editor.file_path, editor.text()):
+                self._show_save_failed(editor.file_path)
+                return False
             editor.setModified(False)
             self._tab_manager.update_tab_title(self._tab_manager.currentIndex())
             self._update_run_file_button(editor)
+            return True
         else:
-            self.action_save_as()
+            return self.action_save_as()
 
-    def action_save_as(self) -> None:
+    def action_save_as(self) -> bool:
         editor = self._tab_manager.current_editor()
         if not editor:
-            return
+            return False
         path = self._file_manager.save_file_as(editor.text(), parent=self.window)
         if path:
             editor.file_path = path
             editor.setModified(False)
             self._tab_manager.update_tab_title(self._tab_manager.currentIndex())
             self._update_run_file_button(editor)
+            return True
+        if getattr(self._file_manager, "last_save_error", None) is not None:
+            self._show_save_failed(
+                getattr(self._file_manager, "last_save_error_path", None)
+            )
+        return False
+
+    def _show_save_failed(self, file_path: str | None) -> None:
+        """Tell the user a save failed and leave the editor marked modified."""
+        error = getattr(self._file_manager, "last_save_error", None)
+        details = str(error) if error else "Unknown error."
+        path_text = file_path or "the selected file"
+        name = Path(file_path).name if file_path else "file"
+
+        status_bar = getattr(self.window, "_status_bar_manager", None)
+        if status_bar is not None:
+            status_bar.show_message(f"Could not save: {name}", 7000)
+
+        QMessageBox.critical(
+            self.window,
+            "Could Not Save File",
+            f"MeadowPy could not save this file:\n{path_text}\n\n{details}",
+        )
 
     def action_close_tab(self) -> None:
         index = self._tab_manager.currentIndex()

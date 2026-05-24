@@ -189,7 +189,7 @@ def test_run_file_saves_modified_editor_and_uses_project_working_dir(tmp_path):
             get_interpreter=lambda settings, file_path: "python.exe"
         ),
         _output_panel=output,
-        action_save=lambda: calls.append("save"),
+        action_save=lambda: calls.append("save") or True,
     )
     controller = ExecutionController(
         MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
@@ -202,6 +202,39 @@ def test_run_file_saves_modified_editor_and_uses_project_working_dir(tmp_path):
     assert output.shown == 1
     assert output.raised == 1
     assert runner.file_calls == [(str(script), "python.exe", str(tmp_path))]
+
+
+def test_run_file_aborts_when_save_before_run_fails(tmp_path):
+    script = tmp_path / "demo.py"
+    script.write_text("print('old')", encoding="utf-8")
+    settings = FakeSettings({
+        "run.working_directory": "project",
+        "general.project_folder": str(tmp_path),
+        "run.save_before_run": True,
+        "run.clear_output_before_run": True,
+        "run.show_output_panel": True,
+    })
+    runner = FakeProcessRunner()
+    editor = FakeEditor(str(script), modified=True)
+    output = FakeOutputPanel()
+    calls = []
+    window = SimpleNamespace(
+        _settings=settings,
+        _process_runner=runner,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _output_panel=output,
+        action_save=lambda: calls.append("save") or False,
+    )
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    controller.action_run_file()
+
+    assert calls == ["save"]
+    assert output.cleared == 0
+    assert output.shown == 0
+    assert runner.file_calls == []
 
 
 def test_run_file_ignores_saved_non_python_file(tmp_path):

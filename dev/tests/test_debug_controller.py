@@ -150,7 +150,7 @@ def test_start_debug_saves_file_collects_breakpoints_and_shows_output(monkeypatc
             get_interpreter=lambda settings, file_path: "python.exe"
         ),
         _output_panel=output,
-        action_save=lambda: calls.append("save"),
+        action_save=lambda: calls.append("save") or True,
         _resolve_working_dir=lambda file_path: str(tmp_path),
     )
     controller = DebugController(
@@ -166,6 +166,43 @@ def test_start_debug_saves_file_collects_breakpoints_and_shows_output(monkeypatc
     assert debug_calls == [
         (str(script), "python.exe", str(tmp_path), {str(script): [1, 4]})
     ]
+
+
+def test_start_debug_aborts_when_save_before_debug_fails(monkeypatch, tmp_path):
+    monkeypatch.setattr(debug_module, "CodeEditor", StartDebugEditor)
+    script = tmp_path / "debug_me.py"
+    script.write_text("x = 1", encoding="utf-8")
+    editor = StartDebugEditor(str(script), {0}, modified=True)
+    debug_calls = []
+    output = FakeOutputPanel()
+    calls = []
+    settings = SimpleNamespace(
+        get=lambda key, default=None: {
+            "run.save_before_run": True,
+            "run.clear_output_before_run": True,
+            "run.show_output_panel": True,
+        }.get(key, default)
+    )
+    window = SimpleNamespace(
+        _settings=settings,
+        _debug_manager=SimpleNamespace(
+            state=DebugState.IDLE,
+            start_debug=lambda *args: debug_calls.append(args),
+        ),
+        _tab_manager=FakeTabManager([editor]),
+        _output_panel=output,
+        action_save=lambda: calls.append("save") or False,
+    )
+    controller = DebugController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    controller.action_start_debug()
+
+    assert calls == ["save"]
+    assert output.cleared == 0
+    assert output.shown == 0
+    assert debug_calls == []
 
 
 def test_start_debug_ignores_saved_non_python_file(monkeypatch, tmp_path):

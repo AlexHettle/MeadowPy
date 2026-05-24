@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QFileInfo, QPointF, Qt
-from PyQt6.QtGui import QAction, QColor, QIcon, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import QFileIconProvider, QWidget
+from PyQt6.QtGui import QAction, QColor, QIcon, QKeyEvent, QKeySequence, QMouseEvent
+from PyQt6.QtWidgets import QFileIconProvider, QMenuBar, QWidget
 
 from meadowpy.ui.file_explorer import (
     FileExplorerPanel,
@@ -12,6 +12,7 @@ from meadowpy.ui.file_explorer import (
     _ExplorerIconProvider,
     _MAX_PREFETCH_SUBDIRS,
 )
+from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
 from meadowpy.ui.tool_bar import ToolBarBuilder
 
@@ -40,6 +41,7 @@ class FakeToolbarWindow(QWidget):
         self._stop_action = QAction("Stop", self)
         self._debug_action = QAction("Debug", self)
         self._tab_manager = SimpleNamespace(current_editor=lambda: None)
+        self.actions_called = []
         self.toolbars = []
 
     def action_new_file(self):
@@ -49,7 +51,7 @@ class FakeToolbarWindow(QWidget):
         pass
 
     def action_save(self):
-        pass
+        self.actions_called.append("save")
 
     def action_toggle_find(self):
         pass
@@ -77,6 +79,65 @@ def test_toolbar_glow_painter_renders_hover_and_disabled_states(qapp):
 
     toolbar.deleteLater()
     window.deleteLater()
+
+
+def test_menu_and_toolbar_save_actions_route_to_action_save(qapp):
+    toolbar_window = FakeToolbarWindow()
+    toolbar = ToolBarBuilder(toolbar_window).build()
+    save_action = next(
+        action for action in toolbar.actions()
+        if action.toolTip() == "Save the current file (Ctrl+S)"
+    )
+
+    save_action.trigger()
+
+    assert toolbar_window.actions_called == ["save"]
+
+    menu_calls = []
+
+    class FakeMenuWindow(QWidget):
+        def __init__(self):
+            super().__init__()
+            self._recent_files = SimpleNamespace(get_files=lambda: [])
+
+        def action_new_file(self):
+            pass
+
+        def action_open_file(self):
+            pass
+
+        def action_open_folder(self):
+            pass
+
+        def action_save(self):
+            menu_calls.append("save")
+
+        def action_save_as(self):
+            pass
+
+        def action_close_tab(self):
+            pass
+
+        def action_preferences(self):
+            pass
+
+    menu_window = FakeMenuWindow()
+    menu_bar = QMenuBar(menu_window)
+    MenuBarBuilder(menu_window)._build_file_menu(menu_bar)
+    file_menu = menu_bar.actions()[0].menu()
+    save_menu_action = next(
+        action for action in file_menu.actions()
+        if action.text() == "&Save"
+    )
+
+    assert save_menu_action.shortcut() == QKeySequence("Ctrl+S")
+    save_menu_action.trigger()
+    assert menu_calls == ["save"]
+
+    toolbar.deleteLater()
+    toolbar_window.deleteLater()
+    menu_bar.deleteLater()
+    menu_window.deleteLater()
 
 
 def test_splash_and_loading_dots_render_and_update_status(qapp):

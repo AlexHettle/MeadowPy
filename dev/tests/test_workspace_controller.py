@@ -258,7 +258,7 @@ def test_save_and_save_as_update_editor_state_and_tab_title(tmp_path):
     tabs = WorkspaceTabs([editor])
     file_manager = SimpleNamespace(
         saved=[],
-        save_file=lambda path, text: file_manager.saved.append((path, text)),
+        save_file=lambda path, text: file_manager.saved.append((path, text)) or True,
         save_file_as=lambda text, parent=None: str(tmp_path / "saved_as.py"),
     )
     window = SimpleNamespace(_tab_manager=tabs, _file_manager=file_manager)
@@ -274,6 +274,44 @@ def test_save_and_save_as_update_editor_state_and_tab_title(tmp_path):
     assert editor.file_path == str(tmp_path / "saved_as.py")
     assert editor.modified is False
     assert tabs.updated_titles == [0, 0]
+
+
+def test_save_failure_keeps_editor_dirty_and_reports_error(monkeypatch, tmp_path):
+    editor = WorkspaceEditor(str(tmp_path / "readonly.py"), "print('new')", True)
+    tabs = WorkspaceTabs([editor])
+    status = SimpleNamespace(
+        messages=[],
+        show_message=lambda message, timeout=3000: status.messages.append(
+            (message, timeout)
+        ),
+    )
+    file_manager = SimpleNamespace(
+        last_save_error=PermissionError("Permission denied"),
+        last_save_error_path=editor.file_path,
+        save_file=lambda path, text: False,
+    )
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _file_manager=file_manager,
+        _status_bar_manager=status,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), file_manager, None)
+    )
+    dialogs = []
+    monkeypatch.setattr(
+        workspace_module.QMessageBox,
+        "critical",
+        lambda parent, title, body: dialogs.append((title, body)),
+    )
+
+    assert controller.action_save() is False
+
+    assert editor.modified is True
+    assert tabs.updated_titles == []
+    assert status.messages == [("Could not save: readonly.py", 7000)]
+    assert dialogs[0][0] == "Could Not Save File"
+    assert "Permission denied" in dialogs[0][1]
 
 
 def test_open_recent_file_removes_missing_paths_and_opens_existing(monkeypatch, tmp_path):
