@@ -217,7 +217,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | Clickable tracebacks in output panel               | ✅ Completed    |
 | UI overhaul                                        | ✅ Completed    |
 | Improved styling cohesion                          | ✅ Completed    |
-| macOS support                                      | 🔄 In progress |
+| MacOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
@@ -232,6 +232,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | Internationalization and localization              | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
 | Snippet / template expansion (e.g. `for`+Tab)      | 📋 Planned     |
+| Linux support                                      | 📋 Planned     |
 | Hover docstring & signature tooltips               | 📋 Planned     |
 | Quick-fix lightbulb (auto-import, unused var, …)   | 📋 Planned     |
 | Breadcrumb navigation bar (file › class › method)  | 📋 Planned     |
