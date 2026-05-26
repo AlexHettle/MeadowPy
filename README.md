@@ -229,7 +229,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | Implement Github actions                           | 📋 Planned     |
 | Claude API integration                             | 📋 Planned     |
 | Enhanced AI features/capabilities                  | 📋 Planned     |
-| Internationalization and localization              | 📋 Planned     |
+| Internationalization and localization (Spanish, German, etc..)             | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
 | Snippet / template expansion (e.g. `for`+Tab)      | 📋 Planned     |
 | Linux support                                      | 📋 Planned     |
