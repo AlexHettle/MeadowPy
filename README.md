@@ -82,7 +82,7 @@ If you're just starting out, MeadowPy removes the friction so you can focus on l
 
 ## Requirements
 
-- **Windows 10 or 11** (macOS compatibility coming soon)
+- **Windows 10 or 11** (MacOS and Linux compatibility coming soon)
 - **Python 3.11 or newer** — [Download Python](https://www.python.org/downloads/)
   > During installation, make sure to check **"Add Python to PATH"**.
 - **Ollama** (optional, for AI features) — [Download Ollama](https://ollama.com/download)
