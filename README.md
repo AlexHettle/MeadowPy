@@ -223,6 +223,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
 | Improve linter customization                       | 🔄 In progress |
+| Large-file safeguard (warn / lazy-load >10 MB)     | 🔄 In progress |
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
@@ -238,7 +239,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Breadcrumb navigation bar (file › class › method)  | 📋 Planned     |
 | Inline rename refactoring                          | 📋 Planned     |
 | Inline debug variable values                       | 📋 Planned     |
-| Large-file safeguard (warn / lazy-load >10 MB)     | 📋 Planned     |
 | Panel jump shortcuts (Ctrl+1/2/3 …)                | 📋 Planned     |
 
 
