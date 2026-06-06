@@ -66,20 +66,35 @@ def _is_menubar_menu(menu: QMenu) -> bool:
 
 
 class _MenuRoundedMaskFilter(QObject):
-    """App-level event filter that gives QMenu windows translucent backgrounds.
+    """App-level event filter that prepares QMenu windows for styled popups.
 
-    This lets QSS border-radius paint smooth anti-aliased corners.
-    Menubar dropdowns get a dynamic property so QSS can flatten the top corners.
+    QSS menu surfaces render more predictably when the native popup background,
+    hard masks, and rectangular window shadow stay out of the way. Menubar
+    dropdowns get a dynamic property for theme-specific edge treatment.
     """
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QMenu):
-            if event.type() == QEvent.Type.Show:
+            if event.type() in (
+                QEvent.Type.Polish,
+                QEvent.Type.Show,
+                QEvent.Type.Resize,
+            ):
                 sharp_top = _is_menubar_menu(obj)
                 obj.setProperty("menubarMenu", sharp_top)
+                if event.type() == QEvent.Type.Polish or not obj.isVisible():
+                    obj.setWindowFlag(
+                        Qt.WindowType.NoDropShadowWindowHint,
+                        True,
+                    )
+                obj.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
                 obj.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-                obj.style().unpolish(obj)
-                obj.style().polish(obj)
+                obj.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+                obj.setAutoFillBackground(False)
+                obj.clearMask()
+                if event.type() == QEvent.Type.Show:
+                    obj.style().unpolish(obj)
+                    obj.style().polish(obj)
         return False
 
 

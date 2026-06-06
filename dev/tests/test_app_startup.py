@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import meadowpy.app as app_module
 from PyQt6.QtCore import QEvent, Qt, QtMsgType
-from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtGui import QKeyEvent, QRegion
 from PyQt6.QtWidgets import QLineEdit, QMenu, QMenuBar
 
 from meadowpy.app import (
@@ -265,11 +265,13 @@ def test_qt_message_logger_writes_location_and_warning_to_stderr(monkeypatch, tm
     assert installed == [handler]
 
 
-def test_menu_filter_marks_menubar_dropdowns_for_flat_top_corners(qapp):
+def test_menu_filter_prepares_menubar_and_floating_popups(qapp):
     menubar = QMenuBar()
     menu = QMenu("File", menubar)
+    menu.resize(180, 80)
     menubar.addMenu(menu)
     floating = QMenu("Context")
+    floating.resize(180, 80)
     event = QEvent(QEvent.Type.Show)
     event_filter = _MenuRoundedMaskFilter()
 
@@ -281,10 +283,41 @@ def test_menu_filter_marks_menubar_dropdowns_for_flat_top_corners(qapp):
     assert menu.property("menubarMenu") is True
     assert floating.property("menubarMenu") is False
     assert menu.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    assert floating.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    assert menu.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+    assert floating.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+    assert menu.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+    assert floating.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+    assert bool(menu.windowFlags() & Qt.WindowType.NoDropShadowWindowHint)
+    assert bool(floating.windowFlags() & Qt.WindowType.NoDropShadowWindowHint)
+    assert not menu.autoFillBackground()
+    assert not floating.autoFillBackground()
+    assert menu.mask().isEmpty()
+    assert floating.mask().isEmpty()
 
     menu.deleteLater()
     floating.deleteLater()
     menubar.deleteLater()
+
+
+def test_menu_filter_clears_hard_masks_so_qss_controls_popup_surface(qapp):
+    floating = QMenu("Context")
+    floating.resize(100, 60)
+    floating.setMask(QRegion(floating.rect()))
+    event_filter = _MenuRoundedMaskFilter()
+
+    assert not floating.mask().isEmpty()
+
+    assert event_filter.eventFilter(floating, QEvent(QEvent.Type.Show)) is False
+
+    assert floating.mask().isEmpty()
+    assert floating.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    assert floating.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+    assert floating.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+    assert bool(floating.windowFlags() & Qt.WindowType.NoDropShadowWindowHint)
+    assert not floating.autoFillBackground()
+
+    floating.deleteLater()
 
 
 def test_clipboard_shortcut_filter_accepts_text_widget_shortcuts(monkeypatch, qapp):

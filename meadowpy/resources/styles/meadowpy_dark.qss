@@ -177,36 +177,39 @@ QMenuBar::item:selected {
 
 /* Menus */
 QMenu {
-    background: #2D2D2D;
-    border: 1px solid #454545;
-    border-radius: 5px;
-    padding: 4px;
-    color: #CCCCCC;
+    background: #252527;
+    border: 1px solid #414247;
+    border-radius: 0px;
+    padding: 7px 6px;
+    color: #F2F2F2;
 }
 
 QMenu[menubarMenu="true"] {
     border-top-left-radius: 0px;
     border-top-right-radius: 0px;
+    padding-top: 6px;
 }
 
 QMenu::item {
-    padding: 6px 24px 6px 12px;
-    border-radius: 3px;
+    padding: 7px 42px 7px 14px;
+    margin: 1px 2px;
+    border-radius: 0px;
+    color: #ECEEF2;
 }
 
 QMenu::item:selected {
-    background: #3C3C3C;
+    background: #3B3D42;
     color: #FFFFFF;
 }
 
 QMenu::item:disabled {
-    color: #666666;
+    color: #777A80;
 }
 
 QMenu::separator {
     height: 1px;
-    background: #454545;
-    margin: 4px 8px;
+    background: #414247;
+    margin: 6px 10px;
 }
 
 /* Find/Replace Bar */
@@ -1714,31 +1717,33 @@ QDockWidget::title {
 }
 
 #modelSelectorMenu {
-    background: #2D2D2D;
-    border: 1px solid #454545;
-    border-radius: 5px;
-    padding: 4px;
-    color: #CCCCCC;
+    background: #252527;
+    border: 1px solid #414247;
+    border-radius: 0px;
+    padding: 7px 6px;
+    color: #F2F2F2;
 }
 
 #modelSelectorMenu::item {
-    padding: 6px 24px 6px 12px;
-    border-radius: 3px;
+    padding: 7px 42px 7px 14px;
+    margin: 1px 2px;
+    border-radius: 0px;
+    color: #ECEEF2;
 }
 
 #modelSelectorMenu::item:selected {
-    background: #094771;
+    background: #3B3D42;
     color: #FFFFFF;
 }
 
 #modelSelectorMenu::item:disabled {
-    color: #666666;
+    color: #777A80;
 }
 
 #modelSelectorMenu::separator {
     height: 1px;
-    background: #454545;
-    margin: 4px 8px;
+    background: #414247;
+    margin: 6px 10px;
 }
 
 /* ===== AI Chat Panel ===== */

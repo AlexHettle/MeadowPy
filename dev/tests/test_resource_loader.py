@@ -76,6 +76,55 @@ def test_keyword_help_title_uses_theme_accent_text_color():
     assert "#kwHelpTitle {\n    color: #FFFFFF;" in high_contrast_stylesheet
 
 
+def test_stylesheets_use_inset_square_popup_menu_geometry():
+    light_stylesheet = resource_loader.get_stylesheet("default_light")
+    dark_stylesheet = resource_loader.get_stylesheet("default_dark")
+    high_contrast_stylesheet = resource_loader.get_stylesheet("default_high_contrast")
+
+    for stylesheet in (light_stylesheet, dark_stylesheet):
+        assert (
+            "QMenu {\n"
+            "    background:"
+        ) in stylesheet
+        menu_block_start = stylesheet.index("QMenu {\n")
+        menu_block = stylesheet[menu_block_start:stylesheet.index("}", menu_block_start)]
+        model_menu_block_start = stylesheet.index("#modelSelectorMenu {\n")
+        model_menu_block = stylesheet[
+            model_menu_block_start:stylesheet.index("}", model_menu_block_start)
+        ]
+        assert "border-radius: 0px;" in menu_block
+        assert "border-radius: 0px;" in model_menu_block
+        assert (
+            "QMenu::item {\n"
+            "    padding: 7px 42px 7px 14px;\n"
+            "    margin: 1px 2px;\n"
+            "    border-radius: 0px;"
+        ) in stylesheet
+        assert (
+            "#modelSelectorMenu::item {\n"
+            "    padding: 7px 42px 7px 14px;\n"
+            "    margin: 1px 2px;\n"
+            "    border-radius: 0px;"
+        ) in stylesheet
+        assert "QMenu::separator {\n    height: 1px;" in stylesheet
+        assert "#modelSelectorMenu::separator {\n    height: 1px;" in stylesheet
+
+    assert (
+        "QMenu {\n"
+        "    border: 2px solid #FFFFFF;\n"
+        "    border-radius: 0px;\n"
+        "    padding: 7px 6px;"
+    ) in high_contrast_stylesheet
+    assert (
+        "QMenu::item {\n"
+        "    color: #FFFFFF;\n"
+        "    padding: 7px 42px 7px 14px;\n"
+        "    margin: 1px 2px;\n"
+        "    border-radius: 0px;"
+    ) in high_contrast_stylesheet
+    assert "QMenu::separator {\n    height: 2px;" in high_contrast_stylesheet
+
+
 def test_get_stylesheet_applies_high_contrast_overrides():
     stylesheet = resource_loader.get_stylesheet("default_high_contrast")
 

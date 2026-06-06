@@ -71,6 +71,30 @@ QCheckBox::indicator:checked, QRadioButton::indicator:checked {
 }
 
 QMenu, QMenuBar { background: #000000; color: #FFFFFF; }
+QMenu {
+    border: 2px solid #FFFFFF;
+    border-radius: 0px;
+    padding: 7px 6px;
+}
+QMenu[menubarMenu="true"] {
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+    padding-top: 6px;
+}
+QMenu::item {
+    color: #FFFFFF;
+    padding: 7px 42px 7px 14px;
+    margin: 1px 2px;
+    border-radius: 0px;
+}
+QMenu::item:disabled {
+    color: #BDBDBD;
+}
+QMenu::separator {
+    height: 2px;
+    background: #FFFFFF;
+    margin: 6px 10px;
+}
 QMenuBar::item:selected, QMenu::item:selected {
     background: #FFFFFF; color: #000000;
 }
