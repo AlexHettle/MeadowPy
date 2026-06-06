@@ -122,7 +122,13 @@ class CodeEditor(QsciScintilla):
 
     @file_path.setter
     def file_path(self, path: str | None) -> None:
+        old_uses_python_mode = is_python_file_path(self._file_path)
         self._file_path = path
+        if old_uses_python_mode != is_python_file_path(path):
+            EditorConfigurator.apply(self, self._settings)
+            overlay = getattr(self, "_indent_guide_overlay", None)
+            if overlay is not None:
+                overlay.update()
         if not self._breakpoints_supported():
             self.clear_breakpoints()
 
@@ -535,7 +541,7 @@ class CodeEditor(QsciScintilla):
         toggle_action.setShortcut(QKeySequence("Ctrl+/"))
         toggle_action.triggered.connect(self.toggle_comment)
 
-        if word:
+        if word and self._breakpoints_supported():
             from meadowpy.resources.keyword_help import KEYWORD_HELP
             if word in KEYWORD_HELP:
                 menu.addSeparator()
@@ -565,7 +571,11 @@ class CodeEditor(QsciScintilla):
 
         # "Generate docstring..." when cursor is inside a def/class
         click_line = self.lineIndexFromPosition(pos)[0] if pos >= 0 else -1
-        func_info = self._find_enclosing_def(click_line)
+        func_info = (
+            self._find_enclosing_def(click_line)
+            if self._breakpoints_supported()
+            else None
+        )
         if func_info:
             func_code, insert_line = func_info
             if not self.hasSelectedText():
@@ -584,6 +594,9 @@ class CodeEditor(QsciScintilla):
 
     def _show_keyword_help(self, word: str, pos) -> None:
         """Show the keyword help popup at the given screen position."""
+        if not self._breakpoints_supported():
+            return
+
         from meadowpy.resources.keyword_help import KEYWORD_HELP
         from meadowpy.ui.keyword_help_popup import KeywordHelpPopup
 

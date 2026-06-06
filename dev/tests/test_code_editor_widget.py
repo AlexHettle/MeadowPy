@@ -174,10 +174,14 @@ def test_non_python_file_path_blocks_breakpoints(qapp, tmp_path):
     editor.setText("print('hi')\n")
     editor.file_path = str(tmp_path / "demo.py")
 
+    assert editor.lexer() is not None
     editor.toggle_breakpoint(0)
     assert editor.get_breakpoints() == {0}
 
+    editor._completion_apis = object()
     editor.file_path = str(tmp_path / "requirements.txt")
+    assert editor.lexer() is None
+    assert not hasattr(editor, "_completion_apis")
     assert editor.get_breakpoints() == set()
     assert not (
         editor.markersAtLine(0)
@@ -188,6 +192,10 @@ def test_non_python_file_path_blocks_breakpoints(qapp, tmp_path):
     editor.toggle_breakpoint(0)
 
     assert editor.get_breakpoints() == set()
+
+    editor.file_path = str(tmp_path / "restored.py")
+    assert editor.lexer() is not None
+
     editor.deleteLater()
 
 
@@ -1022,13 +1030,23 @@ class FakeContextEvent:
 
 
 class ContextHarness:
-    def __init__(self, *, selected=True, commented=False, word="for", func_info=("def f():", 1), pos=10):
+    def __init__(
+        self,
+        *,
+        selected=True,
+        commented=False,
+        word="for",
+        func_info=("def f():", 1),
+        pos=10,
+        python_mode=True,
+    ):
         self.menu = FakeMenu()
         self.selected = selected
         self.commented = commented
         self.word = word
         self.func_info = func_info
         self.pos = pos
+        self.python_mode = python_mode
         self.ai_explain_requested = DummySignal()
         self.ai_improve_requested = DummySignal()
         self.ai_docstring_requested = DummySignal()
@@ -1055,6 +1073,9 @@ class ContextHarness:
 
     def _selection_is_commented(self):
         return self.commented
+
+    def _breakpoints_supported(self):
+        return self.python_mode
 
     def hasSelectedText(self):
         return self.selected
@@ -1108,6 +1129,24 @@ def test_context_menu_uses_line_comment_label_without_selection():
     assert harness.comments == 1
 
 
+def test_context_menu_skips_python_keyword_and_docstring_actions_for_non_python_file():
+    harness = ContextHarness(
+        selected=False,
+        word="for",
+        func_info=("def f():\n    pass", 1),
+        python_mode=False,
+    )
+
+    CodeEditor.contextMenuEvent(harness, FakeContextEvent())
+
+    action_texts = [entry.text for entry in harness.menu.entries if isinstance(entry, FakeAction)]
+    assert 'What does "for" mean?' not in action_texts
+    assert "Generate docstring..." not in action_texts
+    assert action_texts == ["Comment Line"]
+    assert harness.keyword_help == []
+    assert harness.docstrings == []
+
+
 def test_keyword_help_popup_handles_missing_and_known_keyword(monkeypatch, qapp, tmp_path):
     from meadowpy.ui import keyword_help_popup as popup_module
 
@@ -1139,6 +1178,11 @@ def test_keyword_help_popup_handles_missing_and_known_keyword(monkeypatch, qapp,
     assert popups[0].word == "for"
     assert popups[0].moved_to == QPoint(3, 4)
     assert popups[0].shown is True
+
+    editor.file_path = str(tmp_path / "notes.txt")
+    editor._show_keyword_help("for", QPoint(5, 6))
+    assert len(popups) == 1
+
     editor.deleteLater()
 
 

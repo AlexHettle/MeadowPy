@@ -5,6 +5,7 @@ import builtins
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython
 
+from meadowpy.core.file_types import is_python_file_path
 from meadowpy.core.settings import Settings
 from meadowpy.editor.editor_fonts import editor_font_family
 from meadowpy.editor.themes import get_theme
@@ -159,6 +160,11 @@ class EditorConfigurator:
             custom_base=settings.get("editor.custom_theme.base"),
         )
 
+        if not EditorConfigurator._editor_uses_python_mode(editor):
+            editor.setLexer(None)
+            EditorConfigurator._apply_plain_text_style(editor, settings)
+            return
+
         lexer = QsciLexerPython(editor)
         lexer.setDefaultFont(editor.font())
 
@@ -207,7 +213,13 @@ class EditorConfigurator:
     @staticmethod
     def _apply_autocompletion(editor: QsciScintilla, settings: Settings) -> None:
         """Configure auto-completion using QsciAPIs."""
-        if settings.get("editor.auto_complete"):
+        if not EditorConfigurator._editor_uses_python_mode(editor):
+            editor.setAutoCompletionSource(
+                QsciScintilla.AutoCompletionSource.AcsNone
+            )
+            if hasattr(editor, "_completion_apis"):
+                delattr(editor, "_completion_apis")
+        elif settings.get("editor.auto_complete"):
             from meadowpy.editor.completion import create_apis
 
             editor.setAutoCompletionSource(
@@ -231,6 +243,57 @@ class EditorConfigurator:
             editor.setAutoCompletionSource(
                 QsciScintilla.AutoCompletionSource.AcsNone
             )
+
+    @staticmethod
+    def _editor_uses_python_mode(editor: QsciScintilla) -> bool:
+        return is_python_file_path(getattr(editor, "file_path", None))
+
+    @staticmethod
+    def _scintilla_color(color: QColor) -> int:
+        return color.red() | (color.green() << 8) | (color.blue() << 16)
+
+    @staticmethod
+    def _apply_plain_text_style(
+        editor: QsciScintilla,
+        settings: Settings,
+    ) -> None:
+        theme = get_theme(
+            settings.get("editor.theme"),
+            custom_base=settings.get("editor.custom_theme.base"),
+        )
+        font = editor.font()
+        fg = QColor(theme.editor_foreground)
+        bg = QColor(theme.editor_background)
+
+        try:
+            editor.setColor(fg)
+            editor.setPaper(bg)
+            editor.SendScintilla(
+                QsciScintilla.SCI_STYLESETFORE,
+                QsciScintilla.STYLE_DEFAULT,
+                EditorConfigurator._scintilla_color(fg),
+            )
+            editor.SendScintilla(
+                QsciScintilla.SCI_STYLESETBACK,
+                QsciScintilla.STYLE_DEFAULT,
+                EditorConfigurator._scintilla_color(bg),
+            )
+            editor.SendScintilla(
+                QsciScintilla.SCI_STYLESETFONT,
+                QsciScintilla.STYLE_DEFAULT,
+                font.family().encode("utf-8"),
+            )
+            editor.SendScintilla(
+                QsciScintilla.SCI_STYLESETSIZE,
+                QsciScintilla.STYLE_DEFAULT,
+                font.pointSize(),
+            )
+            editor.SendScintilla(QsciScintilla.SCI_STYLECLEARALL)
+            editor.SendScintilla(QsciScintilla.SCI_CLEARDOCUMENTSTYLE)
+            editor.SendScintilla(QsciScintilla.SCI_SETKEYWORDS, 1, b"")
+            editor.SendScintilla(QsciScintilla.SCI_COLOURISE, 0, -1)
+        except (AttributeError, TypeError, RuntimeError):
+            pass
 
     @staticmethod
     def _apply_breakpoint_margin(editor: QsciScintilla, settings: Settings) -> None:
