@@ -53,6 +53,18 @@ def test_toggle_comment_uses_current_line_when_nothing_is_selected(qapp, tmp_pat
     editor.deleteLater()
 
 
+def test_toggle_comment_noops_for_non_python_files(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.file_path = str(tmp_path / "notes.scala")
+    editor.setText("value = 1\n")
+    editor.setCursorPosition(0, 0)
+
+    editor.toggle_comment()
+
+    assert editor.text(0).startswith("value = 1")
+    editor.deleteLater()
+
+
 def test_find_enclosing_def_returns_prompt_code_and_docstring_line(qapp, tmp_path):
     editor = make_editor(qapp, tmp_path)
     editor.setText(
@@ -772,6 +784,9 @@ class CommentHarness:
         replacement = text.splitlines(keepends=True)
         self.lines[line_from:line_to + 1] = replacement
 
+    def _breakpoints_supported(self):
+        return True
+
 
 def test_toggle_comment_handles_trailing_selection_blank_lines_and_line_endings():
     harness = CommentHarness(
@@ -871,6 +886,25 @@ def test_key_press_event_routes_comment_indent_backspace_autoclose_and_fallback(
         )
     )
     assert editor._auto_close.calls == [("key", "a")]
+    editor.deleteLater()
+
+
+def test_ctrl_slash_does_not_comment_non_python_files(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.file_path = str(tmp_path / "notes.txt")
+    calls = []
+    editor.toggle_comment = lambda: calls.append("comment")
+
+    editor.keyPressEvent(
+        QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Slash,
+            Qt.KeyboardModifier.ControlModifier,
+            "/",
+        )
+    )
+
+    assert calls == []
     editor.deleteLater()
 
 
@@ -1142,7 +1176,11 @@ def test_context_menu_skips_python_keyword_and_docstring_actions_for_non_python_
     action_texts = [entry.text for entry in harness.menu.entries if isinstance(entry, FakeAction)]
     assert 'What does "for" mean?' not in action_texts
     assert "Generate docstring..." not in action_texts
-    assert action_texts == ["Comment Line"]
+    assert "Comment Line" not in action_texts
+    assert "Comment Selection" not in action_texts
+    assert "Uncomment Line" not in action_texts
+    assert action_texts == []
+    assert harness.comments == 0
     assert harness.keyword_help == []
     assert harness.docstrings == []
 

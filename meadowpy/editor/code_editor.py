@@ -331,6 +331,9 @@ class CodeEditor(QsciScintilla):
         (a ``#`` at the common minimum indent), the comment markers are
         removed; otherwise ``# `` is inserted at that indent.
         """
+        if not self._breakpoints_supported():
+            return
+
         # Determine the line range to operate on.
         if self.hasSelectedText():
             line_from, _, line_to, index_to = self.getSelection()
@@ -410,8 +413,9 @@ class CodeEditor(QsciScintilla):
             event.key() == Qt.Key.Key_Slash
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
-            self.toggle_comment()
-            return
+            if self._breakpoints_supported():
+                self.toggle_comment()
+                return
 
         # Smart indent on Enter
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -528,18 +532,18 @@ class CodeEditor(QsciScintilla):
                 *self.lineIndexFromPosition(pos)
             )
 
-        # Comment / Uncomment toggle (always available)
-        menu.addSeparator()
-        toggle_label = (
-            "Uncomment Selection" if self._selection_is_commented()
-            else "Comment Selection"
-        )
-        if not self.hasSelectedText():
-            # Match VS Code / Sublime wording when there's no selection
-            toggle_label = toggle_label.replace("Selection", "Line")
-        toggle_action = menu.addAction(toggle_label)
-        toggle_action.setShortcut(QKeySequence("Ctrl+/"))
-        toggle_action.triggered.connect(self.toggle_comment)
+        if self._breakpoints_supported():
+            menu.addSeparator()
+            toggle_label = (
+                "Uncomment Selection" if self._selection_is_commented()
+                else "Comment Selection"
+            )
+            if not self.hasSelectedText():
+                # Match VS Code / Sublime wording when there's no selection
+                toggle_label = toggle_label.replace("Selection", "Line")
+            toggle_action = menu.addAction(toggle_label)
+            toggle_action.setShortcut(QKeySequence("Ctrl+/"))
+            toggle_action.triggered.connect(self.toggle_comment)
 
         if word and self._breakpoints_supported():
             from meadowpy.resources.keyword_help import KEYWORD_HELP
