@@ -995,6 +995,8 @@ QRadioButton::indicator:checked {
 #outputInputArea {
     background: #F0F0F0;
     border-top: 1px solid #DEE2E6;
+    border-bottom-left-radius: 9px;
+    border-bottom-right-radius: 9px;
 }
 
 #replPrompt {

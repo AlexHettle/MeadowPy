@@ -1269,6 +1269,8 @@ QDockWidget::title {
 #outputInputArea {
     background: #2D2D2D;
     border-top: 1px solid #3C3C3C;
+    border-bottom-left-radius: 9px;
+    border-bottom-right-radius: 9px;
 }
 
 #outputInputArea QLabel {

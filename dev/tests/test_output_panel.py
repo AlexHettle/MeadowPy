@@ -93,6 +93,21 @@ def test_set_running_resets_error_state_and_switches_input_metadata(qapp):
     panel.deleteLater()
 
 
+def test_input_row_uses_symmetric_spacing_to_center_controls(qapp):
+    panel = OutputPanel(settings=MutableSettings({"editor.theme": "default_dark"}))
+
+    container_margins = panel.widget().layout().contentsMargins()
+    input_margins = panel._input_area.layout().contentsMargins()
+
+    assert container_margins.bottom() == 0
+    assert input_margins.top() == input_margins.bottom() == 9
+    assert panel._input_line.minimumHeight() == panel._input_line.maximumHeight()
+    assert panel._send_btn.minimumHeight() == panel._send_btn.maximumHeight()
+    assert panel._input_line.minimumHeight() == panel._send_btn.minimumHeight()
+
+    panel.deleteLater()
+
+
 def test_repl_history_shortcuts_are_ignored_in_stdin_mode(qapp):
     panel = OutputPanel(settings=MutableSettings({"editor.theme": "default_dark"}))
     history_up = Recorder()

@@ -166,9 +166,9 @@ class OutputPanel(QDockWidget):
         container.setObjectName("outputContainer")
         container.setFrameShape(QFrame.Shape.NoFrame)
         layout = QVBoxLayout(container)
-        # Small bottom padding so the input area's square corners don't
-        # cover the container's rounded bottom corners.
-        layout.setContentsMargins(0, 0, 0, 6)
+        # Keep row spacing inside the input area so controls are visually
+        # centered against the full bottom band.
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         # --- Output text area ---
@@ -190,7 +190,7 @@ class OutputPanel(QDockWidget):
         self._input_area = QWidget()
         self._input_area.setObjectName("outputInputArea")
         input_layout = QHBoxLayout(self._input_area)
-        input_layout.setContentsMargins(8, 6, 8, 6)
+        input_layout.setContentsMargins(8, 9, 8, 9)
         input_layout.setSpacing(6)
         input_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
