@@ -296,6 +296,12 @@ class MenuBarBuilder:
             "Ask the AI to review your entire file and give feedback"
         )
         review.triggered.connect(self._window.action_ai_review_file)
+        self._window._ai_review_file_action = review
+        refresh_ai_review = getattr(
+            self._window, "_update_ai_review_action_enabled", None
+        )
+        if callable(refresh_ai_review):
+            refresh_ai_review()
 
         ai_menu.addSeparator()
 

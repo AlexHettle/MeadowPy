@@ -418,6 +418,7 @@ class WorkspaceController(MainWindowController):
         if callable(update_label):
             update_label(editor)
         self._update_run_action_enabled(editor)
+        self._update_ai_review_action_enabled(editor)
 
     def _update_run_action_enabled(self, editor=_RUN_EDITOR_UNSET) -> None:
         """Enable run/debug actions only for Python editors when no work is active."""
@@ -443,6 +444,16 @@ class WorkspaceController(MainWindowController):
             run_selection_action.setEnabled(enabled)
         if debug_action is not None:
             debug_action.setEnabled(enabled)
+
+    def _update_ai_review_action_enabled(self, editor=_RUN_EDITOR_UNSET) -> None:
+        """Enable AI file review for open editor tabs."""
+        review_action = getattr(self.window, "_ai_review_file_action", None)
+        if review_action is None:
+            return
+        if editor is _RUN_EDITOR_UNSET:
+            current_editor = getattr(self._tab_manager, "current_editor", None)
+            editor = current_editor() if callable(current_editor) else None
+        review_action.setEnabled(isinstance(editor, CodeEditor))
 
     def _run_control_owned_by_running_work(self) -> bool:
         """Return True when process/debug controllers temporarily own Run state."""

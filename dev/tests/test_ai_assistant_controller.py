@@ -18,10 +18,10 @@ class FakeChatPanel:
 
 
 class FakeEditor:
-    display_name = "demo.py"
-
-    def __init__(self, text="print('hi')\n"):
+    def __init__(self, text="print('hi')\n", file_path=None, display_name="demo.py"):
         self._text = text
+        self.file_path = file_path
+        self.display_name = display_name
         self.cursor = (0, 0)
 
     def text(self, line=None):
@@ -169,6 +169,31 @@ def test_review_file_includes_filename_and_code():
 
     assert "demo.py" in window._ai_chat_panel.prompts[0]
     assert "def main()" in window._ai_chat_panel.prompts[0]
+
+
+def test_review_file_uses_text_prompt_for_saved_non_python_editor():
+    editor = FakeEditor("hello\n", file_path="notes.txt", display_name="notes.txt")
+    controller, window = make_controller(editor)
+
+    controller.action_ai_review_file()
+
+    prompt = window._ai_chat_panel.prompts[0]
+    assert 'entire text file "notes.txt"' in prompt
+    assert "hello" in prompt
+    assert "Python file" not in prompt
+    assert "```python" not in prompt
+
+
+def test_selected_text_explain_and_improve_handle_non_python_editor():
+    editor = FakeEditor("hello\n", file_path="notes.txt", display_name="notes.txt")
+    controller, window = make_controller(editor)
+
+    controller._on_ai_explain_requested("hello")
+    controller._on_ai_improve_requested("hello")
+
+    assert len(window._ai_chat_panel.prompts) == 1
+    assert "following text" in window._ai_chat_panel.prompts[0]
+    assert "```python" not in window._ai_chat_panel.prompts[0]
 
 
 def test_ai_context_finds_enclosing_function():

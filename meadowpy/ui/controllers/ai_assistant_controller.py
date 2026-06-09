@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from meadowpy.core.file_types import is_python_file_path
 from meadowpy.core.ollama_client import OllamaClient
 from meadowpy.ui.dialogs.ollama_setup_dialog import OllamaSetupDialog
 from meadowpy.ui.model_selector import ModelSelectorPopup
@@ -76,18 +77,29 @@ class AIAssistantController(MainWindowController):
         """Forward a chat request from the panel to the Ollama client."""
         self._ollama_client.send_chat(messages)
 
+    def _current_editor_uses_python_mode(self) -> bool:
+        editor = self._tab_manager.current_editor()
+        return is_python_file_path(getattr(editor, "file_path", None))
+
     def _on_ai_explain_requested(self, code: str) -> None:
         """Handle 'Explain this code' from the editor context menu."""
-        # Build a user-friendly prompt with the selected code
-        prompt = (
-            "Please explain the following Python code in simple terms:\n\n"
-            f"```python\n{code}\n```"
-        )
+        if self._current_editor_uses_python_mode():
+            prompt = (
+                "Please explain the following Python code in simple terms:\n\n"
+                f"```python\n{code}\n```"
+            )
+        else:
+            prompt = (
+                "Please explain the following text in simple terms:\n\n"
+                f"```\n{code}\n```"
+            )
         # Send it through the chat panel as if the user typed it
         self._ai_chat_panel.send_message_programmatic(prompt)
 
     def _on_ai_improve_requested(self, code: str) -> None:
         """Handle 'Review & improve' from the editor context menu."""
+        if not self._current_editor_uses_python_mode():
+            return
         prompt = (
             "Please review the following Python code and suggest improvements. "
             "Consider readability, best practices, potential bugs, performance, "
@@ -103,22 +115,35 @@ class AIAssistantController(MainWindowController):
         editor = self._tab_manager.current_editor()
         if not editor:
             return
-        code = editor.text()
-        if not code.strip():
+        content = editor.text()
+        if not content.strip():
             return
 
         filename = editor.display_name
-        prompt = (
-            f"Please review the entire Python file \"{filename}\" below. "
-            "Give feedback on:\n"
-            "- Code structure and organization\n"
-            "- Readability and naming\n"
-            "- Potential bugs or issues\n"
-            "- Best practices and improvements\n"
-            "- Performance considerations\n\n"
-            "Keep your review beginner-friendly and constructive:\n\n"
-            f"```python\n{code}\n```"
-        )
+        if is_python_file_path(getattr(editor, "file_path", None)):
+            prompt = (
+                f"Please review the entire Python file \"{filename}\" below. "
+                "Give feedback on:\n"
+                "- Code structure and organization\n"
+                "- Readability and naming\n"
+                "- Potential bugs or issues\n"
+                "- Best practices and improvements\n"
+                "- Performance considerations\n\n"
+                "Keep your review beginner-friendly and constructive:\n\n"
+                f"```python\n{content}\n```"
+            )
+        else:
+            prompt = (
+                f"Please review the entire text file \"{filename}\" below. "
+                "Give feedback on:\n"
+                "- Structure and organization\n"
+                "- Clarity and readability\n"
+                "- Tone and wording\n"
+                "- Potential errors, inconsistencies, or confusing sections\n"
+                "- Practical improvements\n\n"
+                "Keep your review beginner-friendly and constructive:\n\n"
+                f"```\n{content}\n```"
+            )
         self._ai_chat_panel.send_message_programmatic(prompt)
 
     def _on_ai_docstring_requested(self, code: str, insert_line: int) -> None:

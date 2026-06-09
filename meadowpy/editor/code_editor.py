@@ -532,7 +532,9 @@ class CodeEditor(QsciScintilla):
                 *self.lineIndexFromPosition(pos)
             )
 
-        if self._breakpoints_supported():
+        python_mode = self._breakpoints_supported()
+
+        if python_mode:
             menu.addSeparator()
             toggle_label = (
                 "Uncomment Selection" if self._selection_is_commented()
@@ -545,7 +547,7 @@ class CodeEditor(QsciScintilla):
             toggle_action.setShortcut(QKeySequence("Ctrl+/"))
             toggle_action.triggered.connect(self.toggle_comment)
 
-        if word and self._breakpoints_supported():
+        if word and python_mode:
             from meadowpy.resources.keyword_help import KEYWORD_HELP
             if word in KEYWORD_HELP:
                 menu.addSeparator()
@@ -557,27 +559,32 @@ class CodeEditor(QsciScintilla):
             selected = self.selectedText().strip()
             if selected:
                 menu.addSeparator()
-                explain_action = menu.addAction("Explain this code...")
+                explain_label = (
+                    "Explain this code..." if python_mode else "Explain this text..."
+                )
+                explain_action = menu.addAction(explain_label)
                 explain_action.setToolTip(
-                    "Ask the AI to explain the selected code"
+                    "Ask the AI to explain the selected "
+                    + ("code" if python_mode else "text")
                 )
                 explain_action.triggered.connect(
                     lambda: self.ai_explain_requested.emit(selected)
                 )
 
-                improve_action = menu.addAction("Review && improve...")
-                improve_action.setToolTip(
-                    "Ask the AI to review the selected code and suggest improvements"
-                )
-                improve_action.triggered.connect(
-                    lambda: self.ai_improve_requested.emit(selected)
-                )
+                if python_mode:
+                    improve_action = menu.addAction("Review && improve...")
+                    improve_action.setToolTip(
+                        "Ask the AI to review the selected code and suggest improvements"
+                    )
+                    improve_action.triggered.connect(
+                        lambda: self.ai_improve_requested.emit(selected)
+                    )
 
         # "Generate docstring..." when cursor is inside a def/class
         click_line = self.lineIndexFromPosition(pos)[0] if pos >= 0 else -1
         func_info = (
             self._find_enclosing_def(click_line)
-            if self._breakpoints_supported()
+            if python_mode
             else None
         )
         if func_info:

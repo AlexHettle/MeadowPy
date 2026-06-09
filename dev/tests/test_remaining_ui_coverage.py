@@ -140,6 +140,46 @@ def test_menu_and_toolbar_save_actions_route_to_action_save(qapp):
     menu_window.deleteLater()
 
 
+def test_ai_menu_review_action_is_exposed_and_routes(qapp):
+    calls = []
+
+    class FakeAIWindow(QWidget):
+        def __init__(self):
+            super().__init__()
+            self._ai_chat_panel = SimpleNamespace(
+                toggleViewAction=lambda: QAction("AI Chat", self)
+            )
+
+        def action_ai_review_file(self):
+            calls.append("review")
+
+        def action_ollama_setup(self):
+            calls.append("setup")
+
+        def _update_ai_review_action_enabled(self):
+            calls.append(("refresh", self._ai_review_file_action.text()))
+
+    ai_window = FakeAIWindow()
+    menu_bar = QMenuBar(ai_window)
+    MenuBarBuilder(ai_window)._build_ai_menu(menu_bar)
+    ai_menu = menu_bar.actions()[0].menu()
+    review_action = next(
+        action for action in ai_menu.actions()
+        if action.text() == "&Review Current File"
+    )
+
+    assert ai_window._ai_review_file_action is review_action
+    assert review_action.shortcut() == QKeySequence("Ctrl+Shift+R")
+    assert calls == [("refresh", "&Review Current File")]
+
+    review_action.trigger()
+
+    assert calls == [("refresh", "&Review Current File"), "review"]
+
+    menu_bar.deleteLater()
+    ai_window.deleteLater()
+
+
 def test_splash_and_loading_dots_render_and_update_status(qapp):
     dots = LoadingDotsWidget()
     dots._timer.stop()

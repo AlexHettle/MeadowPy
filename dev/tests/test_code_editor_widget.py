@@ -1185,6 +1185,27 @@ def test_context_menu_skips_python_keyword_and_docstring_actions_for_non_python_
     assert harness.docstrings == []
 
 
+def test_context_menu_uses_text_ai_action_for_non_python_selection():
+    harness = ContextHarness(
+        selected=True,
+        word="for",
+        func_info=("def f():\n    pass", 1),
+        python_mode=False,
+    )
+
+    CodeEditor.contextMenuEvent(harness, FakeContextEvent())
+
+    action_texts = [entry.text for entry in harness.menu.entries if isinstance(entry, FakeAction)]
+    assert "Explain this text..." in action_texts
+    assert "Explain this code..." not in action_texts
+    assert "Review && improve..." not in action_texts
+    assert 'What does "for" mean?' not in action_texts
+    assert "Generate docstring..." not in action_texts
+    assert harness.explained == ["x = 1"]
+    assert harness.improved == []
+    assert harness.docstrings == []
+
+
 def test_keyword_help_popup_handles_missing_and_known_keyword(monkeypatch, qapp, tmp_path):
     from meadowpy.ui import keyword_help_popup as popup_module
 
