@@ -31,12 +31,14 @@ def test_toggle_comment_comments_and_uncomments_selected_block(qapp, tmp_path):
 
     assert editor.text(0).startswith("# x = 1")
     assert editor.text(1).startswith("#     y = 2")
+    assert editor.text() == "# x = 1\n#     y = 2\n\n"
     assert editor._selection_is_commented() is True
 
     editor.toggle_comment()
 
     assert editor.text(0).startswith("x = 1")
     assert editor.text(1).startswith("    y = 2")
+    assert editor.text() == "x = 1\n    y = 2\n\n"
     editor.deleteLater()
 
 
@@ -47,9 +49,11 @@ def test_toggle_comment_uses_current_line_when_nothing_is_selected(qapp, tmp_pat
 
     editor.toggle_comment()
     assert editor.text(0).startswith("# print('hi')")
+    assert editor.text() == "# print('hi')\n"
 
     editor.toggle_comment()
     assert editor.text(0).startswith("print('hi')")
+    assert editor.text() == "print('hi')\n"
     editor.deleteLater()
 
 
@@ -780,8 +784,13 @@ class CommentHarness:
 
     def replaceSelectedText(self, text):
         self.replacements.append(text)
-        line_from, _col_from, line_to, _col_to = self.selection
-        replacement = text.splitlines(keepends=True)
+        line_from, col_from, line_to, col_to = self.selection
+        replacement_text = (
+            self.lines[line_from][:col_from]
+            + text
+            + self.lines[line_to][col_to:]
+        )
+        replacement = replacement_text.splitlines(keepends=True)
         self.lines[line_from:line_to + 1] = replacement
 
     def _breakpoints_supported(self):

@@ -367,9 +367,13 @@ class CodeEditor(QsciScintilla):
         )
 
         new_lines: list[str] = []
-        for text, eol in lines:
+        for index, (text, eol) in enumerate(lines):
+            # QScintilla line selections stop before the final line
+            # terminator. Keep separators between selected lines, but do not
+            # insert an extra newline before the editor's existing terminator.
+            replacement_eol = "" if index == len(lines) - 1 else eol
             if not text.strip():
-                new_lines.append(text + eol)
+                new_lines.append(text + replacement_eol)
                 continue
             if all_commented:
                 pre = text[:min_indent]
@@ -378,10 +382,10 @@ class CodeEditor(QsciScintilla):
                     post = post[2:]
                 elif post.startswith("#"):
                     post = post[1:]
-                new_lines.append(pre + post + eol)
+                new_lines.append(pre + post + replacement_eol)
             else:
                 new_lines.append(
-                    text[:min_indent] + "# " + text[min_indent:] + eol
+                    text[:min_indent] + "# " + text[min_indent:] + replacement_eol
                 )
 
         new_text = "".join(new_lines)
