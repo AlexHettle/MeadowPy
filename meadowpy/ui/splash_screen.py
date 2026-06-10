@@ -1,13 +1,10 @@
 """Custom splash screen shown while MeadowPy starts."""
 
-from pathlib import Path
-
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import (
     QColor,
     QFont,
     QIcon,
-    QLinearGradient,
     QPainter,
     QPainterPath,
     QPen,
@@ -16,12 +13,13 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QApplication,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
+
+from meadowpy.resources.resource_loader import get_icon_path
 
 
 class LoadingDotsWidget(QWidget):
@@ -67,6 +65,126 @@ class LoadingDotsWidget(QWidget):
             painter.drawEllipse(QRectF(x, y, diameter, diameter))
 
 
+def _rounded_pixmap(pixmap: QPixmap, size: int, radius: float) -> QPixmap:
+    """Return ``pixmap`` scaled and clipped to a rounded square."""
+    scaled = pixmap.scaled(
+        size,
+        size,
+        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    rounded = QPixmap(size, size)
+    rounded.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(rounded)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+    clip_path = QPainterPath()
+    clip_path.addRoundedRect(0, 0, size, size, radius, radius)
+    painter.setClipPath(clip_path)
+    painter.drawPixmap(0, 0, scaled)
+    painter.end()
+
+    return rounded
+
+
+class SplashIconWidget(QWidget):
+    """Centered app icon with the About dialog's soft green halo."""
+
+    def __init__(self, icon_pixmap: QPixmap, parent: QWidget | None = None):
+        super().__init__(parent)
+        self._icon = _rounded_pixmap(icon_pixmap, 118, 26)
+        self.setFixedSize(168, 150)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+        icon_rect = QRectF(
+            (self.width() - self._icon.width()) / 2,
+            16,
+            self._icon.width(),
+            self._icon.height(),
+        )
+        icon_path = QPainterPath()
+        icon_path.addRoundedRect(icon_rect, 26, 26)
+        glow_color = QColor("#63D468")
+        for step in range(12, 0, -1):
+            distance = step / 12
+            expand = 2 + (18 * distance)
+            alpha = max(1, round(2 + (16 * (1.0 - distance))))
+            layer_color = QColor(glow_color)
+            layer_color.setAlpha(alpha)
+            layer_rect = icon_rect.adjusted(-expand, -expand, expand, expand)
+            layer_path = QPainterPath()
+            layer_path.addRoundedRect(
+                layer_rect,
+                26 + expand,
+                26 + expand,
+            )
+            painter.fillPath(layer_path, layer_color)
+
+        painter.fillPath(icon_path, QColor("#020604"))
+
+        if not self._icon.isNull():
+            painter.drawPixmap(
+                int(icon_rect.x()),
+                int(icon_rect.y()),
+                self._icon,
+            )
+        painter.end()
+
+
+class SplashFooterRow(QWidget):
+    """Footer row with centered loading status and right-aligned version."""
+
+    def __init__(
+        self,
+        status_label: QLabel,
+        version_label: QLabel,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self._status_label = status_label
+        self._version_label = version_label
+        self.setFixedHeight(44)
+
+        self._loading_group = QWidget(self)
+        loading_layout = QHBoxLayout(self._loading_group)
+        loading_layout.setContentsMargins(0, 0, 0, 0)
+        loading_layout.setSpacing(14)
+        loading_layout.addWidget(LoadingDotsWidget(self._loading_group))
+
+        self._status_label.setParent(self._loading_group)
+        loading_layout.addWidget(self._status_label)
+        self._version_label.setParent(self)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+
+        loading_size = self._loading_group.sizeHint()
+        version_size = self._version_label.sizeHint()
+
+        version_x = self.width() - version_size.width()
+
+        self._loading_group.setGeometry(
+            0,
+            (self.height() - loading_size.height()) // 2,
+            loading_size.width(),
+            loading_size.height(),
+        )
+        self._version_label.setGeometry(
+            version_x,
+            (self.height() - version_size.height()) // 2,
+            version_size.width(),
+            version_size.height(),
+        )
+
+
 class MeadowPySplashScreen(QWidget):
     """Frameless splash screen styled after MeadowPy's branding."""
 
@@ -97,131 +215,108 @@ class MeadowPySplashScreen(QWidget):
     def _build_ui(self, app_icon: QIcon | None) -> None:
         self.setStyleSheet(
             """
-            #splashBadge {
-                background-color: rgba(3, 16, 8, 228);
-                border: 1px solid rgba(99, 212, 104, 35);
-                border-radius: 34px;
-            }
             #splashTitle {
-                color: #F3F6F1;
+                color: #F6FAF5;
                 background: transparent;
             }
             #splashSubtitle {
-                color: rgba(201, 212, 202, 168);
+                color: #97A39A;
                 background: transparent;
+                font-weight: 700;
             }
             #splashStatus {
-                color: rgba(198, 215, 201, 176);
+                color: #97A39A;
                 background: transparent;
             }
             #splashVersion {
-                color: rgba(194, 205, 196, 172);
-                background: transparent;
+                color: #F6FAF5;
+                background-color: rgba(99, 212, 104, 22);
+                border: 1px solid rgba(99, 212, 104, 96);
+                border-radius: 20px;
+                padding: 8px 22px;
             }
             """
         )
 
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(56, 42, 56, 30)
+        root_layout.setContentsMargins(56, 68, 56, 34)
         root_layout.setSpacing(0)
 
-        root_layout.addStretch(3)
+        hero = QWidget(self)
+        hero.setFixedWidth(640)
+        hero_layout = QVBoxLayout(hero)
+        hero_layout.setContentsMargins(0, 0, 0, 0)
+        hero_layout.setSpacing(0)
 
-        badge = QFrame(self)
-        badge.setObjectName("splashBadge")
-        badge.setFixedSize(144, 144)
-
-        badge_layout = QVBoxLayout(badge)
-        badge_layout.setContentsMargins(24, 24, 24, 24)
-        badge_layout.setSpacing(0)
-
-        icon_label = QLabel(badge)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setPixmap(self._icon_pixmap(app_icon))
-        badge_layout.addWidget(icon_label)
-
-        root_layout.addWidget(
-            badge,
+        icon_widget = SplashIconWidget(self._icon_pixmap(app_icon), hero)
+        hero_layout.addWidget(
+            icon_widget,
             alignment=Qt.AlignmentFlag.AlignHCenter,
         )
-        root_layout.addSpacing(28)
+        hero_layout.addSpacing(10)
 
         title_label = QLabel(
             '<span style="color:#F3F6F1;">Meadow</span>'
             '<span style="color:#63D468;">Py</span>',
-            self,
+            hero,
         )
         title_label.setObjectName("splashTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_font = QFont("Segoe UI", 34)
+        title_font = QFont("Segoe UI", 36)
         title_font.setWeight(QFont.Weight.Bold)
         title_label.setFont(title_font)
-        root_layout.addWidget(title_label)
+        hero_layout.addWidget(title_label)
 
-        root_layout.addSpacing(10)
+        hero_layout.addSpacing(12)
 
         subtitle_label = QLabel(
             "A beginner-friendly Python IDE with AI assistance.",
-            self,
+            hero,
         )
         subtitle_label.setObjectName("splashSubtitle")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_font = QFont("Segoe UI", 15)
+        subtitle_font.setWeight(QFont.Weight.DemiBold)
         subtitle_label.setFont(subtitle_font)
-        root_layout.addWidget(subtitle_label)
-
-        root_layout.addSpacing(42)
-
-        loading_row = QWidget(self)
-        loading_layout = QHBoxLayout(loading_row)
-        loading_layout.setContentsMargins(0, 0, 0, 0)
-        loading_layout.setSpacing(14)
-
-        loading_dots = LoadingDotsWidget(loading_row)
-        loading_layout.addWidget(loading_dots)
-
-        self._status_label.setObjectName("splashStatus")
-        status_font = QFont("Consolas", 13)
-        self._status_label.setFont(status_font)
-        loading_layout.addWidget(self._status_label)
+        hero_layout.addWidget(subtitle_label)
 
         root_layout.addWidget(
-            loading_row,
+            hero,
             alignment=Qt.AlignmentFlag.AlignHCenter,
         )
 
-        root_layout.addStretch(4)
-
-        footer = QHBoxLayout()
-        footer.setContentsMargins(0, 0, 0, 0)
-        footer.addStretch()
+        root_layout.addSpacing(46)
 
         self._version_label.setObjectName("splashVersion")
-        version_font = QFont("Segoe UI", 11)
-        version_font.setWeight(QFont.Weight.DemiBold)
+        self._version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_font = QFont("Segoe UI", 14)
+        version_font.setWeight(QFont.Weight.Bold)
         self._version_label.setFont(version_font)
-        footer.addWidget(self._version_label)
 
-        root_layout.addLayout(footer)
+        self._status_label.setObjectName("splashStatus")
+        status_font = QFont("Segoe UI", 13)
+        self._status_label.setFont(status_font)
+        self._status_label.setMinimumWidth(190)
+
+        root_layout.addStretch(1)
+
+        footer_row = SplashFooterRow(
+            self._status_label,
+            self._version_label,
+            self,
+        )
+        root_layout.addWidget(footer_row)
 
     def _icon_pixmap(self, app_icon: QIcon | None) -> QPixmap:
-        if app_icon is not None and not app_icon.isNull():
-            icon_pixmap = app_icon.pixmap(96, 96)
-            if not icon_pixmap.isNull():
-                return icon_pixmap
-
-        icon_path = (
-            Path(__file__).resolve().parents[1]
-            / "resources"
-            / "icons"
-            / "meadowpy_256.png"
-        )
-        pixmap = QPixmap(str(icon_path))
+        icon_path = get_icon_path("meadowpy_256")
+        pixmap = QPixmap(icon_path) if icon_path else QPixmap()
+        if pixmap.isNull() and app_icon is not None and not app_icon.isNull():
+            pixmap = app_icon.pixmap(118, 118)
         if pixmap.isNull():
             return QPixmap()
         return pixmap.scaled(
-            96,
-            96,
+            118,
+            118,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
@@ -253,47 +348,31 @@ class MeadowPySplashScreen(QWidget):
 
         outer_rect = QRectF(self.rect()).adjusted(6, 6, -6, -6)
         background_path = QPainterPath()
-        background_path.addRoundedRect(outer_rect, 26, 26)
+        background_path.addRoundedRect(outer_rect, 10, 10)
 
-        painter.fillPath(background_path, QColor(4, 10, 6, 242))
+        painter.fillPath(background_path, QColor("#040805"))
 
         painter.save()
         painter.setClipPath(background_path)
 
-        base_gradient = QLinearGradient(
-            outer_rect.topLeft(),
-            outer_rect.bottomRight(),
-        )
-        base_gradient.setColorAt(0.0, QColor("#040806"))
-        base_gradient.setColorAt(0.45, QColor("#071109"))
-        base_gradient.setColorAt(1.0, QColor("#071A0B"))
-        painter.fillPath(background_path, base_gradient)
-
         self._paint_glow(
             painter,
-            QPointF(outer_rect.left() + outer_rect.width() * 0.18, outer_rect.bottom() - 36),
-            outer_rect.width() * 0.46,
-            QColor(20, 124, 35, 150),
-            QColor(12, 72, 22, 0),
+            QPointF(outer_rect.center().x(), outer_rect.bottom() - 10),
+            max(outer_rect.width() * 0.58, outer_rect.height() * 0.86),
+            QColor(99, 212, 104, 34),
+            QColor(99, 212, 104, 0),
         )
         self._paint_glow(
             painter,
-            QPointF(outer_rect.right() - 28, outer_rect.top() + 26),
-            outer_rect.width() * 0.34,
-            QColor(18, 100, 40, 88),
-            QColor(18, 100, 40, 0),
-        )
-        self._paint_glow(
-            painter,
-            QPointF(outer_rect.center().x(), outer_rect.top() + outer_rect.height() * 0.34),
-            outer_rect.width() * 0.18,
-            QColor(87, 212, 109, 90),
-            QColor(87, 212, 109, 0),
+            QPointF(outer_rect.center().x(), outer_rect.top() + 112),
+            outer_rect.width() * 0.20,
+            QColor(99, 212, 104, 22),
+            QColor(99, 212, 104, 0),
         )
 
         painter.restore()
 
-        border_pen = QPen(QColor(122, 176, 124, 42), 1.0)
+        border_pen = QPen(QColor(122, 176, 124, 68), 1.0)
         painter.setPen(border_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(background_path)
@@ -308,7 +387,15 @@ class MeadowPySplashScreen(QWidget):
     ) -> None:
         gradient = QRadialGradient(center, radius)
         gradient.setColorAt(0.0, inner_color)
-        gradient.setColorAt(0.45, QColor(inner_color.red(), inner_color.green(), inner_color.blue(), max(inner_color.alpha() // 2, 1)))
+        gradient.setColorAt(
+            0.45,
+            QColor(
+                inner_color.red(),
+                inner_color.green(),
+                inner_color.blue(),
+                max(inner_color.alpha() // 2, 1),
+            ),
+        )
         gradient.setColorAt(1.0, outer_color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(gradient)
