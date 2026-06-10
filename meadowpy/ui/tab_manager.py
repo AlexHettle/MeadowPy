@@ -274,8 +274,15 @@ class TabManager(QTabWidget):
                                     )
                                 )
                             return False
-        self.removeTab(index)
+        self._remove_tab_and_delete(index)
         return True
+
+    def _remove_tab_and_delete(self, index: int) -> None:
+        """Remove a tab and schedule its page widget for deletion."""
+        widget = self.widget(index)
+        self.removeTab(index)
+        if widget is not None:
+            widget.deleteLater()
 
     def close_all_tabs(self) -> bool:
         """Close all tabs, prompting for unsaved changes."""
@@ -416,7 +423,7 @@ class TabManager(QTabWidget):
         """Remove the Welcome tab if it exists."""
         for i in range(self.count()):
             if isinstance(self.widget(i), WelcomeWidget):
-                self.removeTab(i)
+                self._remove_tab_and_delete(i)
                 return
 
     def _set_welcome_close_button(self, index: int, widget) -> None:

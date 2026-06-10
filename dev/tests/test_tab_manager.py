@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PyQt6.QtCore import QCoreApplication, QEvent
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from meadowpy.core.settings import Settings
@@ -45,6 +46,7 @@ class FakeTabEditor(QWidget):
         self._untitled_name = "Untitled"
         self._text = ""
         self._modified = False
+        self.deleted_later = False
         self.modification_changed = FakeSignal()
 
     @property
@@ -67,6 +69,10 @@ class FakeTabEditor(QWidget):
 
     def setModified(self, modified):
         self._modified = modified
+
+    def deleteLater(self):
+        self.deleted_later = True
+        super().deleteLater()
 
 
 def make_settings(tmp_path):
@@ -126,6 +132,7 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     )
     assert tabs.close_tab(tabs.indexOf(first)) is False
     assert tabs.indexOf(first) >= 0
+    assert first.deleted_later is False
 
     monkeypatch.setattr(
         tab_module.QMessageBox,
@@ -134,6 +141,7 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     )
     assert tabs.close_tab(tabs.indexOf(first)) is True
     assert fake_fm.saved == 1
+    assert first.deleted_later is True
 
     second = tabs.new_tab(str(tmp_path / "second.py"), "print(2)\n")
     third = tabs.new_tab(str(tmp_path / "third.py"), "print(3)\n")
@@ -146,6 +154,8 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     )
     assert tabs.close_all_tabs() is True
     assert tabs.count() == 0
+    assert second.deleted_later is True
+    assert third.deleted_later is True
 
     tabs.deleteLater()
     parent.deleteLater()
@@ -235,8 +245,13 @@ def test_welcome_tab_reuse_theme_update_close_and_template_signal(qapp, tmp_path
     tabs.update_theme()
     assert welcome._hero_widget._palette["accent"] == run_button_accent_hex("custom", "#123456")
 
+    destroyed = []
+    welcome.destroyed.connect(lambda *_: destroyed.append(True))
     tabs.close_welcome_tab()
     assert tabs.count() == 0
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
+    assert destroyed == [True]
 
     tabs.deleteLater()
     parent.deleteLater()

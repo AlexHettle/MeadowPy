@@ -115,6 +115,7 @@ class WorkspaceEditor:
         self.focused = False
         self.zoom_calls = []
         self.wrap_mode = 0
+        self.deleted_later = False
 
     def text(self):
         return self._text
@@ -145,6 +146,9 @@ class WorkspaceEditor:
 
     def setWrapMode(self, mode):
         self.wrap_mode = mode
+
+    def deleteLater(self):
+        self.deleted_later = True
 
 
 class WorkspaceTabs:
@@ -372,6 +376,9 @@ def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path
     assert tabs.tab_text == [(0, "new.py")]
     assert tabs.tooltips == [(0, str(new_path))]
     assert tabs.removed == [1]
+    assert editors[1].deleted_later is True
+    assert editors[0].deleted_later is False
+    assert editors[2].deleted_later is False
 
 
 def test_run_action_follows_active_editor_file_type(monkeypatch, tmp_path):

@@ -145,6 +145,7 @@ class WorkspaceController(MainWindowController):
             if (editor_resolved == deleted_resolved
                     or editor_resolved.startswith(deleted_resolved + "\\")):
                 self._tab_manager.removeTab(i)
+                editor.deleteLater()
 
     # ── Drag & Drop ──────────────────────────────────────────────────
 
