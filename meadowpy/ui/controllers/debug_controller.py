@@ -220,7 +220,16 @@ class DebugController(MainWindowController):
 
             if editor is None:
                 # Open the file in a new tab
-                content = self._file_manager.read_file(str(path))
+                reader = getattr(self.window, "_read_editor_file", None)
+                if callable(reader):
+                    content = reader(str(path))
+                else:
+                    try:
+                        content = self._file_manager.read_file(str(path))
+                    except OSError:
+                        return
+                if content is None:
+                    return
                 editor = self._tab_manager.open_file_in_tab(str(path), content)
 
             if editor:

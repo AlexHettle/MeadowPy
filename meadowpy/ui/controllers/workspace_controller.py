@@ -93,6 +93,13 @@ class WorkspaceController(MainWindowController):
         if result:
             path, content = result
             self._tab_manager.open_file_in_tab(path, content)
+            return
+        error = getattr(self._file_manager, "last_open_error", None)
+        if error is not None:
+            self._show_open_failed(
+                getattr(self._file_manager, "last_open_error_path", None),
+                error,
+            )
 
     def action_open_folder(self) -> None:
         """Show a directory picker and set it as the project folder."""
@@ -112,7 +119,9 @@ class WorkspaceController(MainWindowController):
         path = Path(file_path)
         if not path.exists() or not path.is_file():
             return
-        content = self._file_manager.read_file(file_path)
+        content = self._read_editor_file(file_path)
+        if content is None:
+            return
         self._tab_manager.open_file_in_tab(file_path, content)
         self._recent_files.add(file_path)
 
@@ -279,7 +288,9 @@ class WorkspaceController(MainWindowController):
         path = Path(file_path)
         if not path.exists():
             return
-        content = self._file_manager.read_file(str(path))
+        content = self._read_editor_file(str(path))
+        if content is None:
+            return
         editor = self._tab_manager.open_file_in_tab(str(path), content)
         if editor:
             editor.setCursorPosition(line - 1, 0)
@@ -290,7 +301,9 @@ class WorkspaceController(MainWindowController):
         path = Path(file_path)
         if not path.exists():
             return
-        content = self._file_manager.read_file(str(path))
+        content = self._read_editor_file(str(path))
+        if content is None:
+            return
         editor = self._tab_manager.open_file_in_tab(str(path), content)
         if editor:
             editor.setCursorPosition(line - 1, 0)
@@ -336,9 +349,41 @@ class WorkspaceController(MainWindowController):
             )
             self._recent_files.remove(file_path)
             return
-        content = self._file_manager.read_file(file_path)
+        content = self._read_editor_file(file_path)
+        if content is None:
+            return
         self._tab_manager.open_file_in_tab(file_path, content)
         self._recent_files.add(file_path)
+
+    def _read_editor_file(
+        self,
+        file_path: str,
+        *,
+        show_error: bool = True,
+    ) -> str | None:
+        """Read a file only when it is suitable for the text editor."""
+        try:
+            return self._file_manager.read_file(file_path)
+        except OSError as exc:
+            if show_error:
+                self._show_open_failed(file_path, exc)
+            return None
+
+    def _show_open_failed(self, file_path: str | None, error: OSError) -> None:
+        """Tell the user a file cannot be opened in the text editor."""
+        path_text = file_path or "the selected file"
+        name = Path(file_path).name if file_path else "file"
+
+        status_bar = getattr(self.window, "_status_bar_manager", None)
+        if status_bar is not None:
+            status_bar.show_message(f"Could not open: {name}", 7000)
+
+        QMessageBox.warning(
+            self.window,
+            "Could Not Open File",
+            "MeadowPy can only open readable text files in the editor.\n\n"
+            f"{path_text}\n\n{error}",
+        )
 
     # --- Event handlers ---
 

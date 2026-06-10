@@ -213,7 +213,10 @@ class MeadowPyApp:
         for arg in argv[1:]:
             path = Path(arg)
             if path.is_file():
-                content = self._file_manager.read_file(str(path))
+                try:
+                    content = self._file_manager.read_file(str(path))
+                except OSError:
+                    continue
                 self._window.open_file_in_tab(str(path), content)
 
         self._set_splash_status("Finalizing startup...")

@@ -508,7 +508,13 @@ class MainWindow(QMainWindow):
                 self._settings.set("general.project_folder", file_path)
                 self._search_panel.set_root_path(file_path)
             elif path.is_file():
-                content = self._file_manager.read_file(file_path)
+                reader = getattr(self, "_read_editor_file", None)
+                if callable(reader):
+                    content = reader(file_path)
+                else:
+                    content = self._file_manager.read_file(file_path)
+                if content is None:
+                    continue
                 self._tab_manager.open_file_in_tab(file_path, content)
                 self._recent_files.add(file_path)
         event.acceptProposedAction()
@@ -641,7 +647,13 @@ class MainWindow(QMainWindow):
         if self._settings.get("general.restore_tabs_on_startup"):
             for path in self._settings.get("general.open_files", []):
                 if Path(path).exists():
-                    content = self._file_manager.read_file(path)
+                    reader = getattr(self, "_read_editor_file", None)
+                    if callable(reader):
+                        content = reader(path, show_error=False)
+                    else:
+                        content = self._file_manager.read_file(path)
+                    if content is None:
+                        continue
                     self._tab_manager.open_file_in_tab(path, content)
 
         # If no tabs restored, show the Welcome screen

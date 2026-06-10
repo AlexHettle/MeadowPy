@@ -354,6 +354,47 @@ def test_open_recent_file_removes_missing_paths_and_opens_existing(monkeypatch, 
     assert recent.added == [str(existing)]
 
 
+def test_open_recent_file_reports_unreadable_files(monkeypatch, tmp_path):
+    unreadable = tmp_path / "review.docx"
+    unreadable.write_bytes(b"PK\x03\x04\x14\x00")
+    tabs = WorkspaceTabs([])
+    recent = SimpleNamespace(added=[], add=lambda path: recent.added.append(path))
+    status = SimpleNamespace(
+        messages=[],
+        show_message=lambda message, timeout=3000: status.messages.append(
+            (message, timeout)
+        ),
+    )
+
+    def raise_open_error(path):
+        raise OSError("not readable text")
+
+    file_manager = SimpleNamespace(read_file=raise_open_error)
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _file_manager=file_manager,
+        _recent_files=recent,
+        _status_bar_manager=status,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), file_manager, recent)
+    )
+    warnings = []
+    monkeypatch.setattr(
+        workspace_module.QMessageBox,
+        "warning",
+        lambda parent, title, body: warnings.append((title, body)),
+    )
+
+    controller.open_recent_file(str(unreadable))
+
+    assert tabs.opened == []
+    assert recent.added == []
+    assert status.messages == [("Could not open: review.docx", 7000)]
+    assert warnings[0][0] == "Could Not Open File"
+    assert "not readable text" in warnings[0][1]
+
+
 def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path):
     monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
     old_path = tmp_path / "old.py"

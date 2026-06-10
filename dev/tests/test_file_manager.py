@@ -1,6 +1,8 @@
 from unittest.mock import Mock
 
-from meadowpy.core.file_manager import FileManager
+import pytest
+
+from meadowpy.core.file_manager import FileManager, UnsupportedFileError
 from tests.helpers import SignalRecorder
 
 
@@ -79,6 +81,50 @@ def test_read_file_falls_back_to_latin1(tmp_path):
     file_path.write_bytes("caf\xe9".encode("latin-1"))
 
     assert manager.read_file(str(file_path)) == "café"
+
+
+def test_read_file_allows_non_python_text_files(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / "notes.txt"
+    file_path.write_text("plain notes\n", encoding="utf-8")
+
+    assert manager.read_file(str(file_path)) == "plain notes\n"
+
+
+def test_read_file_rejects_office_documents(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / "review.docx"
+    file_path.write_bytes(b"PK\x03\x04\x14\x00\x00\x00word/document.xml")
+
+    with pytest.raises(UnsupportedFileError, match="not a text file"):
+        manager.read_file(str(file_path))
+
+
+def test_read_file_rejects_nul_heavy_payloads(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / "unknown.data"
+    file_path.write_bytes(b"hello\x00\x01\x02binary")
+
+    with pytest.raises(UnsupportedFileError, match="readable text"):
+        manager.read_file(str(file_path))
+
+
+def test_open_file_tracks_open_error_for_unsupported_files(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    recorder = SignalRecorder()
+    manager.file_opened.connect(recorder)
+    file_path = tmp_path / "review.docx"
+    file_path.write_bytes(b"PK\x03\x04\x14\x00\x00\x00word/document.xml")
+
+    assert manager.open_file(str(file_path)) is None
+    assert isinstance(manager.last_open_error, UnsupportedFileError)
+    assert manager.last_open_error_path == str(file_path)
+    recent.add.assert_not_called()
+    assert recorder.calls == []
 
 
 def test_write_file_preserves_newlines_without_translation(tmp_path):
