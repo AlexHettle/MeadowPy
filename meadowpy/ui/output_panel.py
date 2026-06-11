@@ -132,7 +132,7 @@ class OutputPanel(QDockWidget):
                 }
                 """
             )
-            header_layout.addWidget(btn)
+            header_layout.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Glow painter for the restart button. HC mode collapses every
         # glow onto pure white (no chroma anywhere) for accessibility.
@@ -144,18 +144,27 @@ class OutputPanel(QDockWidget):
         # Visual separator
         sep = QLabel("|")
         sep.setStyleSheet("color: #999; margin: 0 4px;")
-        header_layout.addWidget(sep)
+        sep.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sep.setContentsMargins(0, 0, 0, 4)
+        sep.setFixedHeight(24)
+        header_layout.addWidget(sep, 0, Qt.AlignmentFlag.AlignVCenter)
 
         for btn in (self._clear_btn, self._copy_btn):
-            header_layout.addWidget(btn)
+            header_layout.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Fix with AI button (after a separator, right side)
         sep2 = QLabel("|")
         sep2.setStyleSheet("color: #999; margin: 0 4px;")
         self._fix_separator = sep2
         self._fix_separator.setVisible(False)
-        header_layout.addWidget(self._fix_separator)
-        header_layout.addWidget(self._fix_btn)
+        self._fix_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._fix_separator.setFixedHeight(24)
+        header_layout.addWidget(
+            self._fix_separator,
+            0,
+            Qt.AlignmentFlag.AlignVCenter,
+        )
+        header_layout.addWidget(self._fix_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Install the title bar as the dock's draggable title bar widget.
         self.setTitleBarWidget(title_bar)
@@ -505,6 +514,9 @@ class OutputPanel(QDockWidget):
     def _make_tool_button(self, icon_name: str, tooltip: str) -> QToolButton:
         btn = QToolButton()
         btn.setToolTip(tooltip)
+        btn.setFixedSize(24, 24)
+        btn.setIconSize(QSize(16, 16))
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             """
             QToolButton {
