@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent, QSize
-from PyQt6.QtGui import QAction, QFileSystemModel, QIcon, QKeyEvent
+from PyQt6.QtGui import QAction, QColor, QFileSystemModel, QIcon, QKeyEvent, QPalette
 from PyQt6.QtWidgets import (
     QDockWidget,
     QFileIconProvider,
@@ -39,6 +39,22 @@ _MAX_PREFETCH_SUBDIRS = 40
 _PENDING_REEXPAND_DELAY_MS = 30
 
 
+def _name_is_visible_in_explorer(name: str) -> bool:
+    if name in _HIDDEN_NAMES:
+        return False
+    return not any(name.endswith(suffix) for suffix in _HIDDEN_SUFFIXES)
+
+
+def _directory_has_visible_entries(path: str) -> bool | None:
+    try:
+        for child in Path(path).iterdir():
+            if _name_is_visible_in_explorer(child.name):
+                return True
+        return False
+    except OSError:
+        return None
+
+
 class _ExplorerIconProvider(QFileIconProvider):
     """Supplies custom folder/file icons for the explorer tree.
 
@@ -49,15 +65,26 @@ class _ExplorerIconProvider(QFileIconProvider):
     def __init__(self, accent: str, is_dark: bool):
         super().__init__()
         self._folder: QIcon = QIcon()
+        self._empty_folder: QIcon = QIcon()
+        self._empty_text_color = "#6F766B"
         self._file_generic: QIcon = QIcon()
         self._file_python: QIcon = QIcon()
         self.rebuild(accent, is_dark)
 
     def rebuild(self, accent: str, is_dark: bool) -> None:
         self._folder = load_tinted_icon("folder_closed", accent)
+        empty_color = "#6F766B" if is_dark else "#9A9A9A"
+        self._empty_folder = load_tinted_icon("folder_closed", empty_color)
+        self._empty_text_color = empty_color
         file_color = "#C8C8C8" if is_dark else "#6B6B6B"
         self._file_generic = load_tinted_icon("file_generic", file_color)
         self._file_python = load_tinted_icon("file_python", file_color)
+
+    def empty_folder_icon(self) -> QIcon:
+        return self._empty_folder
+
+    def empty_text_color(self) -> str:
+        return self._empty_text_color
 
     def icon(self, arg):  # type: ignore[override]
         if isinstance(arg, QFileIconProvider.IconType):
@@ -92,6 +119,45 @@ class _ClickableLabel(QLabel):
 class _FilteredFileSystemModel(QSortFilterProxyModel):
     """Proxy that hides build artefacts and VCS directories."""
 
+    def canFetchMore(self, parent: QModelIndex = QModelIndex()) -> bool:
+        model = self.sourceModel()
+        if model is None or not parent.isValid():
+            return super().canFetchMore(parent)
+
+        source_parent = self.mapToSource(parent)
+        try:
+            if model.isDir(source_parent):
+                has_visible_entries = _directory_has_visible_entries(
+                    model.filePath(source_parent)
+                )
+                if has_visible_entries is False:
+                    return False
+        except AttributeError:
+            pass
+        return super().canFetchMore(parent)
+
+    def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
+        model = self.sourceModel()
+        if model is None or not parent.isValid():
+            return super().hasChildren(parent)
+
+        source_parent = self.mapToSource(parent)
+        try:
+            if model.isDir(source_parent):
+                has_visible_entries = _directory_has_visible_entries(
+                    model.filePath(source_parent)
+                )
+                if has_visible_entries is False:
+                    return False
+                if has_visible_entries is True:
+                    return True
+                if model.canFetchMore(source_parent):
+                    return True
+                return self.rowCount(parent) > 0
+        except AttributeError:
+            pass
+        return super().hasChildren(parent)
+
     def filterAcceptsRow(
         self, source_row: int, source_parent: QModelIndex
     ) -> bool:
@@ -104,6 +170,26 @@ class _FilteredFileSystemModel(QSortFilterProxyModel):
             if name.endswith(suffix):
                 return False
         return True
+
+
+class _FileExplorerItemDelegate(NoFocusDelegate):
+    """Applies explorer-specific visual states to tree items."""
+
+    def __init__(self, panel: "FileExplorerPanel", parent=None):
+        super().__init__(parent)
+        self._panel = panel
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if not self._panel._is_known_empty_folder(index):
+            return
+
+        color = QColor(self._panel._empty_folder_text_color())
+        option.palette.setColor(QPalette.ColorRole.Text, color)
+        option.palette.setColor(QPalette.ColorRole.HighlightedText, color)
+        icon = self._panel._empty_folder_icon()
+        if not icon.isNull():
+            option.icon = icon
 
 
 class FileExplorerPanel(QDockWidget):
@@ -214,7 +300,7 @@ class FileExplorerPanel(QDockWidget):
         self._tree.setDragDropMode(QTreeView.DragDropMode.DragOnly)
         self._tree.doubleClicked.connect(self._on_double_clicked)
         self._tree.expanded.connect(self._on_item_expanded)
-        self._tree.setItemDelegate(NoFocusDelegate(self._tree))
+        self._tree.setItemDelegate(_FileExplorerItemDelegate(self, self._tree))
         self._tree.installEventFilter(self)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
@@ -294,6 +380,31 @@ class FileExplorerPanel(QDockWidget):
                 pass
         return self._fs_model.rowCount(source_index) if self._fs_model else 0
 
+    def _is_known_empty_folder(self, proxy_index: QModelIndex) -> bool:
+        if not proxy_index.isValid() or not self._fs_model or not self._proxy:
+            return False
+        source_index = self._proxy.mapToSource(proxy_index)
+        if not source_index.isValid() or not self._fs_model.isDir(source_index):
+            return False
+        has_visible_entries = _directory_has_visible_entries(
+            self._fs_model.filePath(source_index)
+        )
+        if has_visible_entries is not None:
+            return not has_visible_entries
+        if self._fs_model.canFetchMore(source_index):
+            return False
+        return self._visible_child_count(proxy_index, source_index) == 0
+
+    def _empty_folder_icon(self) -> QIcon:
+        if self._icon_provider is None:
+            return QIcon()
+        return self._icon_provider.empty_folder_icon()
+
+    def _empty_folder_text_color(self) -> str:
+        if self._icon_provider is None:
+            return "#6F766B"
+        return self._icon_provider.empty_text_color()
+
     def _collapse_without_animation(self, proxy_index: QModelIndex) -> None:
         was_animated = (
             self._tree.isAnimated()
@@ -358,6 +469,8 @@ class FileExplorerPanel(QDockWidget):
 
         if self._root_path and Path(path).resolve() == Path(self._root_path).resolve():
             self._prefetch_subdirs(source_index)
+
+        self._tree.viewport().update()
 
     # ── Public API ──────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ from meadowpy.ui.file_explorer import (
     FileExplorerPanel,
     _ClickableLabel,
     _ExplorerIconProvider,
+    _FilteredFileSystemModel,
     _MAX_PREFETCH_SUBDIRS,
 )
 from meadowpy.ui.menu_bar import MenuBarBuilder
@@ -330,6 +331,38 @@ class FakeRootPrefetchModel(FakeExplorerModel):
         return index.key.startswith("loaded-dir-child-")
 
 
+class FakeFilteredProxy(_FilteredFileSystemModel):
+    def __init__(self, source_model, row_counts):
+        super().__init__()
+        self._source_model = source_model
+        self._row_counts = row_counts
+
+    def sourceModel(self):
+        return self._source_model
+
+    def mapToSource(self, proxy_index):
+        return proxy_index
+
+    def rowCount(self, parent=FakeModelIndex(False, "root")):
+        return self._row_counts.get(parent.key, 0)
+
+
+class FakeHasChildrenSource:
+    def __init__(self, dirs, fetchable, paths=None):
+        self.dirs = set(dirs)
+        self.fetchable = set(fetchable)
+        self.paths = paths or {}
+
+    def isDir(self, index):
+        return index.key in self.dirs
+
+    def canFetchMore(self, index):
+        return index.key in self.fetchable
+
+    def filePath(self, index):
+        return self.paths.get(index.key, index.key)
+
+
 class FakeExplorerProxy:
     def __init__(self, source_index):
         self.source_index = source_index
@@ -383,6 +416,7 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     selected = Recorder()
     panel.file_selected.connect(selected)
     panel._root_path = str(tmp_path)
+    (tmp_path / "visible_child.py").write_text("print('hi')\n", encoding="utf-8")
 
     folder_index = FakeModelIndex(True, "dir")
     model = FakeExplorerModel(
@@ -427,6 +461,7 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
         },
         dirs={"dir", "loaded-dir"},
     )
+    (tmp_path / "empty").mkdir()
     panel._fs_model = empty_model
     panel._proxy = FakeExplorerProxy(FakeModelIndex(True, "dir"))
     empty_tree = FakeExplorerTree()
@@ -438,6 +473,7 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     panel._on_directory_loaded(str(tmp_path / "empty"))
     assert str(tmp_path / "empty") not in panel._pending_anim_paths
     assert empty_tree.expanded == []
+    assert panel._is_known_empty_folder(FakeModelIndex(True, "proxy-dir")) is True
 
     root_model = FakeRootPrefetchModel(
         paths={"loaded-dir": str(tmp_path)},
@@ -459,6 +495,7 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     panel._fs_model = model
     panel._proxy = proxy
     panel._tree = tree
+    assert panel._is_known_empty_folder(FakeModelIndex(True, "proxy-dir")) is False
 
     enter = QKeyEvent(
         QEvent.Type.KeyPress,
@@ -512,3 +549,39 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     assert existing.exists()
 
     panel.deleteLater()
+
+
+def test_file_explorer_proxy_hides_expander_for_known_empty_dirs(qapp, tmp_path):
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    full_dir = tmp_path / "full"
+    full_dir.mkdir()
+    (full_dir / "demo.py").write_text("print('hi')\n", encoding="utf-8")
+    hidden_only_dir = tmp_path / "hidden_only"
+    hidden_only_dir.mkdir()
+    (hidden_only_dir / "__pycache__").mkdir()
+
+    source = FakeHasChildrenSource(
+        dirs={"lazy", "empty", "full", "hidden_only"},
+        fetchable={"lazy", "empty", "hidden_only"},
+        paths={
+            "lazy": str(full_dir),
+            "empty": str(empty_dir),
+            "full": str(full_dir),
+            "hidden_only": str(hidden_only_dir),
+        },
+    )
+    proxy = FakeFilteredProxy(source, {
+        "empty": 0,
+        "full": 2,
+        "hidden_only": 0,
+    })
+
+    assert proxy.hasChildren(FakeModelIndex(True, "lazy")) is True
+    assert proxy.hasChildren(FakeModelIndex(True, "full")) is True
+    assert proxy.hasChildren(FakeModelIndex(True, "empty")) is False
+    assert proxy.canFetchMore(FakeModelIndex(True, "empty")) is False
+    assert proxy.hasChildren(FakeModelIndex(True, "hidden_only")) is False
+    assert proxy.canFetchMore(FakeModelIndex(True, "hidden_only")) is False
+
+    proxy.deleteLater()
