@@ -6,6 +6,7 @@ from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
 from PyQt6.QtWidgets import QFontComboBox, QTextEdit, QToolButton, QWidget
 
+import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
 from meadowpy.core.settings import Settings
 from meadowpy.ui.ai_chat_panel import AIChatPanel
 from meadowpy.ui.debug_toolbar import DebugToolBar
@@ -405,6 +406,68 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     panel.clear_chat()
     assert panel._messages == []
     assert panel._chat_view.get_all_plain_text() == ""
+    panel.deleteLater()
+
+
+def test_ai_chat_render_restores_scroll_after_rebuild(monkeypatch, qapp):
+    panel = AIChatPanel()
+
+    monkeypatch.setattr(
+        ai_chat_panel_module.QTimer,
+        "singleShot",
+        lambda _ms, callback: callback(),
+    )
+
+    class FakeChatView:
+        def __init__(self):
+            self.value = 180
+            self.restored_values = []
+            self.bottom_calls = 0
+            self.updates_enabled = True
+            self.update_states = []
+
+        def scroll_value(self):
+            return self.value
+
+        def updatesEnabled(self):
+            return self.updates_enabled
+
+        def setUpdatesEnabled(self, enabled):
+            self.updates_enabled = enabled
+            self.update_states.append(enabled)
+
+        def is_at_bottom(self, slack=20):
+            return False
+
+        def clear(self):
+            self.value = 0
+
+        def add_bubble(self, _role, _html_content):
+            return SimpleNamespace(set_html=lambda _html: None)
+
+        def add_centered(self, _html_content, _object_name):
+            return SimpleNamespace()
+
+        def scroll_to_value(self, value):
+            self.value = value
+            self.restored_values.append(value)
+
+        def scroll_to_bottom(self):
+            self.bottom_calls += 1
+
+    chat_view = FakeChatView()
+    panel._chat_view = chat_view
+    panel._messages = [
+        {"role": "user", "content": "Question"},
+        {"role": "assistant", "content": "Answer"},
+    ]
+    panel._render_chat()
+
+    assert chat_view.update_states[0] is False
+    assert chat_view.update_states[-1] is True
+    assert len(chat_view.restored_values) >= 2
+    assert all(value == 180 for value in chat_view.restored_values)
+    assert chat_view.bottom_calls == 0
     panel.deleteLater()
 
 

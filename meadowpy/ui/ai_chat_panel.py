@@ -453,6 +453,47 @@ class AIChatPanel(QDockWidget):
             # A queued singleShot can fire after child widgets start teardown.
             pass
 
+    def _set_chat_updates_enabled(self, enabled: bool) -> None:
+        try:
+            self._chat_view.setUpdatesEnabled(enabled)
+        except RuntimeError:
+            # The panel can be torn down while delayed scroll restores are queued.
+            pass
+
+    def _restore_chat_scroll(
+        self,
+        previous_value: int,
+        *,
+        to_bottom: bool,
+        reenable_updates: bool = False,
+    ) -> None:
+        """Restore chat scroll after the bubble layout has been rebuilt."""
+        if self._shutting_down:
+            return
+
+        def restore(*, enable_updates: bool = False) -> None:
+            if self._shutting_down:
+                return
+            try:
+                if to_bottom:
+                    self._chat_view.scroll_to_bottom()
+                else:
+                    self._chat_view.scroll_to_value(previous_value)
+            except RuntimeError:
+                # A queued restore can fire after child widgets start teardown.
+                pass
+            finally:
+                if enable_updates:
+                    self._set_chat_updates_enabled(True)
+
+        restore()
+        QTimer.singleShot(0, restore)
+        if reenable_updates:
+            QTimer.singleShot(20, lambda: restore(enable_updates=True))
+            QTimer.singleShot(60, restore)
+        else:
+            QTimer.singleShot(20, restore)
+
     def _on_link_clicked_str(self, href: str) -> None:
         """Handle bubble-label clicks — href is a raw string from QLabel."""
         url = QUrl(href)
@@ -618,7 +659,12 @@ class AIChatPanel(QDockWidget):
         # Reset code block index — blocks are re-collected during rendering
         self._code_blocks.clear()
 
-        at_bottom = self._chat_view.is_at_bottom()
+        previous_scroll = self._chat_view.scroll_value()
+        restore_to_bottom = self._streaming or self._chat_view.is_at_bottom(slack=80)
+        updates_were_enabled = self._chat_view.updatesEnabled()
+        if updates_were_enabled:
+            self._set_chat_updates_enabled(False)
+
         self._chat_view.clear()
 
         for msg in self._messages:
@@ -656,5 +702,8 @@ class AIChatPanel(QDockWidget):
                 "ai", '<span style="opacity: 0.6;">Thinking\u2026</span>',
             )
 
-        if at_bottom or self._streaming:
-            QTimer.singleShot(0, self._scroll_to_bottom)
+        self._restore_chat_scroll(
+            previous_scroll,
+            to_bottom=restore_to_bottom,
+            reenable_updates=updates_were_enabled,
+        )

@@ -253,6 +253,21 @@ def test_chat_view_copy_all_action_disables_when_empty(monkeypatch, qapp):
     view.deleteLater()
 
 
+def test_chat_view_clear_removes_rows_from_layout(qapp):
+    view = ChatView()
+    initial_count = view._inner_layout.count()
+
+    view.add_bubble("user", "Hello")
+    view.add_centered("<i>Stopped</i>", "aiChatStoppedLabel")
+    assert view._inner_layout.count() == initial_count + 2
+
+    view.clear()
+
+    assert view._inner_layout.count() == initial_count
+    assert view._rows == []
+    view.deleteLater()
+
+
 def test_venv_dialog_validates_inputs_and_reports_success(monkeypatch, qapp, tmp_path):
     messages = []
 

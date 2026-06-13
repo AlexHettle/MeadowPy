@@ -121,6 +121,8 @@ class ChatView(QScrollArea):
 
     def clear(self) -> None:
         for row in self._rows:
+            self._inner_layout.removeWidget(row)
+            row.setParent(None)
             row.deleteLater()
         self._rows.clear()
         self._placeholder.setVisible(True)
@@ -152,6 +154,14 @@ class ChatView(QScrollArea):
     def scroll_to_bottom(self) -> None:
         sb = self.verticalScrollBar()
         sb.setValue(sb.maximum())
+
+    def scroll_value(self) -> int:
+        return self.verticalScrollBar().value()
+
+    def scroll_to_value(self, value: int) -> None:
+        sb = self.verticalScrollBar()
+        value = max(sb.minimum(), min(value, sb.maximum()))
+        sb.setValue(value)
 
     def is_at_bottom(self, slack: int = 20) -> bool:
         sb = self.verticalScrollBar()
