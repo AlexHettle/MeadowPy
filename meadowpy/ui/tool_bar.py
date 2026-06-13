@@ -1,21 +1,20 @@
 """Toolbar construction."""
 
-from PyQt6.QtCore import QPointF, QSize, Qt, QEvent, QObject
+from PyQt6.QtCore import QEvent, QSize, Qt
 from PyQt6.QtGui import (
-    QBrush,
     QColor,
     QFontMetrics,
     QIcon,
     QPainter,
     QPainterPath,
-    QRadialGradient,
 )
-from PyQt6.QtWidgets import QApplication, QToolBar, QToolButton, QWidget
+from PyQt6.QtWidgets import QToolBar, QToolButton, QWidget
 
 from meadowpy.resources.resource_loader import (
     load_themed_icon,
     theme_is_high_contrast,
 )
+from meadowpy.ui.glow_painter import HeaderGlowPainter
 
 
 class RunFileButton(QToolButton):
@@ -214,112 +213,13 @@ class RunFileButton(QToolButton):
         painter.end()
 
 
-class ToolbarGlowPainter(QObject):
-    """Paints radial glow effects on a toolbar behind registered buttons.
-
-    The glow is drawn on the *toolbar* surface (not on the button) so it
-    can radiate freely beyond the button boundaries.  Each registered
-    button gets its own colour.
-
-    Re-usable: call ``add_button(btn, color)`` for every button that
-    should glow, then the filter handles hover / press tracking and
-    toolbar repaint automatically.
-    """
+class ToolbarGlowPainter(HeaderGlowPainter):
+    """Paints toolbar-sized radial glow effects behind registered buttons."""
 
     HOVER_RADIUS = 16
     HOVER_ALPHA = 55
     PRESS_RADIUS = 20
     PRESS_ALPHA = 90
-
-    def __init__(self, toolbar: QToolBar, parent=None):
-        super().__init__(parent)
-        self._toolbar = toolbar
-        self._entries: list[dict] = []
-        toolbar.installEventFilter(self)
-
-    def add_button(self, button, color: QColor) -> None:
-        entry = {"btn": button, "color": QColor(color), "state": "idle"}
-        self._entries.append(entry)
-        button.installEventFilter(self)
-
-    def set_button_color(self, button, color: QColor) -> None:
-        """Update the glow color for an already-registered button."""
-        for entry in self._entries:
-            if entry["btn"] is button:
-                entry["color"] = QColor(color)
-                self._toolbar.update()
-                return
-
-    # ── event filter ────────────────────────────────────────────
-    def eventFilter(self, obj, event):
-        etype = event.type()
-
-        # --- button hover / press tracking ---
-        for entry in self._entries:
-            if obj is entry["btn"]:
-                if etype == QEvent.Type.HoverEnter and obj.isEnabled():
-                    entry["state"] = "hover"
-                    self._toolbar.update()
-                elif etype == QEvent.Type.HoverLeave:
-                    entry["state"] = "idle"
-                    self._toolbar.update()
-                elif etype == QEvent.Type.MouseButtonPress and obj.isEnabled():
-                    entry["state"] = "press"
-                    self._toolbar.update()
-                elif etype == QEvent.Type.MouseButtonRelease:
-                    entry["state"] = (
-                        "hover" if obj.underMouse() and obj.isEnabled()
-                        else "idle"
-                    )
-                    self._toolbar.update()
-                return False  # never consume button events
-
-        # --- toolbar paint: draw glows after normal paint ---
-        if obj is self._toolbar and etype == QEvent.Type.Paint:
-            # Let the toolbar paint normally first
-            obj.removeEventFilter(self)
-            QApplication.sendEvent(obj, event)
-            obj.installEventFilter(self)
-
-            # Paint radial glows behind hovered / pressed buttons
-            painter = QPainter(obj)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            for entry in self._entries:
-                if entry["state"] == "idle":
-                    continue
-                btn = entry["btn"]
-                if not btn.isEnabled():
-                    entry["state"] = "idle"
-                    continue
-                center = QPointF(btn.geometry().center())
-                if entry["state"] == "press":
-                    radius = self.PRESS_RADIUS
-                    alpha = self.PRESS_ALPHA
-                else:
-                    radius = self.HOVER_RADIUS
-                    alpha = self.HOVER_ALPHA
-
-                base = QColor(entry["color"])
-
-                # Smooth exponential falloff with multiple stops
-                grad = QRadialGradient(center, radius)
-                c0 = QColor(base); c0.setAlpha(alpha)
-                c1 = QColor(base); c1.setAlpha(int(alpha * 0.55))
-                c2 = QColor(base); c2.setAlpha(int(alpha * 0.2))
-                c3 = QColor(base); c3.setAlpha(0)
-                grad.setColorAt(0.0, c0)
-                grad.setColorAt(0.35, c1)
-                grad.setColorAt(0.65, c2)
-                grad.setColorAt(1.0, c3)
-
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QBrush(grad))
-                painter.drawEllipse(center, radius, radius)
-            painter.end()
-            return True  # we already sent the real paint event
-
-        return False
-
 
 class ToolBarBuilder:
     """Builds the main toolbar with icon buttons."""

@@ -6,8 +6,6 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent, QSize
 from PyQt6.QtGui import QAction, QFileSystemModel, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (
-    QStyle,
-    QStyledItemDelegate,
     QDockWidget,
     QFileIconProvider,
     QFrame,
@@ -28,6 +26,7 @@ from meadowpy.resources.resource_loader import (
     lighten_color,
     load_tinted_icon,
 )
+from meadowpy.ui.item_delegates import NoFocusDelegate
 
 
 # ── Hidden names / suffixes filtered from the tree ──────────────────────
@@ -87,14 +86,6 @@ class _ClickableLabel(QLabel):
         if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.pos()):
             self.clicked.emit()
         super().mouseReleaseEvent(event)
-
-
-class _NoFocusDelegate(QStyledItemDelegate):
-    """Suppresses the dotted focus rectangle on items."""
-
-    def initStyleOption(self, option, index):
-        super().initStyleOption(option, index)
-        option.state &= ~QStyle.StateFlag.State_HasFocus
 
 
 class _FilteredFileSystemModel(QSortFilterProxyModel):
@@ -222,7 +213,7 @@ class FileExplorerPanel(QDockWidget):
         self._tree.setDragDropMode(QTreeView.DragDropMode.DragOnly)
         self._tree.doubleClicked.connect(self._on_double_clicked)
         self._tree.expanded.connect(self._on_item_expanded)
-        self._tree.setItemDelegate(_NoFocusDelegate(self._tree))
+        self._tree.setItemDelegate(NoFocusDelegate(self._tree))
         self._tree.installEventFilter(self)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)

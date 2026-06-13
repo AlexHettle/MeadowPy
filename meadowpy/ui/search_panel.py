@@ -13,8 +13,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QStyle,
-    QStyledItemDelegate,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -22,14 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from meadowpy.core.qt_threads import stop_qthread
-
-
-class _NoFocusDelegate(QStyledItemDelegate):
-    """Suppresses the dotted focus rectangle on items."""
-
-    def initStyleOption(self, option, index):
-        super().initStyleOption(option, index)
-        option.state &= ~QStyle.StateFlag.State_HasFocus
+from meadowpy.ui.item_delegates import NoFocusDelegate
 
 
 # ── Directories and extensions to skip ──────────────────────────────────
@@ -249,7 +240,7 @@ class SearchPanel(QDockWidget):
         self._tree.setHeaderHidden(True)
         self._tree.setIndentation(16)
         self._tree.setRootIsDecorated(True)
-        self._tree.setItemDelegate(_NoFocusDelegate(self._tree))
+        self._tree.setItemDelegate(NoFocusDelegate(self._tree))
         self._tree.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self._tree, 1)
 

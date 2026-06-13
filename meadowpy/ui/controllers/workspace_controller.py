@@ -20,6 +20,7 @@ from meadowpy.resources.resource_loader import (
 )
 from meadowpy.ui.controllers.run_eligibility import can_run_editor
 from meadowpy.ui.controllers.window_context import MainWindowController
+from meadowpy.ui.save_helpers import show_save_failed
 
 
 _RUN_EDITOR_UNSET = object()
@@ -192,19 +193,12 @@ class WorkspaceController(MainWindowController):
 
     def _show_save_failed(self, file_path: str | None) -> None:
         """Tell the user a save failed and leave the editor marked modified."""
-        error = getattr(self._file_manager, "last_save_error", None)
-        details = str(error) if error else "Unknown error."
-        path_text = file_path or "the selected file"
-        name = Path(file_path).name if file_path else "file"
-
         status_bar = getattr(self.window, "_status_bar_manager", None)
-        if status_bar is not None:
-            status_bar.show_message(f"Could not save: {name}", 7000)
-
-        QMessageBox.critical(
+        show_save_failed(
             self.window,
-            "Could Not Save File",
-            f"MeadowPy could not save this file:\n{path_text}\n\n{details}",
+            self._file_manager,
+            file_path,
+            status_bar=status_bar,
         )
 
     def action_close_tab(self) -> None:

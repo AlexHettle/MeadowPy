@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.resources.resource_loader import current_accent_hex, theme_is_dark
+from meadowpy.ui.save_helpers import prompt_save_before_closing, show_save_failed
 from meadowpy.ui.welcome_widget import WelcomeWidget
 
 
@@ -245,35 +246,8 @@ class TabManager(QTabWidget):
         """Close a tab. Prompt to save if modified. Returns True if closed."""
         editor = self.widget(index)
         if isinstance(editor, CodeEditor) and editor.is_modified:
-            reply = QMessageBox.question(
-                self, "Unsaved Changes",
-                f"'{editor.display_name}' has unsaved changes.\n\nSave before closing?",
-                QMessageBox.StandardButton.Save
-                | QMessageBox.StandardButton.Discard
-                | QMessageBox.StandardButton.Cancel,
-            )
-            if reply == QMessageBox.StandardButton.Cancel:
+            if not self._prompt_save_editor(editor):
                 return False
-            if reply == QMessageBox.StandardButton.Save:
-                if self._file_manager:
-                    if editor.file_path:
-                        if not self._file_manager.save_file(
-                            editor.file_path, editor.text()
-                        ):
-                            self._show_save_failed(editor.file_path)
-                            return False
-                    else:
-                        path = self._file_manager.save_file_as(editor.text(), parent=self)
-                        if not path:
-                            if getattr(self._file_manager, "last_save_error", None):
-                                self._show_save_failed(
-                                    getattr(
-                                        self._file_manager,
-                                        "last_save_error_path",
-                                        None,
-                                    )
-                                )
-                            return False
         self._remove_tab_and_delete(index)
         return True
 
@@ -297,46 +271,38 @@ class TabManager(QTabWidget):
             editor = self.widget(i)
             if isinstance(editor, CodeEditor) and editor.is_modified:
                 self.setCurrentIndex(i)
-                reply = QMessageBox.question(
-                    self, "Unsaved Changes",
-                    f"'{editor.display_name}' has unsaved changes.\n\nSave before closing?",
-                    QMessageBox.StandardButton.Save
-                    | QMessageBox.StandardButton.Discard
-                    | QMessageBox.StandardButton.Cancel,
-                )
-                if reply == QMessageBox.StandardButton.Cancel:
+                if not self._prompt_save_editor(editor):
                     return False
-                if reply == QMessageBox.StandardButton.Save:
-                    if self._file_manager:
-                        if editor.file_path:
-                            if not self._file_manager.save_file(
-                                editor.file_path, editor.text()
-                            ):
-                                self._show_save_failed(editor.file_path)
-                                return False
-                        else:
-                            path = self._file_manager.save_file_as(editor.text(), parent=self)
-                            if not path:
-                                if getattr(self._file_manager, "last_save_error", None):
-                                    self._show_save_failed(
-                                        getattr(
-                                            self._file_manager,
-                                            "last_save_error_path",
-                                            None,
-                                        )
-                                    )
-                                return False
         return True
 
-    def _show_save_failed(self, file_path: str | None) -> None:
-        error = getattr(self._file_manager, "last_save_error", None)
-        details = str(error) if error else "Unknown error."
-        path_text = file_path or "the selected file"
-        QMessageBox.critical(
-            self,
-            "Could Not Save File",
-            f"MeadowPy could not save this file:\n{path_text}\n\n{details}",
-        )
+    def _prompt_save_editor(self, editor: CodeEditor) -> bool:
+        reply = prompt_save_before_closing(self, editor.display_name)
+        if reply == QMessageBox.StandardButton.Cancel:
+            return False
+        if reply != QMessageBox.StandardButton.Save:
+            return True
+        return self._save_editor_for_prompt(editor)
+
+    def _save_editor_for_prompt(self, editor: CodeEditor) -> bool:
+        if not self._file_manager:
+            return True
+        if editor.file_path:
+            if self._file_manager.save_file(editor.file_path, editor.text()):
+                return True
+            show_save_failed(self, self._file_manager, editor.file_path)
+            return False
+
+        path = self._file_manager.save_file_as(editor.text(), parent=self)
+        if path:
+            editor.file_path = path
+            return True
+        if getattr(self._file_manager, "last_save_error", None):
+            show_save_failed(
+                self,
+                self._file_manager,
+                getattr(self._file_manager, "last_save_error_path", None),
+            )
+        return False
 
     def current_editor(self) -> CodeEditor | None:
         """Return the currently active CodeEditor, or None."""

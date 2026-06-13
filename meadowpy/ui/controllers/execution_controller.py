@@ -72,22 +72,9 @@ class ExecutionController(MainWindowController):
                 return
             self._process_runner.stop()
 
-        # Save before run if configured
-        if self._settings.get("run.save_before_run"):
-            if editor.isModified():
-                if self.action_save() is False:
-                    return
-
-        # Need a file path to run
-        file_path = editor.file_path
+        file_path = self._prepare_editor_file_for_execution(editor)
         if not file_path:
-            if self.action_save_as() is False:
-                return
-            file_path = editor.file_path
-            if not file_path:
-                return  # user cancelled save-as
-            if not can_run_editor(editor):
-                return
+            return
 
         # Resolve interpreter and working directory
         interpreter = self._interpreter_manager.get_interpreter(

@@ -9,8 +9,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMenu,
-    QStyle,
-    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -22,14 +20,7 @@ from meadowpy.resources.resource_loader import (
     load_tinted_icon,
     theme_is_high_contrast,
 )
-
-
-class _NoFocusDelegate(QStyledItemDelegate):
-    """Suppresses the dotted focus rectangle on items."""
-
-    def initStyleOption(self, option, index):
-        super().initStyleOption(option, index)
-        option.state &= ~QStyle.StateFlag.State_HasFocus
+from meadowpy.ui.item_delegates import NoFocusDelegate
 
 
 class ProblemsPanel(QDockWidget):
@@ -100,7 +91,7 @@ class ProblemsPanel(QDockWidget):
             QTableWidget.SelectionBehavior.SelectRows
         )
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._table.setItemDelegate(_NoFocusDelegate(self._table))
+        self._table.setItemDelegate(NoFocusDelegate(self._table))
         self._table.cellClicked.connect(self._on_cell_clicked)
         self._table.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu

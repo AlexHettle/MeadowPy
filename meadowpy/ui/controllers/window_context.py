@@ -7,6 +7,8 @@ from typing import Any
 
 from PyQt6.QtCore import QObject
 
+from meadowpy.ui.controllers.run_eligibility import can_run_editor
+
 
 @dataclass(slots=True)
 class MainWindowContext:
@@ -42,3 +44,24 @@ class MainWindowController(QObject):
         refresh = getattr(self.window, "_update_run_action_enabled", None)
         if callable(refresh):
             refresh()
+
+    def _prepare_editor_file_for_execution(
+        self,
+        editor,
+        expected_type: type | tuple[type, ...] | None = None,
+    ) -> str | None:
+        """Save the editor if needed and return a runnable file path."""
+        if self._settings.get("run.save_before_run") and editor.isModified():
+            if self.action_save() is False:
+                return None
+
+        file_path = editor.file_path
+        if not file_path:
+            if self.action_save_as() is False:
+                return None
+            file_path = editor.file_path
+            if not file_path:
+                return None
+            if not can_run_editor(editor, expected_type):
+                return None
+        return file_path

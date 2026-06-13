@@ -13,13 +13,14 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QStyle,
-    QStyledItemDelegate,
     QStyleOptionViewItem,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+
+from meadowpy.ui.item_delegates import NoFocusDelegate
 
 
 # Roles stashed on each tree item so the delegate can render a colored
@@ -28,15 +29,7 @@ _KIND_ROLE = Qt.ItemDataRole.UserRole + 1
 _NAME_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
-class _NoFocusDelegate(QStyledItemDelegate):
-    """Suppresses the dotted focus rectangle on items."""
-
-    def initStyleOption(self, option, index):
-        super().initStyleOption(option, index)
-        option.state &= ~QStyle.StateFlag.State_HasFocus
-
-
-class _SymbolItemDelegate(_NoFocusDelegate):
+class _SymbolItemDelegate(NoFocusDelegate):
     """Paints the leading class/function glyph in the accent color.
 
     Uses a QTextDocument so the ``◆`` / ``ƒ`` prefix can be drawn in the
