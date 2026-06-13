@@ -36,6 +36,7 @@ _HIDDEN_NAMES = {
 }
 _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
 _MAX_PREFETCH_SUBDIRS = 40
+_PENDING_REEXPAND_DELAY_MS = 30
 
 
 class _ExplorerIconProvider(QFileIconProvider):
@@ -283,6 +284,32 @@ class FileExplorerPanel(QDockWidget):
             if self._fs_model.isDir(child) and self._fs_model.canFetchMore(child):
                 self._fs_model.fetchMore(child)
 
+    def _visible_child_count(
+        self, proxy_index: QModelIndex, source_index: QModelIndex
+    ) -> int:
+        if self._proxy and proxy_index.isValid():
+            try:
+                return self._proxy.rowCount(proxy_index)
+            except (AttributeError, RuntimeError):
+                pass
+        return self._fs_model.rowCount(source_index) if self._fs_model else 0
+
+    def _collapse_without_animation(self, proxy_index: QModelIndex) -> None:
+        was_animated = (
+            self._tree.isAnimated()
+            if hasattr(self._tree, "isAnimated")
+            else True
+        )
+        if hasattr(self._tree, "setAnimated"):
+            self._tree.setAnimated(False)
+        self._suppress_expand_handler = True
+        try:
+            self._tree.collapse(proxy_index)
+        finally:
+            self._suppress_expand_handler = False
+            if hasattr(self._tree, "setAnimated"):
+                self._tree.setAnimated(was_animated)
+
     def _on_item_expanded(self, proxy_index: QModelIndex) -> None:
         if self._suppress_expand_handler or not self._fs_model or not self._proxy:
             return
@@ -291,15 +318,17 @@ class FileExplorerPanel(QDockWidget):
         # Fallback: if this folder's own contents aren't cached yet, the
         # animation we just ran was a no-op. Collapse silently, fetch,
         # and re-expand once loaded.
-        if self._fs_model.canFetchMore(source_index) or self._fs_model.rowCount(source_index) == 0:
-            if self._fs_model.hasChildren(source_index):
-                path = self._fs_model.filePath(source_index)
-                self._pending_anim_paths.add(path)
-                self._suppress_expand_handler = True
-                self._tree.collapse(proxy_index)
-                self._suppress_expand_handler = False
-                self._fs_model.fetchMore(source_index)
-                return
+        if self._fs_model.canFetchMore(source_index):
+            path = self._fs_model.filePath(source_index)
+            self._pending_anim_paths.add(path)
+            self._collapse_without_animation(proxy_index)
+            self._fs_model.fetchMore(source_index)
+            return
+
+        if self._visible_child_count(proxy_index, source_index) == 0:
+            self._collapse_without_animation(proxy_index)
+            self._tree.viewport().update()
+            return
 
         # Pre-fetch grandchildren so the NEXT expand down also animates.
         self._prefetch_subdirs(source_index)
@@ -315,9 +344,20 @@ class FileExplorerPanel(QDockWidget):
             self._pending_anim_paths.discard(path)
             proxy_index = self._proxy.mapFromSource(source_index)
             if proxy_index.isValid():
-                # Delay to the next event-loop tick so Qt finishes processing
-                # the preceding collapse before we trigger the animated expand.
-                QTimer.singleShot(0, lambda idx=proxy_index: self._tree.expand(idx))
+                if self._visible_child_count(proxy_index, source_index) == 0:
+                    self._tree.viewport().update()
+                    return
+                # Give Qt a moment to publish the newly loaded rows and finish
+                # the forced non-animated collapse before expanding for real.
+                QTimer.singleShot(
+                    _PENDING_REEXPAND_DELAY_MS,
+                    lambda idx=proxy_index: self._tree.expand(idx),
+                )
+                self._prefetch_subdirs(source_index)
+                return
+
+        if self._root_path and Path(path).resolve() == Path(self._root_path).resolve():
+            self._prefetch_subdirs(source_index)
 
     # ── Public API ──────────────────────────────────────────────────────
 

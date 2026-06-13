@@ -311,6 +311,25 @@ class FakeLargeExplorerModel(FakeExplorerModel):
         return FakeModelIndex(True, f"{parent.key}-child-{row}")
 
 
+class FakeEmptyExplorerModel(FakeExplorerModel):
+    def rowCount(self, parent):
+        return 0
+
+    def canFetchMore(self, index):
+        return index.key == "dir" and index.key not in self.fetched
+
+    def hasChildren(self, index):
+        return self.isDir(index) and self.canFetchMore(index)
+
+
+class FakeRootPrefetchModel(FakeExplorerModel):
+    def rowCount(self, parent):
+        return 2 if parent.key == "loaded-dir" else 0
+
+    def canFetchMore(self, index):
+        return index.key.startswith("loaded-dir-child-")
+
+
 class FakeExplorerProxy:
     def __init__(self, source_index):
         self.source_index = source_index
@@ -401,6 +420,35 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     panel._on_directory_loaded(str(tmp_path))
     assert model.fetched == ["dir-child-0", "dir-child-1", "dir"]
 
+    empty_model = FakeEmptyExplorerModel(
+        paths={
+            "dir": str(tmp_path / "empty"),
+            "loaded-dir": str(tmp_path / "empty"),
+        },
+        dirs={"dir", "loaded-dir"},
+    )
+    panel._fs_model = empty_model
+    panel._proxy = FakeExplorerProxy(FakeModelIndex(True, "dir"))
+    empty_tree = FakeExplorerTree()
+    panel._tree = empty_tree
+
+    panel._on_item_expanded(FakeModelIndex(True, "proxy-dir"))
+    assert str(tmp_path / "empty") in panel._pending_anim_paths
+    assert empty_tree.collapsed[-1] == "proxy-dir"
+    panel._on_directory_loaded(str(tmp_path / "empty"))
+    assert str(tmp_path / "empty") not in panel._pending_anim_paths
+    assert empty_tree.expanded == []
+
+    root_model = FakeRootPrefetchModel(
+        paths={"loaded-dir": str(tmp_path)},
+        dirs={"loaded-dir-child-0", "loaded-dir-child-1"},
+    )
+    panel._fs_model = root_model
+    panel._proxy = FakeExplorerProxy(FakeModelIndex(True, "loaded-dir"))
+    panel._root_path = str(tmp_path)
+    panel._on_directory_loaded(str(tmp_path))
+    assert root_model.fetched == ["loaded-dir-child-0", "loaded-dir-child-1"]
+
     large_model = FakeLargeExplorerModel(paths={}, dirs={
         f"big-child-{row}" for row in range(_MAX_PREFETCH_SUBDIRS + 5)
     })
@@ -409,6 +457,8 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     assert len(large_model.fetched) == _MAX_PREFETCH_SUBDIRS
     assert large_model.fetched[-1] == f"big-child-{_MAX_PREFETCH_SUBDIRS - 1}"
     panel._fs_model = model
+    panel._proxy = proxy
+    panel._tree = tree
 
     enter = QKeyEvent(
         QEvent.Type.KeyPress,
