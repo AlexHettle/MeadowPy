@@ -17,5 +17,21 @@ def test_explain_error_uses_generic_pattern_when_needed():
     assert "can't divide by zero" in explanation
 
 
+def test_explain_error_matches_unbound_local_error_old_and_new_wording():
+    old_message = "UnboundLocalError: local variable 'score' referenced before assignment"
+    new_message = (
+        "UnboundLocalError: cannot access local variable 'score' "
+        "where it is not associated with a value"
+    )
+
+    old_explanation = explain_error(old_message)
+    new_explanation = explain_error(new_message)
+
+    assert old_explanation is not None
+    assert new_explanation is not None
+    assert "variable 'score'" in old_explanation
+    assert "variable 'score'" in new_explanation
+
+
 def test_explain_error_returns_none_for_unknown_error():
     assert explain_error("TotallyUnknownError: no mapping") is None

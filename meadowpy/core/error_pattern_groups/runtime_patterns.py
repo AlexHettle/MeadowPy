@@ -97,8 +97,9 @@ RUNTIME_PATTERNS: list[ErrorPattern] = [
     # Scope errors
     (
         re.compile(
-            r"UnboundLocalError: .*local variable '(.+)' "
-            r"referenced before assignment"
+            r"UnboundLocalError: .*local variable '([^']+)' "
+            r"(?:referenced before assignment|"
+            r"where it is not associated with a value)"
         ),
         "You're using the variable '{0}' before giving it a value "
         "in this function. If it's a global variable, add "
