@@ -4,10 +4,21 @@ from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
-from PyQt6.QtWidgets import QFontComboBox, QTextEdit, QToolButton, QWidget
+from PyQt6.QtWidgets import (
+    QFontComboBox,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QTabBar,
+    QTabWidget,
+    QTextEdit,
+    QToolButton,
+    QWidget,
+)
 
 import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
 from meadowpy.core.settings import Settings
+from meadowpy.resources.resource_loader import get_stylesheet
 from meadowpy.ui.ai_chat_panel import AIChatPanel
 from meadowpy.ui.debug_toolbar import DebugToolBar
 from meadowpy.ui.dialogs.about_dialog import AboutDialog
@@ -28,6 +39,14 @@ from meadowpy.ui.file_explorer import FileExplorerPanel
 from meadowpy.ui.find_replace_bar import FindReplaceBar
 from meadowpy.ui.keyword_help_popup import KeywordHelpPopup
 from meadowpy.ui.output_panel import OutputPanel
+from meadowpy.ui.panel_title_bar import (
+    PANEL_TITLE_BAR_HEIGHT,
+    PANEL_TITLE_CONTENT_HEIGHT,
+    PANEL_TITLE_CONTROL_SIZE,
+    PANEL_TITLE_ICON_BUTTON_SIZE,
+    PANEL_TITLE_VERTICAL_MARGIN,
+)
+from meadowpy.ui.problems_panel import ProblemsPanel
 from meadowpy.ui.search_panel import SearchPanel, SearchResult, SearchWorker
 from meadowpy.ui.symbol_outline import SymbolOutlinePanel
 from meadowpy.ui.tool_bar import ToolBarBuilder, ToolbarGlowPainter
@@ -62,6 +81,130 @@ class FakeSettings:
 
     def get(self, key, default=None):
         return self.values.get(key, default)
+
+
+def test_custom_panel_title_rows_share_height_and_centering(qapp):
+    panels = [
+        FileExplorerPanel(),
+        ProblemsPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
+        OutputPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
+        AIChatPanel(),
+        SearchPanel(),
+        SymbolOutlinePanel(),
+    ]
+    title_label_names = [
+        "explorerTitleLabel",
+        "problemsTitleLabel",
+        "outputTitleLabel",
+        "aiChatTitleLabel",
+        "searchTitleLabel",
+        "outlineTitleLabel",
+    ]
+    try:
+        for panel, label_name in zip(panels, title_label_names):
+            title_bar = panel.titleBarWidget()
+            layout = title_bar.layout()
+            margins = layout.contentsMargins()
+            title_label = title_bar.findChild(QLabel, label_name)
+
+            assert title_bar.minimumHeight() == PANEL_TITLE_BAR_HEIGHT
+            assert title_bar.maximumHeight() == PANEL_TITLE_BAR_HEIGHT
+            assert margins.top() == PANEL_TITLE_VERTICAL_MARGIN
+            assert margins.bottom() == PANEL_TITLE_VERTICAL_MARGIN
+            assert layout.alignment() & Qt.AlignmentFlag.AlignVCenter
+            assert title_label.minimumHeight() == PANEL_TITLE_CONTENT_HEIGHT
+            assert title_label.maximumHeight() == PANEL_TITLE_CONTENT_HEIGHT
+
+        control_bars = [
+            panels[0].titleBarWidget(),
+            panels[2].titleBarWidget(),
+            panels[3].titleBarWidget(),
+        ]
+        explorer_title_buttons = panels[0].titleBarWidget().findChildren(
+            QToolButton
+        )
+        other_title_buttons = [
+            button
+            for title_bar in control_bars[1:]
+            for button in title_bar.findChildren(QToolButton)
+        ]
+        assert explorer_title_buttons
+        assert other_title_buttons
+        assert {
+            (button.minimumWidth(), button.minimumHeight())
+            for button in explorer_title_buttons
+        } == {(PANEL_TITLE_ICON_BUTTON_SIZE, PANEL_TITLE_ICON_BUTTON_SIZE)}
+        assert {
+            (button.minimumWidth(), button.minimumHeight())
+            for button in other_title_buttons
+        } == {(PANEL_TITLE_CONTROL_SIZE, PANEL_TITLE_CONTROL_SIZE)}
+
+        title_push_buttons = [
+            button
+            for title_bar in control_bars
+            for button in title_bar.findChildren(QPushButton)
+        ]
+        assert title_push_buttons
+        assert {
+            (button.minimumHeight(), button.maximumHeight())
+            for button in title_push_buttons
+        } == {(PANEL_TITLE_CONTENT_HEIGHT, PANEL_TITLE_CONTENT_HEIGHT)}
+    finally:
+        for panel in panels:
+            panel.deleteLater()
+
+
+def test_tabified_dock_tabs_match_panel_title_row_height(qapp):
+    previous_stylesheet = qapp.styleSheet()
+    window = QMainWindow()
+    explorer_panel = FileExplorerPanel()
+    problems_panel = ProblemsPanel(
+        settings=FakeSettings({"editor.theme": "default_dark"})
+    )
+    output_panel = OutputPanel(
+        settings=FakeSettings({"editor.theme": "default_dark"})
+    )
+    search_panel = SearchPanel()
+    panels = [explorer_panel, problems_panel, output_panel, search_panel]
+    try:
+        qapp.setStyleSheet(get_stylesheet("default_dark"))
+        window.resize(800, 500)
+        window.setTabPosition(
+            Qt.DockWidgetArea.LeftDockWidgetArea,
+            QTabWidget.TabPosition.North,
+        )
+        window.setTabPosition(
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+            QTabWidget.TabPosition.North,
+        )
+        window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, explorer_panel)
+        window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, problems_panel)
+        window.tabifyDockWidget(explorer_panel, problems_panel)
+        window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, output_panel)
+        window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, search_panel)
+        window.tabifyDockWidget(output_panel, search_panel)
+        window.show()
+        qapp.processEvents()
+
+        tab_bars = [
+            tab_bar for tab_bar in window.findChildren(QTabBar)
+            if tab_bar.count()
+        ]
+        assert tab_bars
+        assert {
+            tab_bar.tabRect(0).height() for tab_bar in tab_bars
+        } == {PANEL_TITLE_BAR_HEIGHT}
+        title_bar_y_positions = []
+        for panel in panels:
+            panel.raise_()
+            qapp.processEvents()
+            title_bar_y_positions.append(panel.titleBarWidget().geometry().y())
+        assert set(title_bar_y_positions) == {0}
+    finally:
+        qapp.setStyleSheet(previous_stylesheet)
+        window.deleteLater()
+        for panel in panels:
+            panel.deleteLater()
 
 
 def test_output_panel_handles_repl_stdin_errors_history_and_clipboard(qapp):

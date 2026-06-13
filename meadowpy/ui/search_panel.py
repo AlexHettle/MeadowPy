@@ -21,6 +21,10 @@ from PyQt6.QtWidgets import (
 
 from meadowpy.core.qt_threads import stop_qthread
 from meadowpy.ui.item_delegates import NoFocusDelegate
+from meadowpy.ui.panel_title_bar import (
+    configure_panel_title_bar,
+    configure_panel_title_label,
+)
 
 
 # ── Directories and extensions to skip ──────────────────────────────────
@@ -165,14 +169,13 @@ class SearchPanel(QDockWidget):
         title_bar = QFrame()
         title_bar.setObjectName("searchTitleBar")
         title_bar.setFrameShape(QFrame.Shape.NoFrame)
-        title_bar.setFixedHeight(40)
         title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(10, 2, 6, 8)
-        title_layout.setSpacing(6)
+        configure_panel_title_bar(title_bar, title_layout)
 
         title_label = QLabel("Search")
         title_label.setObjectName("searchTitleLabel")
-        title_layout.addWidget(title_label)
+        configure_panel_title_label(title_label)
+        title_layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
         title_layout.addStretch()
 
         self.setTitleBarWidget(title_bar)

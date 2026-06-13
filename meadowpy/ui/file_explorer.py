@@ -27,6 +27,13 @@ from meadowpy.resources.resource_loader import (
     load_tinted_icon,
 )
 from meadowpy.ui.item_delegates import NoFocusDelegate
+from meadowpy.ui.panel_title_bar import (
+    PANEL_TITLE_CONTROL_SIZE,
+    PANEL_TITLE_ICON_SIZE,
+    PANEL_TITLE_ICON_BUTTON_SIZE,
+    configure_panel_title_bar,
+    configure_panel_title_label,
+)
 
 
 # ── Hidden names / suffixes filtered from the tree ──────────────────────
@@ -231,19 +238,18 @@ class FileExplorerPanel(QDockWidget):
         title_bar = QFrame()
         title_bar.setObjectName("explorerTitleBar")
         title_bar.setFrameShape(QFrame.Shape.NoFrame)
-        title_bar.setFixedHeight(40)
         t_layout = QHBoxLayout(title_bar)
-        t_layout.setContentsMargins(10, 2, 4, 8)
-        t_layout.setSpacing(2)
+        configure_panel_title_bar(title_bar, t_layout, right_margin=4, spacing=2)
 
         title_label = QLabel("File Explorer")
         title_label.setObjectName("explorerTitleLabel")
-        t_layout.addWidget(title_label)
+        configure_panel_title_label(title_label)
+        t_layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
         t_layout.addStretch()
 
         self._new_file_btn = self._make_icon_button("New File")
         self._new_file_btn.clicked.connect(self._on_title_new_file)
-        t_layout.addWidget(self._new_file_btn)
+        t_layout.addWidget(self._new_file_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._menu_btn = self._make_icon_button("More Actions")
         self._menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -251,7 +257,7 @@ class FileExplorerPanel(QDockWidget):
         menu.addAction("Collapse All", self.collapse_all)
         menu.addAction("Refresh", self.refresh)
         self._menu_btn.setMenu(menu)
-        t_layout.addWidget(self._menu_btn)
+        t_layout.addWidget(self._menu_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Custom title bar is set as the dock's title bar so the dock
         # remains draggable via this widget. The border is split between
@@ -326,8 +332,11 @@ class FileExplorerPanel(QDockWidget):
         btn.setObjectName("explorerTitleButton")
         btn.setToolTip(tooltip)
         btn.setAutoRaise(True)
-        btn.setFixedSize(26, 26)
-        btn.setIconSize(QSize(16, 16))
+        btn.setFixedSize(
+            PANEL_TITLE_ICON_BUTTON_SIZE,
+            PANEL_TITLE_ICON_BUTTON_SIZE,
+        )
+        btn.setIconSize(QSize(PANEL_TITLE_ICON_SIZE, PANEL_TITLE_ICON_SIZE))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         return btn
 

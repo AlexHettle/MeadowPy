@@ -18,6 +18,12 @@ from PyQt6.QtWidgets import (
 
 from meadowpy.resources.resource_loader import load_tinted_icon
 from meadowpy.ui.ai_chat_widgets import ChatBubble, ChatInput, ChatView
+from meadowpy.ui.panel_title_bar import (
+    PANEL_TITLE_CONTENT_HEIGHT,
+    PANEL_TITLE_CONTROL_SIZE,
+    configure_panel_title_bar,
+    configure_panel_title_label,
+)
 
 # Matches fenced code blocks:  ```lang\n...\n```  or  ```\n...\n```
 # Allows optional spaces/tabs after the language name, and \r\n line endings.
@@ -93,48 +99,47 @@ class AIChatPanel(QDockWidget):
         title_bar = QFrame()
         title_bar.setObjectName("aiChatTitleBar")
         title_bar.setFrameShape(QFrame.Shape.NoFrame)
-        title_bar.setFixedHeight(40)
         header_layout = QHBoxLayout(title_bar)
-        header_layout.setContentsMargins(10, 2, 6, 8)
-        header_layout.setSpacing(8)
+        configure_panel_title_bar(title_bar, header_layout, spacing=8)
 
         self._brand_icon = QLabel()
         self._brand_icon.setObjectName("aiChatBrandIcon")
         self._brand_icon.setFixedSize(16, 16)
-        header_layout.addWidget(self._brand_icon)
+        header_layout.addWidget(self._brand_icon, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._title_label = QLabel("AI Assistant")
         self._title_label.setObjectName("aiChatTitleLabel")
-        header_layout.addWidget(self._title_label)
+        configure_panel_title_label(self._title_label)
+        header_layout.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         header_layout.addStretch()
 
         self._status_dot = QLabel()
         self._status_dot.setObjectName("aiChatStatusDot")
         self._status_dot.setFixedSize(8, 8)
-        header_layout.addWidget(self._status_dot)
+        header_layout.addWidget(self._status_dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._model_label = QLabel("ollama")
         self._model_label.setObjectName("aiChatModelLabel")
         self._model_label.setToolTip("Currently selected Ollama AI model")
-        header_layout.addWidget(self._model_label)
+        header_layout.addWidget(self._model_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._setup_btn = QPushButton("Setup")
         self._setup_btn.setObjectName("aiChatSetupBtn")
         self._setup_btn.setToolTip("Set up or check Ollama")
-        self._setup_btn.setFixedHeight(22)
+        self._setup_btn.setFixedHeight(PANEL_TITLE_CONTENT_HEIGHT)
         self._setup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_btn.clicked.connect(self.setup_requested.emit)
-        header_layout.addWidget(self._setup_btn)
+        header_layout.addWidget(self._setup_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._clear_btn = QToolButton()
         self._clear_btn.setObjectName("aiChatClearBtn")
         self._clear_btn.setText("\u2715")
         self._clear_btn.setToolTip("Clear the conversation and start fresh")
-        self._clear_btn.setFixedSize(22, 22)
+        self._clear_btn.setFixedSize(PANEL_TITLE_CONTROL_SIZE, PANEL_TITLE_CONTROL_SIZE)
         self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._clear_btn.clicked.connect(self.clear_chat)
-        header_layout.addWidget(self._clear_btn)
+        header_layout.addWidget(self._clear_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self.setTitleBarWidget(title_bar)
         self._title_bar = title_bar

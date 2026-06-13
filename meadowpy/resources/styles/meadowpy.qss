@@ -41,8 +41,25 @@ QTabBar {
 /* Tabified dock-widget tab strips (Problems/Outline, Search/AI Chat, etc.) */
 QMainWindow > QTabBar {
     background: #ECECEC;
+    border-bottom: 1px solid #FFFFFF;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
+}
+
+QMainWindow > QTabBar::tab {
+    min-height: 34px;
+    max-height: 34px;
+    padding: 0px 14px;
+}
+
+#explorerTitleBar,
+#outlineTitleBar,
+#problemsTitleBar,
+#searchTitleBar,
+#outputTitleBar,
+#aiChatTitleBar {
+    min-height: 36px;
+    max-height: 36px;
 }
 
 QTabBar::scroller {
@@ -77,7 +94,9 @@ QTabBar::tab {
     border-bottom: none;
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
-    padding: 4px 14px 8px 14px;
+    padding: 0px 14px;
+    min-height: 34px;
+    max-height: 34px;
     min-width: 80px;
     color: #616161;
     font-size: 13px;
@@ -323,12 +342,18 @@ QScrollBar::sub-page:horizontal {
 
 /* ===== File Explorer Panel ===== */
 #FileExplorer {
-    background: #E5E7EB;
+    background: #FFFFFF;
+}
+
+#FileExplorer QWidget {
+    background: #FFFFFF;
+    color: #1F2937;
 }
 
 #explorerContainer {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
+    border-top: none;
     border-bottom-left-radius: 10px;
     border-bottom-right-radius: 10px;
 }
@@ -336,7 +361,7 @@ QScrollBar::sub-page:horizontal {
 #explorerTitleBar {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-bottom: none;
+    border-bottom: 1px solid #E5E7EB;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
 }
@@ -350,16 +375,20 @@ QScrollBar::sub-page:horizontal {
 
 #explorerTitleLabel {
     color: #4B5563;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
-    letter-spacing: 1px;
+    letter-spacing: 0px;
 }
 
 QToolButton#explorerTitleButton {
     background: transparent;
     border: 1px solid transparent;
     border-radius: 4px;
-    padding: 2px;
+    padding: 0px;
+    min-width: 22px;
+    max-width: 22px;
+    min-height: 22px;
+    max-height: 22px;
 }
 
 QToolButton#explorerTitleButton:hover {
@@ -671,7 +700,7 @@ QRadioButton::indicator:checked {
 
 /* Symbol Outline Panel */
 #SymbolOutline {
-    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+    background: #FFFFFF;
 }
 
 #SymbolOutline QWidget {
@@ -753,7 +782,7 @@ QRadioButton::indicator:checked {
 
 /* Problems Panel */
 #ProblemsPanel {
-    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+    background: #FFFFFF;
 }
 
 #ProblemsPanel QWidget {
@@ -947,7 +976,7 @@ QRadioButton::indicator:checked {
 /* ===== Output Panel ===== */
 
 #OutputPanel {
-    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+    background: #FFFFFF;
 }
 
 #outputTitleBar {
@@ -1302,7 +1331,7 @@ QRadioButton::indicator:checked {
 /* ===== Search Panel ===== */
 
 #SearchPanel {
-    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+    background: #FFFFFF;
 }
 
 #SearchPanel QWidget {
@@ -1630,7 +1659,7 @@ QRadioButton::indicator:checked {
 /* ===== AI Chat Panel ===== */
 
 #AIChatPanel {
-    background: #E5E7EB;  /* border-color matte so rounded corners blend */
+    background: #FFFFFF;
 }
 
 #aiChatTitleBar {
@@ -1701,10 +1730,10 @@ QRadioButton::indicator:checked {
 }
 
 #aiChatTitleLabel {
-    font-weight: 600;
+    font-weight: bold;
     color: #1F1F1F;
     font-size: 13px;
-    letter-spacing: 0.2px;
+    letter-spacing: 0px;
 }
 
 #aiChatModelLabel {

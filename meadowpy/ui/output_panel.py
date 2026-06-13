@@ -28,6 +28,13 @@ from meadowpy.ui.output_text_formatting import (
     normalize_output_text,
     stream_text_format,
 )
+from meadowpy.ui.panel_title_bar import (
+    PANEL_TITLE_CONTENT_HEIGHT,
+    PANEL_TITLE_CONTROL_SIZE,
+    PANEL_TITLE_ICON_SIZE,
+    configure_panel_title_bar,
+    configure_panel_title_label,
+)
 
 
 class OutputPanel(QDockWidget):
@@ -80,21 +87,20 @@ class OutputPanel(QDockWidget):
         title_bar = QFrame()
         title_bar.setObjectName("outputTitleBar")
         title_bar.setFrameShape(QFrame.Shape.NoFrame)
-        title_bar.setFixedHeight(40)
         header_layout = QHBoxLayout(title_bar)
-        header_layout.setContentsMargins(10, 2, 6, 8)
-        header_layout.setSpacing(2)
+        configure_panel_title_bar(title_bar, header_layout, spacing=2)
 
         title_label = QLabel("Output")
         title_label.setObjectName("outputTitleLabel")
-        header_layout.addWidget(title_label)
+        configure_panel_title_label(title_label)
+        header_layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         header_layout.addStretch()
 
         self._fix_btn = QPushButton("AI Analysis")
         self._fix_btn.setObjectName("outputFixAIBtn")
         self._fix_btn.setToolTip("Ask the AI to analyze the last error")
-        self._fix_btn.setFixedHeight(22)
+        self._fix_btn.setFixedHeight(PANEL_TITLE_CONTENT_HEIGHT)
         self._fix_btn.setVisible(False)  # shown only when an error exists
         self._fix_btn.clicked.connect(self._on_fix_with_ai)
 
@@ -146,7 +152,7 @@ class OutputPanel(QDockWidget):
         sep.setStyleSheet("color: #999; margin: 0 4px;")
         sep.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sep.setContentsMargins(0, 0, 0, 4)
-        sep.setFixedHeight(24)
+        sep.setFixedHeight(PANEL_TITLE_CONTENT_HEIGHT)
         header_layout.addWidget(sep, 0, Qt.AlignmentFlag.AlignVCenter)
 
         for btn in (self._clear_btn, self._copy_btn):
@@ -158,7 +164,7 @@ class OutputPanel(QDockWidget):
         self._fix_separator = sep2
         self._fix_separator.setVisible(False)
         self._fix_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._fix_separator.setFixedHeight(24)
+        self._fix_separator.setFixedHeight(PANEL_TITLE_CONTENT_HEIGHT)
         header_layout.addWidget(
             self._fix_separator,
             0,
@@ -514,8 +520,8 @@ class OutputPanel(QDockWidget):
     def _make_tool_button(self, icon_name: str, tooltip: str) -> QToolButton:
         btn = QToolButton()
         btn.setToolTip(tooltip)
-        btn.setFixedSize(24, 24)
-        btn.setIconSize(QSize(16, 16))
+        btn.setFixedSize(PANEL_TITLE_CONTROL_SIZE, PANEL_TITLE_CONTROL_SIZE)
+        btn.setIconSize(QSize(PANEL_TITLE_ICON_SIZE, PANEL_TITLE_ICON_SIZE))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             """

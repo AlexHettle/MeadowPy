@@ -21,6 +21,10 @@ from PyQt6.QtWidgets import (
 )
 
 from meadowpy.ui.item_delegates import NoFocusDelegate
+from meadowpy.ui.panel_title_bar import (
+    configure_panel_title_bar,
+    configure_panel_title_label,
+)
 
 
 # Roles stashed on each tree item so the delegate can render a colored
@@ -145,14 +149,13 @@ class SymbolOutlinePanel(QDockWidget):
         title_bar = QFrame()
         title_bar.setObjectName("outlineTitleBar")
         title_bar.setFrameShape(QFrame.Shape.NoFrame)
-        title_bar.setFixedHeight(40)
         title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(10, 2, 6, 8)
-        title_layout.setSpacing(6)
+        configure_panel_title_bar(title_bar, title_layout)
 
         title_label = QLabel("Outline")
         title_label.setObjectName("outlineTitleLabel")
-        title_layout.addWidget(title_label)
+        configure_panel_title_label(title_label)
+        title_layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
         title_layout.addStretch()
 
         self.setTitleBarWidget(title_bar)

@@ -21,6 +21,10 @@ from meadowpy.resources.resource_loader import (
     theme_is_high_contrast,
 )
 from meadowpy.ui.item_delegates import NoFocusDelegate
+from meadowpy.ui.panel_title_bar import (
+    configure_panel_title_bar,
+    configure_panel_title_label,
+)
 
 
 class ProblemsPanel(QDockWidget):
@@ -47,14 +51,13 @@ class ProblemsPanel(QDockWidget):
         title_bar = QFrame()
         title_bar.setObjectName("problemsTitleBar")
         title_bar.setFrameShape(QFrame.Shape.NoFrame)
-        title_bar.setFixedHeight(40)
         title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(10, 2, 6, 8)
-        title_layout.setSpacing(6)
+        configure_panel_title_bar(title_bar, title_layout)
 
         self._title_label = QLabel("Problems")
         self._title_label.setObjectName("problemsTitleLabel")
-        title_layout.addWidget(self._title_label)
+        configure_panel_title_label(self._title_label)
+        title_layout.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
         title_layout.addStretch()
 
         self.setTitleBarWidget(title_bar)

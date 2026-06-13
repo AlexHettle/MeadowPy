@@ -144,6 +144,24 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
     border: 2px solid #FFFFFF;
 }
 
+#FileExplorer QWidget {
+    background: #000000;
+    color: #FFFFFF;
+}
+
+#explorerContainer {
+    border-top: none;
+}
+
+#FileExplorer,
+#SymbolOutline,
+#ProblemsPanel,
+#SearchPanel,
+#OutputPanel,
+#AIChatPanel {
+    background: #000000;
+}
+
 #explorerTitleBar,
 #outlineTitleBar,
 #problemsTitleBar,
@@ -152,6 +170,12 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
 #aiChatTitleBar {
     border: 2px solid #FFFFFF;
     border-bottom: none;
+    min-height: 36px;
+    max-height: 36px;
+}
+
+#explorerTitleBar {
+    border-bottom: 2px solid #FFFFFF;
 }
 
 #aiChatInputContainer {
@@ -160,7 +184,9 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
 }
 
 /* Tab bars - selected tab inverts with white background and black text. */
-QTabBar::tab { color: #FFFFFF; background: #000000; border: 2px solid transparent; border-bottom: none; }
+QMainWindow > QTabBar { border-bottom: 2px solid #000000; }
+QTabBar::tab { color: #FFFFFF; background: #000000; border: 2px solid transparent; border-bottom: none; min-height: 34px; max-height: 34px; padding: 0px 14px; }
+QMainWindow > QTabBar::tab { min-height: 34px; max-height: 34px; padding: 0px 14px; }
 QTabBar::tab:selected {
     background: #FFFFFF; color: #000000;
     border: 2px solid #FFFFFF; border-bottom: none;
