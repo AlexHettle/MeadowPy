@@ -54,12 +54,16 @@ class AutoCloseHandler:
 
         # Case 2: Typing a quote
         if char in self.QUOTES:
+            count_before = line_content[:col].count(char)
+
             # Skip over if closing quote already at cursor
             if col < len(line_content) and line_content[col] == char:
-                count_before = line_content[:col].count(char)
                 if count_before % 2 == 1:  # odd count = this is closing
                     self._editor.setCursorPosition(line, col + 1)
                     return True
+
+            if count_before % 2 == 1:
+                return False
 
             # Insert pair if next char is whitespace, EOL, or a closer
             next_char = line_content[col] if col < len(line_content) else ""

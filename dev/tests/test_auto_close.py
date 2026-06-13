@@ -49,6 +49,24 @@ def test_handle_key_skips_existing_closing_quote(tmp_path):
     assert editor.getCursorPosition() == (0, 3)
 
 
+def test_handle_key_does_not_pair_closing_quote_in_open_string(tmp_path):
+    text = 'print("hello'
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(text)))
+
+    assert handler.handle_key(DummyKeyEvent('"')) is False
+    assert editor.all_text() == text
+
+
+def test_handle_key_does_not_pair_closing_quote_before_closer(tmp_path):
+    text = 'print("hello)'
+    cursor_col = len('print("hello')
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, cursor_col))
+
+    assert handler.handle_key(DummyKeyEvent('"')) is False
+    assert editor.all_text() == text
+    assert editor.getCursorPosition() == (0, cursor_col)
+
+
 def test_handle_backspace_removes_auto_inserted_pair(tmp_path):
     editor, handler = make_handler(tmp_path, text="()", cursor=(0, 1))
 
