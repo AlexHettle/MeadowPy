@@ -1762,7 +1762,7 @@ QRadioButton::indicator:checked {
     border-radius: 11px;
     color: #6B6B6B;
     font-size: 11px;
-    padding: 0;
+    padding: 1px 0px 0px 0px;
 }
 
 #aiChatClearBtn:hover {

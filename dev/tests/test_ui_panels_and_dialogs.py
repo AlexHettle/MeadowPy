@@ -149,6 +149,49 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
             (button.minimumHeight(), button.maximumHeight())
             for button in title_push_buttons
         } == {(PANEL_TITLE_CONTENT_HEIGHT, PANEL_TITLE_CONTENT_HEIGHT)}
+
+        ai_title_bar = panels[3].titleBarWidget()
+        status_dot_slot = ai_title_bar.findChild(QWidget, "aiChatStatusDotSlot")
+        status_dot = ai_title_bar.findChild(QLabel, "aiChatStatusDot")
+        model_label = ai_title_bar.findChild(QLabel, "aiChatModelLabel")
+        assert status_dot_slot is not None
+        assert status_dot is not None
+        assert model_label is not None
+        assert (
+            status_dot_slot.minimumWidth(),
+            status_dot_slot.minimumHeight(),
+            status_dot_slot.maximumWidth(),
+            status_dot_slot.maximumHeight(),
+        ) == (
+            12,
+            PANEL_TITLE_CONTENT_HEIGHT,
+            12,
+            PANEL_TITLE_CONTENT_HEIGHT,
+        )
+        assert (status_dot.minimumWidth(), status_dot.minimumHeight()) == (8, 8)
+        assert status_dot_slot.layout().itemAt(0).alignment() & (
+            Qt.AlignmentFlag.AlignCenter
+        )
+        status_dot_margins = status_dot_slot.layout().contentsMargins()
+        assert (
+            status_dot_margins.left(),
+            status_dot_margins.top(),
+            status_dot_margins.right(),
+            status_dot_margins.bottom(),
+        ) == (2, 4, 2, 0)
+        assert status_dot.testAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents
+        )
+        assert (
+            model_label.minimumHeight(),
+            model_label.maximumHeight(),
+        ) == (PANEL_TITLE_CONTENT_HEIGHT, PANEL_TITLE_CONTENT_HEIGHT)
+        assert model_label.alignment() & Qt.AlignmentFlag.AlignVCenter
+        assert status_dot.toolTip() == ""
+        assert status_dot_slot.toolTip() == "Ollama is offline"
+        panels[3].set_connected(True)
+        assert status_dot.toolTip() == ""
+        assert status_dot_slot.toolTip() == "Ollama is connected"
     finally:
         for panel in panels:
             panel.deleteLater()

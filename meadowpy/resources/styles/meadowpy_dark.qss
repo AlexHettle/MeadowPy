@@ -1883,7 +1883,7 @@ QDockWidget::title {
     border-radius: 11px;
     color: #8A8A8A;
     font-size: 11px;
-    padding: 0;
+    padding: 1px 0px 0px 0px;
 }
 
 #aiChatClearBtn:hover {

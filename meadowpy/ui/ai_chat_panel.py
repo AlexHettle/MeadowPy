@@ -114,13 +114,29 @@ class AIChatPanel(QDockWidget):
 
         header_layout.addStretch()
 
+        self._status_dot_slot = QWidget()
+        self._status_dot_slot.setObjectName("aiChatStatusDotSlot")
+        self._status_dot_slot.setFixedSize(12, PANEL_TITLE_CONTENT_HEIGHT)
+        status_dot_layout = QHBoxLayout(self._status_dot_slot)
+        status_dot_layout.setContentsMargins(2, 4, 2, 0)
+        status_dot_layout.setSpacing(0)
+
         self._status_dot = QLabel()
         self._status_dot.setObjectName("aiChatStatusDot")
         self._status_dot.setFixedSize(8, 8)
-        header_layout.addWidget(self._status_dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._status_dot.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
+        status_dot_layout.addWidget(
+            self._status_dot, 0, Qt.AlignmentFlag.AlignCenter
+        )
+        header_layout.addWidget(
+            self._status_dot_slot, 0, Qt.AlignmentFlag.AlignVCenter
+        )
 
         self._model_label = QLabel("ollama")
         self._model_label.setObjectName("aiChatModelLabel")
+        configure_panel_title_label(self._model_label)
         self._model_label.setToolTip("Currently selected Ollama AI model")
         header_layout.addWidget(self._model_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -318,9 +334,11 @@ class AIChatPanel(QDockWidget):
 
     def _set_status_dot(self, connected: bool) -> None:
         color = self._accent_hex if connected else "#6B6B6B"
+        tooltip = "Ollama is connected" if connected else "Ollama is offline"
         self._status_dot.setStyleSheet(
             f"background: {color}; border-radius: 4px;"
         )
+        self._status_dot_slot.setToolTip(tooltip)
 
     def append_token(self, token: str) -> None:
         """Append a single streamed token to the current assistant message.
