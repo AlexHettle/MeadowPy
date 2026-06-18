@@ -3,8 +3,23 @@
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QModelIndex, QSortFilterProxyModel, QEvent, QSize
-from PyQt6.QtGui import QAction, QColor, QFileSystemModel, QIcon, QKeyEvent, QPalette
+from PyQt6.QtCore import (
+    Qt,
+    QTimer,
+    pyqtSignal,
+    QModelIndex,
+    QSortFilterProxyModel,
+    QEvent,
+    QSize,
+)
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QFileSystemModel,
+    QIcon,
+    QKeyEvent,
+    QPalette,
+)
 from PyQt6.QtWidgets import (
     QDockWidget,
     QFileIconProvider,
@@ -26,6 +41,7 @@ from meadowpy.resources.resource_loader import (
     lighten_color,
     load_tinted_icon,
 )
+from meadowpy.core.file_manager import is_known_unsupported_editor_file
 from meadowpy.ui.item_delegates import NoFocusDelegate
 from meadowpy.ui.panel_title_bar import (
     PANEL_TITLE_CONTROL_SIZE,
@@ -44,6 +60,7 @@ _HIDDEN_NAMES = {
 _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
 _MAX_PREFETCH_SUBDIRS = 40
 _PENDING_REEXPAND_DELAY_MS = 30
+_BLOCKED_FILE_TOOLTIP = "This file type cannot be opened in MeadowPy's text editor."
 
 
 def _name_is_visible_in_explorer(name: str) -> bool:
@@ -74,6 +91,8 @@ class _ExplorerIconProvider(QFileIconProvider):
         self._folder: QIcon = QIcon()
         self._empty_folder: QIcon = QIcon()
         self._empty_text_color = "#6F766B"
+        self._blocked_file: QIcon = QIcon()
+        self._blocked_file_text_color = "#6F766B"
         self._file_generic: QIcon = QIcon()
         self._file_python: QIcon = QIcon()
         self.rebuild(accent, is_dark)
@@ -83,6 +102,8 @@ class _ExplorerIconProvider(QFileIconProvider):
         empty_color = "#6F766B" if is_dark else "#9A9A9A"
         self._empty_folder = load_tinted_icon("folder_closed", empty_color)
         self._empty_text_color = empty_color
+        self._blocked_file = load_tinted_icon("file_generic", empty_color)
+        self._blocked_file_text_color = empty_color
         file_color = "#C8C8C8" if is_dark else "#6B6B6B"
         self._file_generic = load_tinted_icon("file_generic", file_color)
         self._file_python = load_tinted_icon("file_python", file_color)
@@ -93,6 +114,12 @@ class _ExplorerIconProvider(QFileIconProvider):
     def empty_text_color(self) -> str:
         return self._empty_text_color
 
+    def blocked_file_icon(self) -> QIcon:
+        return self._blocked_file
+
+    def blocked_file_text_color(self) -> str:
+        return self._blocked_file_text_color
+
     def icon(self, arg):  # type: ignore[override]
         if isinstance(arg, QFileIconProvider.IconType):
             if arg == QFileIconProvider.IconType.Folder:
@@ -101,6 +128,8 @@ class _ExplorerIconProvider(QFileIconProvider):
         # QFileInfo
         if arg.isDir():
             return self._folder
+        if is_known_unsupported_editor_file(arg.filePath()):
+            return self._blocked_file
         suffix = arg.suffix().lower()
         if suffix == "py":
             return self._file_python
@@ -125,6 +154,27 @@ class _ClickableLabel(QLabel):
 
 class _FilteredFileSystemModel(QSortFilterProxyModel):
     """Proxy that hides build artefacts and VCS directories."""
+
+    def _is_known_unsupported_file(self, proxy_index: QModelIndex) -> bool:
+        model = self.sourceModel()
+        if model is None or not proxy_index.isValid():
+            return False
+        try:
+            source_index = self.mapToSource(proxy_index)
+            return (
+                source_index.isValid()
+                and not model.isDir(source_index)
+                and is_known_unsupported_editor_file(model.filePath(source_index))
+            )
+        except AttributeError:
+            return False
+
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.ToolTipRole and self._is_known_unsupported_file(
+            index
+        ):
+            return _BLOCKED_FILE_TOOLTIP
+        return super().data(index, role)
 
     def canFetchMore(self, parent: QModelIndex = QModelIndex()) -> bool:
         model = self.sourceModel()
@@ -188,6 +238,15 @@ class _FileExplorerItemDelegate(NoFocusDelegate):
 
     def initStyleOption(self, option, index):
         super().initStyleOption(option, index)
+        if self._panel._is_blocked_editor_file(index):
+            color = QColor(self._panel._blocked_file_text_color())
+            option.palette.setColor(QPalette.ColorRole.Text, color)
+            option.palette.setColor(QPalette.ColorRole.HighlightedText, color)
+            icon = self._panel._blocked_file_icon()
+            if not icon.isNull():
+                option.icon = icon
+            return
+
         if not self._panel._is_known_empty_folder(index):
             return
 
@@ -414,6 +473,35 @@ class FileExplorerPanel(QDockWidget):
             return "#6F766B"
         return self._icon_provider.empty_text_color()
 
+    def _is_blocked_editor_file(self, proxy_index: QModelIndex) -> bool:
+        if not proxy_index.isValid() or not self._fs_model or not self._proxy:
+            return False
+        source_index = self._proxy.mapToSource(proxy_index)
+        if not source_index.isValid() or self._fs_model.isDir(source_index):
+            return False
+        return is_known_unsupported_editor_file(self._fs_model.filePath(source_index))
+
+    def _blocked_file_icon(self) -> QIcon:
+        if self._icon_provider is None:
+            return QIcon()
+        return self._icon_provider.blocked_file_icon()
+
+    def _blocked_file_text_color(self) -> str:
+        if self._icon_provider is None:
+            return "#6F766B"
+        return self._icon_provider.blocked_file_text_color()
+
+    def _select_file_if_openable(self, proxy_index: QModelIndex) -> bool:
+        if not self._fs_model or not self._proxy or not proxy_index.isValid():
+            return False
+        source_index = self._proxy.mapToSource(proxy_index)
+        if not source_index.isValid() or self._fs_model.isDir(source_index):
+            return False
+        if self._is_blocked_editor_file(proxy_index):
+            return False
+        self.file_selected.emit(self._fs_model.filePath(source_index))
+        return True
+
     def _collapse_without_animation(self, proxy_index: QModelIndex) -> None:
         was_animated = (
             self._tree.isAnimated()
@@ -623,18 +711,14 @@ class FileExplorerPanel(QDockWidget):
                             self._tree.expand(proxy_index)
                     else:
                         # Open the file
-                        file_path = self._fs_model.filePath(source_index)
-                        self.file_selected.emit(file_path)
+                        self._select_file_if_openable(proxy_index)
                 return True
         return super().eventFilter(obj, event)
 
     # ── Slots ───────────────────────────────────────────────────────────
 
     def _on_double_clicked(self, proxy_index: QModelIndex) -> None:
-        source_index = self._proxy.mapToSource(proxy_index)
-        if not self._fs_model.isDir(source_index):
-            file_path = self._fs_model.filePath(source_index)
-            self.file_selected.emit(file_path)
+        self._select_file_if_openable(proxy_index)
 
     # ── Context menu ────────────────────────────────────────────────────
 

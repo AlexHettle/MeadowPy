@@ -2,7 +2,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from meadowpy.core.file_manager import FileManager, UnsupportedFileError
+from meadowpy.core.file_manager import (
+    FileManager,
+    UnsupportedFileError,
+    is_known_unsupported_editor_file,
+)
 from tests.helpers import SignalRecorder
 
 
@@ -100,6 +104,13 @@ def test_read_file_rejects_office_documents(tmp_path):
 
     with pytest.raises(UnsupportedFileError, match="not a text file"):
         manager.read_file(str(file_path))
+
+
+def test_known_unsupported_editor_file_helper_identifies_blocked_suffixes():
+    assert is_known_unsupported_editor_file("review.docx") is True
+    assert is_known_unsupported_editor_file("archive.zip") is True
+    assert is_known_unsupported_editor_file("notes.txt") is False
+    assert is_known_unsupported_editor_file("script.py") is False
 
 
 def test_read_file_rejects_nul_heavy_payloads(tmp_path):

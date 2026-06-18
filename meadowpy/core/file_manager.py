@@ -52,6 +52,11 @@ _BINARY_FILE_SUFFIXES = {
 }
 
 
+def is_known_unsupported_editor_file(file_path: str | Path) -> bool:
+    """Return True for file types MeadowPy's text editor should not open."""
+    return Path(file_path).suffix.lower() in _BINARY_FILE_SUFFIXES
+
+
 class UnsupportedFileError(OSError):
     """Raised when a file is not suitable for MeadowPy's text editor."""
 
@@ -126,7 +131,7 @@ class FileManager(QObject):
     def read_file(self, file_path: str) -> str:
         """Read editor-safe text content with conservative binary rejection."""
         path = Path(file_path)
-        if path.suffix.lower() in _BINARY_FILE_SUFFIXES:
+        if is_known_unsupported_editor_file(path):
             raise UnsupportedFileError(
                 f"{path.name} is not a text file MeadowPy can edit."
             )

@@ -3,10 +3,22 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QFileInfo, QPointF, Qt
-from PyQt6.QtGui import QAction, QColor, QIcon, QKeyEvent, QKeySequence, QMouseEvent
-from PyQt6.QtWidgets import QFileIconProvider, QMenuBar, QWidget
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QIcon,
+    QKeyEvent,
+    QKeySequence,
+    QMouseEvent,
+)
+from PyQt6.QtWidgets import (
+    QFileIconProvider,
+    QMenuBar,
+    QWidget,
+)
 
 from meadowpy.ui.file_explorer import (
+    _BLOCKED_FILE_TOOLTIP,
     FileExplorerPanel,
     _ClickableLabel,
     _ExplorerIconProvider,
@@ -208,20 +220,25 @@ def test_splash_and_loading_dots_render_and_update_status(qapp):
 def test_file_explorer_icon_provider_badge_click_and_live_theme(qapp, tmp_path):
     py_file = tmp_path / "main.py"
     txt_file = tmp_path / "notes.txt"
+    blocked_file = tmp_path / "review.docx"
     py_file.write_text("print('hi')\n", encoding="utf-8")
     txt_file.write_text("hello\n", encoding="utf-8")
+    blocked_file.write_bytes(b"PK\x03\x04\x14\x00\x00\x00word/document.xml")
 
     provider = _ExplorerIconProvider("#22AA44", is_dark=True)
     folder_icon = provider.icon(QFileInfo(str(tmp_path)))
     python_icon = provider.icon(QFileInfo(str(py_file)))
     generic_icon = provider.icon(QFileInfo(str(txt_file)))
+    blocked_icon = provider.icon(QFileInfo(str(blocked_file)))
     typed_folder_icon = provider.icon(QFileIconProvider.IconType.Folder)
 
     assert folder_icon.isNull() is False
     assert python_icon.isNull() is False
     assert generic_icon.isNull() is False
+    assert blocked_icon.isNull() is False
     assert typed_folder_icon.isNull() is False
     assert python_icon.cacheKey() != generic_icon.cacheKey()
+    assert blocked_icon.cacheKey() != generic_icon.cacheKey()
 
     provider.rebuild("#3366DD", is_dark=False)
     assert provider.icon(QFileInfo(str(py_file))).isNull() is False
@@ -523,6 +540,30 @@ def test_file_explorer_animation_keyboard_navigation_and_cancel_branches(
     panel._on_double_clicked(FakeModelIndex(True, "proxy-file"))
     assert selected.calls[-1] == (str(tmp_path / "demo.py"),)
 
+    previous_selected = list(selected.calls)
+    blocked_file = tmp_path / "review.docx"
+    blocked_file.write_bytes(b"PK\x03\x04\x14\x00\x00\x00word/document.xml")
+    blocked_model = FakeExplorerModel(
+        paths={"file": str(blocked_file)},
+        dirs=set(),
+    )
+    panel._fs_model = blocked_model
+    assert panel._is_blocked_editor_file(FakeModelIndex(True, "proxy-file")) is True
+    assert panel.eventFilter(tree, enter) is True
+    panel._on_double_clicked(FakeModelIndex(True, "proxy-file"))
+    assert selected.calls == previous_selected
+
+    text_file = tmp_path / "notes.txt"
+    text_file.write_text("plain notes\n", encoding="utf-8")
+    text_model = FakeExplorerModel(
+        paths={"file": str(text_file)},
+        dirs=set(),
+    )
+    panel._fs_model = text_model
+    assert panel._is_blocked_editor_file(FakeModelIndex(True, "proxy-file")) is False
+    assert panel.eventFilter(tree, enter) is True
+    assert selected.calls[-1] == (str(text_file),)
+
     invalid_dir, invalid_source = panel._resolve_target_dir(FakeModelIndex(False, "bad"))
     assert invalid_dir == tmp_path
     assert invalid_source is None
@@ -560,6 +601,8 @@ def test_file_explorer_proxy_hides_expander_for_known_empty_dirs(qapp, tmp_path)
     hidden_only_dir = tmp_path / "hidden_only"
     hidden_only_dir.mkdir()
     (hidden_only_dir / "__pycache__").mkdir()
+    blocked_file = tmp_path / "review.docx"
+    blocked_file.write_bytes(b"PK\x03\x04\x14\x00\x00\x00word/document.xml")
 
     source = FakeHasChildrenSource(
         dirs={"lazy", "empty", "full", "hidden_only"},
@@ -569,6 +612,7 @@ def test_file_explorer_proxy_hides_expander_for_known_empty_dirs(qapp, tmp_path)
             "empty": str(empty_dir),
             "full": str(full_dir),
             "hidden_only": str(hidden_only_dir),
+            "blocked": str(blocked_file),
         },
     )
     proxy = FakeFilteredProxy(source, {
@@ -583,5 +627,9 @@ def test_file_explorer_proxy_hides_expander_for_known_empty_dirs(qapp, tmp_path)
     assert proxy.canFetchMore(FakeModelIndex(True, "empty")) is False
     assert proxy.hasChildren(FakeModelIndex(True, "hidden_only")) is False
     assert proxy.canFetchMore(FakeModelIndex(True, "hidden_only")) is False
+    assert (
+        proxy.data(FakeModelIndex(True, "blocked"), Qt.ItemDataRole.ToolTipRole)
+        == _BLOCKED_FILE_TOOLTIP
+    )
 
     proxy.deleteLater()
