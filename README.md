@@ -217,13 +217,13 @@ MeadowPy is actively developed. Here's what's coming next:
 | Clickable tracebacks in output panel               | ✅ Completed    |
 | UI overhaul                                        | ✅ Completed    |
 | Improved styling cohesion                          | ✅ Completed    |
+| Large-file safeguard                               | ✅ Completed    |
 | MacOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
 | Keyboard shortcut editor                           | 🔄 In progress |
 | Improve linter customization                       | 🔄 In progress |
-| Large-file safeguard (warn / lazy-load >10 MB)     | 🔄 In progress |
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
