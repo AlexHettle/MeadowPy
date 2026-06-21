@@ -28,10 +28,14 @@ class CodeQualityController(MainWindowController):
 
     def _on_editor_text_changed(self) -> None:
         """Debounce both outline refresh and lint on text changes."""
+        editor = self._tab_manager.current_editor()
+        if self._is_large_file_editor(editor):
+            self._clear_large_file_analysis_state(editor)
+            return
+
         self._outline_timer.start()
         if not self._settings.get("editor.linting_enabled"):
             return
-        editor = self._tab_manager.current_editor()
         if can_run_editor(editor, CodeEditor):
             self._lint_timer.start()
         else:
@@ -54,6 +58,9 @@ class CodeQualityController(MainWindowController):
         """Refresh the symbol outline (called after debounce)."""
         editor = self._tab_manager.current_editor()
         if editor:
+            if self._is_large_file_editor(editor):
+                self._symbol_outline.clear_symbols()
+                return
             self._refresh_symbol_outline(editor)
 
     def _on_outline_visibility_changed(self, visible: bool) -> None:
@@ -61,10 +68,16 @@ class CodeQualityController(MainWindowController):
         if visible:
             editor = self._tab_manager.current_editor()
             if editor:
+                if self._is_large_file_editor(editor):
+                    self._symbol_outline.clear_symbols()
+                    return
                 self._symbol_outline.update_symbols(editor.text())
 
     def _refresh_symbol_outline(self, editor: CodeEditor) -> None:
         """Update the symbol outline from the editor's current text."""
+        if self._is_large_file_editor(editor):
+            self._symbol_outline.clear_symbols()
+            return
         if self._symbol_outline.isVisible():
             self._symbol_outline.update_symbols(editor.text())
 
@@ -80,6 +93,9 @@ class CodeQualityController(MainWindowController):
     def _do_lint(self) -> None:
         """Actually run the linter (called after debounce or on save)."""
         editor = self._tab_manager.current_editor()
+        if self._is_large_file_editor(editor):
+            self._clear_lint_state(editor)
+            return
         if not self._settings.get("editor.linting_enabled"):
             return
         if not can_run_editor(editor, CodeEditor):
@@ -98,6 +114,9 @@ class CodeQualityController(MainWindowController):
         editor = getattr(self, "_lint_target_editor", None)
         if editor is None:
             editor = self._tab_manager.current_editor()
+        if self._is_large_file_editor(editor):
+            self._clear_lint_state(editor)
+            return
         if not can_run_editor(editor, CodeEditor):
             self._clear_lint_state(editor)
             return
@@ -131,5 +150,13 @@ class CodeQualityController(MainWindowController):
         self._lint_target_editor = None
         self._problems_panel.clear_issues()
         self._status_bar_manager.update_lint_counts(0, 0)
+
+    @staticmethod
+    def _is_large_file_editor(editor) -> bool:
+        return bool(getattr(editor, "large_file_mode", False))
+
+    def _clear_large_file_analysis_state(self, editor=None) -> None:
+        self._symbol_outline.clear_symbols()
+        self._clear_lint_state(editor)
 
     # --- Ollama AI ---

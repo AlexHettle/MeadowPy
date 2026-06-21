@@ -11,6 +11,7 @@ from meadowpy.constants import (
     DEFAULT_WINDOW_LAYOUT_VERSION,
     DEFAULT_WINDOW_STATE,
 )
+from meadowpy.core.file_manager import LargeFileError, format_file_size
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
 from meadowpy.resources.resource_loader import (
@@ -93,12 +94,32 @@ class WorkspaceController(MainWindowController):
         result = self._file_manager.open_file(parent=self.window)
         if result:
             path, content = result
-            self._tab_manager.open_file_in_tab(path, content)
+            self._open_editor_file(path, content)
             return
         error = getattr(self._file_manager, "last_open_error", None)
+        path = getattr(self._file_manager, "last_open_error_path", None)
+        if isinstance(error, LargeFileError):
+            if not self._confirm_large_file_open(error):
+                self._show_large_file_cancelled(path or error.file_path)
+                return
+            result = self._file_manager.open_file(
+                error.file_path,
+                parent=self.window,
+                allow_large=True,
+            )
+            if result:
+                opened_path, content = result
+                self._open_editor_file(
+                    opened_path,
+                    content,
+                    large_file_mode=True,
+                )
+                return
+            error = getattr(self._file_manager, "last_open_error", None)
+            path = getattr(self._file_manager, "last_open_error_path", None)
         if error is not None:
             self._show_open_failed(
-                getattr(self._file_manager, "last_open_error_path", None),
+                path,
                 error,
             )
 
@@ -120,10 +141,15 @@ class WorkspaceController(MainWindowController):
         path = Path(file_path)
         if not path.exists() or not path.is_file():
             return
-        content = self._read_editor_file(file_path)
-        if content is None:
+        read_result = self._read_editor_file(file_path)
+        if read_result is None:
             return
-        self._tab_manager.open_file_in_tab(file_path, content)
+        content, large_file_mode = read_result
+        self._open_editor_file(
+            file_path,
+            content,
+            large_file_mode=large_file_mode,
+        )
         self._recent_files.add(file_path)
 
     def _on_explorer_file_renamed(self, old_path: str, new_path: str) -> None:
@@ -282,10 +308,15 @@ class WorkspaceController(MainWindowController):
         path = Path(file_path)
         if not path.exists():
             return
-        content = self._read_editor_file(str(path))
-        if content is None:
+        read_result = self._read_editor_file(str(path))
+        if read_result is None:
             return
-        editor = self._tab_manager.open_file_in_tab(str(path), content)
+        content, large_file_mode = read_result
+        editor = self._open_editor_file(
+            str(path),
+            content,
+            large_file_mode=large_file_mode,
+        )
         if editor:
             editor.setCursorPosition(line - 1, 0)
             editor.setFocus()
@@ -295,10 +326,15 @@ class WorkspaceController(MainWindowController):
         path = Path(file_path)
         if not path.exists():
             return
-        content = self._read_editor_file(str(path))
-        if content is None:
+        read_result = self._read_editor_file(str(path))
+        if read_result is None:
             return
-        editor = self._tab_manager.open_file_in_tab(str(path), content)
+        content, large_file_mode = read_result
+        editor = self._open_editor_file(
+            str(path),
+            content,
+            large_file_mode=large_file_mode,
+        )
         if editor:
             editor.setCursorPosition(line - 1, 0)
             editor.setFocus()
@@ -329,9 +365,19 @@ class WorkspaceController(MainWindowController):
         dialog = AboutDialog(self._settings, self.window)
         dialog.exec()
 
-    def open_file_in_tab(self, file_path: str, content: str) -> None:
+    def open_file_in_tab(
+        self,
+        file_path: str,
+        content: str,
+        *,
+        large_file_mode: bool = False,
+    ) -> None:
         """Public method for opening a file in a tab (used by app.py)."""
-        self._tab_manager.open_file_in_tab(file_path, content)
+        self._open_editor_file(
+            file_path,
+            content,
+            large_file_mode=large_file_mode,
+        )
 
     def open_recent_file(self, file_path: str) -> None:
         """Open a file from the recent files list."""
@@ -343,10 +389,15 @@ class WorkspaceController(MainWindowController):
             )
             self._recent_files.remove(file_path)
             return
-        content = self._read_editor_file(file_path)
-        if content is None:
+        read_result = self._read_editor_file(file_path)
+        if read_result is None:
             return
-        self._tab_manager.open_file_in_tab(file_path, content)
+        content, large_file_mode = read_result
+        self._open_editor_file(
+            file_path,
+            content,
+            large_file_mode=large_file_mode,
+        )
         self._recent_files.add(file_path)
 
     def _read_editor_file(
@@ -354,14 +405,87 @@ class WorkspaceController(MainWindowController):
         file_path: str,
         *,
         show_error: bool = True,
-    ) -> str | None:
+    ) -> tuple[str, bool] | None:
         """Read a file only when it is suitable for the text editor."""
         try:
-            return self._file_manager.read_file(file_path)
+            return self._file_manager.read_file(file_path), False
+        except LargeFileError as exc:
+            if not show_error:
+                return None
+            if not self._confirm_large_file_open(exc):
+                self._show_large_file_cancelled(file_path)
+                return None
+            try:
+                return (
+                    self._file_manager.read_file(file_path, allow_large=True),
+                    True,
+                )
+            except OSError as open_anyway_error:
+                if show_error:
+                    self._show_open_failed(file_path, open_anyway_error)
+                return None
         except OSError as exc:
             if show_error:
                 self._show_open_failed(file_path, exc)
             return None
+
+    def _open_editor_file(
+        self,
+        file_path: str,
+        content: str,
+        *,
+        large_file_mode: bool = False,
+    ):
+        """Open a text file in a tab, tagging large files before activation."""
+        editor = self._tab_manager.open_file_in_tab(
+            file_path,
+            content,
+            large_file_mode=large_file_mode,
+        )
+        if large_file_mode:
+            self._show_large_file_opened(file_path)
+        return editor
+
+    def _confirm_large_file_open(self, error: LargeFileError) -> bool:
+        """Ask whether to fully open a large text file."""
+        name = Path(error.file_path).name
+        box = QMessageBox(self.window)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Large File Warning")
+        box.setText(f"{name} is {format_file_size(error.size_bytes)}.")
+        box.setInformativeText(
+            "Opening it fully may make MeadowPy slower, especially for editing, "
+            "linting, outline parsing, and AI context."
+        )
+        open_button = box.addButton(
+            "Open Anyway",
+            QMessageBox.ButtonRole.AcceptRole,
+        )
+        cancel_button = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(cancel_button)
+        box.setEscapeButton(cancel_button)
+        box.exec()
+        return box.clickedButton() is open_button
+
+    def _show_large_file_opened(self, file_path: str) -> None:
+        name = Path(file_path).name
+        self._show_status_message(
+            f"Opened large file with analysis disabled: {name}",
+            7000,
+        )
+
+    def _show_large_file_cancelled(self, file_path: str | None) -> None:
+        name = Path(file_path).name if file_path else "file"
+        self._show_status_message(f"Large file not opened: {name}", 7000)
+
+    def _show_status_message(self, message: str, timeout: int = 3000) -> None:
+        status_bar = getattr(self.window, "_status_bar_manager", None)
+        show_message = getattr(status_bar, "show_message", None)
+        if callable(show_message):
+            try:
+                show_message(message, timeout)
+            except TypeError:
+                show_message(message)
 
     def _show_open_failed(self, file_path: str | None, error: OSError) -> None:
         """Tell the user a file cannot be opened in the text editor."""
@@ -493,7 +617,10 @@ class WorkspaceController(MainWindowController):
         if editor is _RUN_EDITOR_UNSET:
             current_editor = getattr(self._tab_manager, "current_editor", None)
             editor = current_editor() if callable(current_editor) else None
-        review_action.setEnabled(isinstance(editor, CodeEditor))
+        review_action.setEnabled(
+            isinstance(editor, CodeEditor)
+            and not getattr(editor, "large_file_mode", False)
+        )
 
     def _run_control_owned_by_running_work(self) -> bool:
         """Return True when process/debug controllers temporarily own Run state."""

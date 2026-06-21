@@ -4,7 +4,10 @@ import pytest
 
 from meadowpy.core.file_manager import (
     FileManager,
+    LARGE_FILE_WARNING_BYTES,
+    LargeFileError,
     UnsupportedFileError,
+    format_file_size,
     is_known_unsupported_editor_file,
 )
 from tests.helpers import SignalRecorder
@@ -94,6 +97,49 @@ def test_read_file_allows_non_python_text_files(tmp_path):
     file_path.write_text("plain notes\n", encoding="utf-8")
 
     assert manager.read_file(str(file_path)) == "plain notes\n"
+
+
+def test_read_file_warns_before_loading_large_text_files(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / "large.log"
+    file_path.write_bytes(b"a" * (LARGE_FILE_WARNING_BYTES + 1))
+
+    with pytest.raises(LargeFileError) as exc_info:
+        manager.read_file(str(file_path))
+
+    error = exc_info.value
+    assert error.file_path == str(file_path)
+    assert error.size_bytes == LARGE_FILE_WARNING_BYTES + 1
+    assert error.threshold_bytes == LARGE_FILE_WARNING_BYTES
+    assert "large-file safeguard" in str(error)
+
+    content = manager.read_file(str(file_path), allow_large=True)
+    assert len(content) == LARGE_FILE_WARNING_BYTES + 1
+
+
+def test_open_file_tracks_large_file_error(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / "large.log"
+    file_path.write_bytes(b"a" * (LARGE_FILE_WARNING_BYTES + 1))
+
+    assert manager.open_file(str(file_path)) is None
+    assert isinstance(manager.last_open_error, LargeFileError)
+    assert manager.last_open_error_path == str(file_path)
+    recent.add.assert_not_called()
+
+    result = manager.open_file(str(file_path), allow_large=True)
+    assert result is not None
+    assert result[0] == str(file_path)
+    assert len(result[1]) == LARGE_FILE_WARNING_BYTES + 1
+    recent.add.assert_called_once_with(str(file_path))
+
+
+def test_format_file_size_uses_compact_units():
+    assert format_file_size(512) == "512 bytes"
+    assert format_file_size(1536) == "1.5 KB"
+    assert format_file_size(2 * 1024 * 1024) == "2.0 MB"
 
 
 def test_read_file_rejects_office_documents(tmp_path):

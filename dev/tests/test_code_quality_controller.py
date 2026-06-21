@@ -201,6 +201,63 @@ def test_outline_refresh_visibility_and_lint_runner_paths(monkeypatch):
     assert len(lint_runner.calls) == 1
 
 
+def test_large_file_editor_skips_outline_and_lint(monkeypatch):
+    monkeypatch.setattr(code_quality_module, "CodeEditor", FakeEditor)
+    editor = FakeEditor()
+    editor.large_file_mode = True
+    symbol_outline = SimpleNamespace(
+        visible=True,
+        updates=[],
+        cleared=0,
+        isVisible=lambda: symbol_outline.visible,
+        update_symbols=lambda text: symbol_outline.updates.append(text),
+        clear_symbols=lambda: setattr(
+            symbol_outline,
+            "cleared",
+            symbol_outline.cleared + 1,
+        ),
+    )
+    lint_runner = SimpleNamespace(
+        calls=[],
+        cancels=0,
+        run_lint=lambda *args: lint_runner.calls.append(args),
+        cancel=lambda: setattr(lint_runner, "cancels", lint_runner.cancels + 1),
+    )
+    settings = FakeSettings({
+        "editor.linting_enabled": True,
+        "editor.linter": "flake8",
+    })
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _outline_timer=FakeTimer(),
+        _lint_timer=FakeTimer(),
+        _symbol_outline=symbol_outline,
+        _lint_runner=lint_runner,
+        _problems_panel=FakeProblemsPanel(),
+        _status_bar_manager=FakeStatusBar(),
+    )
+    controller = CodeQualityController(MainWindowContext(window, settings, None, None))
+    controller._lint_target_editor = editor
+
+    controller._on_editor_text_changed()
+    controller._do_refresh_outline()
+    controller._on_outline_visibility_changed(True)
+    controller._refresh_symbol_outline(editor)
+    controller._do_lint()
+    controller._on_lint_finished([SimpleNamespace(severity="error")])
+
+    assert window._outline_timer.starts == 0
+    assert window._lint_timer.starts == 0
+    assert symbol_outline.updates == []
+    assert symbol_outline.cleared >= 4
+    assert lint_runner.calls == []
+    assert lint_runner.cancels >= 2
+    assert editor.issues == []
+    assert window._problems_panel.issues == []
+    assert window._status_bar_manager.counts == (0, 0)
+
+
 def test_lint_finished_falls_back_to_current_editor_when_target_missing(monkeypatch):
     monkeypatch.setattr(code_quality_module, "CodeEditor", FakeEditor)
     controller, window = make_controller()

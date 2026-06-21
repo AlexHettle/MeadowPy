@@ -150,7 +150,7 @@ class FakeWindow:
     def findChildren(self, widget_type):
         return self.children
 
-    def open_file_in_tab(self, path, content):
+    def open_file_in_tab(self, path, content, *, large_file_mode=False):
         self.opened.append((path, content))
 
     def show(self):

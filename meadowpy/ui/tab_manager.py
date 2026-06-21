@@ -161,9 +161,16 @@ class TabManager(QTabWidget):
 
         self.currentChanged.connect(self._on_tab_changed)
 
-    def new_tab(self, file_path: str | None = None, content: str = "") -> CodeEditor:
+    def new_tab(
+        self,
+        file_path: str | None = None,
+        content: str = "",
+        *,
+        large_file_mode: bool = False,
+    ) -> CodeEditor:
         """Create a new editor tab. Returns the editor."""
         editor = CodeEditor(self._settings, self)
+        editor.large_file_mode = large_file_mode
 
         if file_path:
             editor.file_path = file_path
@@ -231,16 +238,23 @@ class TabManager(QTabWidget):
                 self.close_tab(idx)
         QTimer.singleShot(0, do_close)
 
-    def open_file_in_tab(self, file_path: str, content: str) -> CodeEditor:
+    def open_file_in_tab(
+        self,
+        file_path: str,
+        content: str,
+        *,
+        large_file_mode: bool = False,
+    ) -> CodeEditor:
         """Open a file. If already open, switch to its tab."""
         norm_path = str(Path(file_path).resolve())
         for i in range(self.count()):
             ed = self.widget(i)
             if isinstance(ed, CodeEditor) and ed.file_path:
                 if str(Path(ed.file_path).resolve()) == norm_path:
+                    ed.large_file_mode = large_file_mode
                     self.setCurrentIndex(i)
                     return ed
-        return self.new_tab(file_path, content)
+        return self.new_tab(file_path, content, large_file_mode=large_file_mode)
 
     def close_tab(self, index: int) -> bool:
         """Close a tab. Prompt to save if modified. Returns True if closed."""

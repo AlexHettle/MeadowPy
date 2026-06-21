@@ -13,6 +13,7 @@ FILE_FILTERS = (
     "*.cfg *.yaml *.yml *.log);;Python Files (*.py *.pyw);;All Files (*)"
 )
 TEXT_SNIFF_BYTES = 8192
+LARGE_FILE_WARNING_BYTES = 10 * 1024 * 1024
 _ALLOWED_CONTROL_BYTES = {9, 10, 12, 13}
 _BINARY_CONTROL_BYTES = set(range(32)) - _ALLOWED_CONTROL_BYTES
 _UTF32_BOMS = (
@@ -61,6 +62,36 @@ class UnsupportedFileError(OSError):
     """Raised when a file is not suitable for MeadowPy's text editor."""
 
 
+class LargeFileError(OSError):
+    """Raised when a text file is large enough to need user confirmation."""
+
+    def __init__(
+        self,
+        file_path: str | Path,
+        size_bytes: int,
+        threshold_bytes: int = LARGE_FILE_WARNING_BYTES,
+    ):
+        self.file_path = str(file_path)
+        self.size_bytes = size_bytes
+        self.threshold_bytes = threshold_bytes
+        name = Path(file_path).name
+        super().__init__(
+            f"{name} is {format_file_size(size_bytes)}, which is larger than "
+            f"MeadowPy's {format_file_size(threshold_bytes)} large-file safeguard."
+        )
+
+
+def format_file_size(size_bytes: int) -> str:
+    """Return a compact human-readable file size for dialogs and status text."""
+    mb = size_bytes / (1024 * 1024)
+    if mb >= 1:
+        return f"{mb:.1f} MB"
+    kb = size_bytes / 1024
+    if kb >= 1:
+        return f"{kb:.1f} KB"
+    return f"{size_bytes} bytes"
+
+
 class FileManager(QObject):
     """Handles file I/O operations."""
 
@@ -76,7 +107,13 @@ class FileManager(QObject):
         self.last_open_error: OSError | None = None
         self.last_open_error_path: str | None = None
 
-    def open_file(self, file_path: str | None = None, parent=None) -> tuple[str, str] | None:
+    def open_file(
+        self,
+        file_path: str | None = None,
+        parent=None,
+        *,
+        allow_large: bool = False,
+    ) -> tuple[str, str] | None:
         """Open a file. If file_path is None, show QFileDialog. Returns (path, content) or None."""
         self.last_open_error = None
         self.last_open_error_path = None
@@ -88,7 +125,7 @@ class FileManager(QObject):
             return None
 
         try:
-            content = self.read_file(file_path)
+            content = self.read_file(file_path, allow_large=allow_large)
         except OSError as exc:
             self.last_open_error = exc
             self.last_open_error_path = file_path
@@ -128,7 +165,7 @@ class FileManager(QObject):
             return file_path
         return None
 
-    def read_file(self, file_path: str) -> str:
+    def read_file(self, file_path: str, *, allow_large: bool = False) -> str:
         """Read editor-safe text content with conservative binary rejection."""
         path = Path(file_path)
         if is_known_unsupported_editor_file(path):
@@ -142,6 +179,9 @@ class FileManager(QObject):
                 raise UnsupportedFileError(
                     f"{path.name} does not look like readable text."
                 )
+            size_bytes = path.stat().st_size
+            if size_bytes > LARGE_FILE_WARNING_BYTES and not allow_large:
+                raise LargeFileError(path, size_bytes)
             rest = f.read()
         data = sample + rest
         return self._decode_text(data, path.name)

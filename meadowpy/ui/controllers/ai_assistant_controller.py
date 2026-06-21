@@ -115,6 +115,9 @@ class AIAssistantController(MainWindowController):
         editor = self._tab_manager.current_editor()
         if not editor:
             return
+        if self._is_large_file_editor(editor):
+            self._show_large_file_ai_message()
+            return
         content = editor.text()
         if not content.strip():
             return
@@ -324,6 +327,15 @@ class AIAssistantController(MainWindowController):
         if line is None:
             line, _ = editor.getCursorPosition()
 
+        if self._is_large_file_editor(editor):
+            self._ai_chat_panel.update_editor_context(
+                filename=filename,
+                function_name="",
+                cursor_line=line,
+                file_text="",
+            )
+            return
+
         # Try to find the enclosing function/class name
         func_name = ""
         if line >= 0:
@@ -341,5 +353,22 @@ class AIAssistantController(MainWindowController):
             cursor_line=line,
             file_text=editor.text(),
         )
+
+    @staticmethod
+    def _is_large_file_editor(editor) -> bool:
+        return bool(getattr(editor, "large_file_mode", False))
+
+    def _show_large_file_ai_message(self) -> None:
+        status_bar = getattr(self.window, "_status_bar_manager", None)
+        show_message = getattr(status_bar, "show_message", None)
+        if callable(show_message):
+            message = (
+                "Full-file AI review is disabled for large files. "
+                "Select a smaller section instead."
+            )
+            try:
+                show_message(message, 7000)
+            except TypeError:
+                show_message(message)
 
     # --- Window events ---

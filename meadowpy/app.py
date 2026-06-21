@@ -213,11 +213,25 @@ class MeadowPyApp:
         for arg in argv[1:]:
             path = Path(arg)
             if path.is_file():
+                reader = getattr(self._window, "_read_editor_file", None)
                 try:
-                    content = self._file_manager.read_file(str(path))
+                    if callable(reader):
+                        read_result = reader(str(path))
+                    else:
+                        read_result = (
+                            self._file_manager.read_file(str(path)),
+                            False,
+                        )
                 except OSError:
                     continue
-                self._window.open_file_in_tab(str(path), content)
+                if read_result is None:
+                    continue
+                content, large_file_mode = read_result
+                self._window.open_file_in_tab(
+                    str(path),
+                    content,
+                    large_file_mode=large_file_mode,
+                )
 
         self._set_splash_status("Finalizing startup...")
 

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import meadowpy.ui.controllers.workspace_controller as workspace_module
 from PyQt6.Qsci import QsciScintilla
 from meadowpy.constants import DEFAULT_WINDOW_LAYOUT_VERSION, DEFAULT_WINDOW_STATE
+from meadowpy.core.file_manager import LargeFileError
 from meadowpy.ui.controllers.workspace_controller import WorkspaceController
 from meadowpy.ui.controllers.window_context import MainWindowContext
 
@@ -116,6 +117,7 @@ class WorkspaceEditor:
         self.zoom_calls = []
         self.wrap_mode = 0
         self.deleted_later = False
+        self.large_file_mode = False
 
     def text(self):
         return self._text
@@ -156,6 +158,7 @@ class WorkspaceTabs:
         self.editors = list(editors)
         self.current = self.editors[0] if self.editors else None
         self.opened = []
+        self.large_flags = []
         self.updated_titles = []
         self.tab_text = []
         self.tooltips = []
@@ -182,9 +185,12 @@ class WorkspaceTabs:
     def update_tab_title(self, index):
         self.updated_titles.append(index)
 
-    def open_file_in_tab(self, path, content):
+    def open_file_in_tab(self, path, content, *, large_file_mode=False):
         self.opened.append((path, content))
-        return WorkspaceEditor(path, content)
+        self.large_flags.append(large_file_mode)
+        editor = WorkspaceEditor(path, content)
+        editor.large_file_mode = large_file_mode
+        return editor
 
     def count(self):
         return len(self.editors)
@@ -393,6 +399,127 @@ def test_open_recent_file_reports_unreadable_files(monkeypatch, tmp_path):
     assert status.messages == [("Could not open: review.docx", 7000)]
     assert warnings[0][0] == "Could Not Open File"
     assert "not readable text" in warnings[0][1]
+
+
+def test_action_open_file_confirms_large_file_and_opens_in_large_mode(tmp_path):
+    large_path = tmp_path / "large.log"
+    error = LargeFileError(str(large_path), 12 * 1024 * 1024)
+    tabs = WorkspaceTabs([])
+    status = SimpleNamespace(
+        messages=[],
+        show_message=lambda message, timeout=3000: status.messages.append(
+            (message, timeout)
+        ),
+    )
+    open_calls = []
+
+    def open_file(file_path=None, parent=None, allow_large=False):
+        open_calls.append((file_path, allow_large))
+        if allow_large:
+            return str(large_path), "large content"
+        file_manager.last_open_error = error
+        file_manager.last_open_error_path = str(large_path)
+        return None
+
+    file_manager = SimpleNamespace(
+        last_open_error=None,
+        last_open_error_path=None,
+        open_file=open_file,
+    )
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _file_manager=file_manager,
+        _status_bar_manager=status,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), file_manager, None)
+    )
+    controller._confirm_large_file_open = lambda err: err is error
+
+    controller.action_open_file()
+
+    assert open_calls == [(None, False), (str(large_path), True)]
+    assert tabs.opened == [(str(large_path), "large content")]
+    assert tabs.large_flags == [True]
+    assert status.messages == [
+        ("Opened large file with analysis disabled: large.log", 7000)
+    ]
+
+
+def test_open_recent_large_file_cancel_keeps_file_closed(tmp_path):
+    large_path = tmp_path / "large.log"
+    large_path.write_text("large", encoding="utf-8")
+    tabs = WorkspaceTabs([])
+    recent = SimpleNamespace(added=[], add=lambda path: recent.added.append(path))
+    status = SimpleNamespace(
+        messages=[],
+        show_message=lambda message, timeout=3000: status.messages.append(
+            (message, timeout)
+        ),
+    )
+
+    def read_file(path, allow_large=False):
+        raise LargeFileError(path, 12 * 1024 * 1024)
+
+    file_manager = SimpleNamespace(read_file=read_file)
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _file_manager=file_manager,
+        _recent_files=recent,
+        _status_bar_manager=status,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), file_manager, recent)
+    )
+    controller._confirm_large_file_open = lambda err: False
+
+    controller.open_recent_file(str(large_path))
+
+    assert tabs.opened == []
+    assert recent.added == []
+    assert status.messages == [("Large file not opened: large.log", 7000)]
+
+
+def test_open_recent_large_file_accept_reads_with_allow_large(tmp_path):
+    large_path = tmp_path / "large.log"
+    large_path.write_text("large", encoding="utf-8")
+    tabs = WorkspaceTabs([])
+    recent = SimpleNamespace(added=[], add=lambda path: recent.added.append(path))
+    status = SimpleNamespace(
+        messages=[],
+        show_message=lambda message, timeout=3000: status.messages.append(
+            (message, timeout)
+        ),
+    )
+    read_calls = []
+
+    def read_file(path, allow_large=False):
+        read_calls.append((path, allow_large))
+        if allow_large:
+            return "large content"
+        raise LargeFileError(path, 12 * 1024 * 1024)
+
+    file_manager = SimpleNamespace(read_file=read_file)
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _file_manager=file_manager,
+        _recent_files=recent,
+        _status_bar_manager=status,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), file_manager, recent)
+    )
+    controller._confirm_large_file_open = lambda err: True
+
+    controller.open_recent_file(str(large_path))
+
+    assert read_calls == [(str(large_path), False), (str(large_path), True)]
+    assert tabs.opened == [(str(large_path), "large content")]
+    assert tabs.large_flags == [True]
+    assert recent.added == [str(large_path)]
+    assert status.messages == [
+        ("Opened large file with analysis disabled: large.log", 7000)
+    ]
 
 
 def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path):

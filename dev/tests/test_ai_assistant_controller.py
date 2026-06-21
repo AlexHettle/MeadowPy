@@ -93,6 +93,7 @@ class FakeSettings:
 class FakeStatusBar:
     def __init__(self):
         self.ollama_updates = []
+        self.messages = []
         self.ollama_label = SimpleNamespace(
             rect=lambda: SimpleNamespace(topLeft=lambda: "top-left"),
             mapToGlobal=lambda pos: ("global", pos),
@@ -100,6 +101,9 @@ class FakeStatusBar:
 
     def update_ollama_status(self, connected, model):
         self.ollama_updates.append((connected, model))
+
+    def show_message(self, message, timeout=3000):
+        self.messages.append((message, timeout))
 
 
 class FakeModelSelector:
@@ -206,6 +210,39 @@ def test_ai_context_finds_enclosing_function():
     assert window._ai_chat_panel.context["filename"] == "demo.py"
     assert window._ai_chat_panel.context["function_name"] == "def greet"
     assert window._ai_chat_panel.context["cursor_line"] == 1
+
+
+def test_large_file_ai_context_omits_full_file_text():
+    editor = FakeEditor("def greet():\n    print('hi')\n")
+    editor.large_file_mode = True
+    editor.cursor = (1, 4)
+    controller, window = make_controller(editor)
+
+    controller._update_ai_context(editor)
+
+    assert window._ai_chat_panel.context == {
+        "filename": "demo.py",
+        "function_name": "",
+        "cursor_line": 1,
+        "file_text": "",
+    }
+
+
+def test_large_file_review_is_blocked_with_status_message():
+    editor = FakeEditor("print('huge')\n")
+    editor.large_file_mode = True
+    controller, window = make_rich_controller(editor)
+
+    controller.action_ai_review_file()
+
+    assert window._ai_chat_panel.prompts == []
+    assert window._status_bar_manager.messages == [
+        (
+            "Full-file AI review is disabled for large files. "
+            "Select a smaller section instead.",
+            7000,
+        )
+    ]
 
 
 def test_ollama_status_model_selection_and_chat_forwarding():

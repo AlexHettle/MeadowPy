@@ -71,6 +71,7 @@ class CodeEditor(QsciScintilla):
         self._settings = settings
         self._file_path: str | None = None
         self._untitled_name: str = "Untitled"
+        self.large_file_mode = False
 
         # Phase 2: Smart indent and auto-close handlers
         self._smart_indent = SmartIndentHandler(self, settings)

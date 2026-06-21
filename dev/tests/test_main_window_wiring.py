@@ -108,7 +108,7 @@ def test_drop_event_opens_files_and_project_folders(tmp_path):
             read_file=lambda path: calls.append(("read", path)) or "content"
         ),
         _tab_manager=SimpleNamespace(
-            open_file_in_tab=lambda path, content: calls.append(
+            open_file_in_tab=lambda path, content, large_file_mode=False: calls.append(
                 ("open", path, content)
             )
         ),
@@ -399,7 +399,7 @@ def test_restore_state_reopens_existing_files_without_welcome(tmp_path):
             read_file=lambda path: calls.append(("read", path)) or "content"
         ),
         _tab_manager=SimpleNamespace(
-            open_file_in_tab=lambda path, content: calls.append(
+            open_file_in_tab=lambda path, content, large_file_mode=False: calls.append(
                 ("open", path, content)
             ),
             count=lambda: 1,

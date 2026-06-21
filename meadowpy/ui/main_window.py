@@ -510,12 +510,17 @@ class MainWindow(QMainWindow):
             elif path.is_file():
                 reader = getattr(self, "_read_editor_file", None)
                 if callable(reader):
-                    content = reader(file_path)
+                    read_result = reader(file_path)
                 else:
-                    content = self._file_manager.read_file(file_path)
-                if content is None:
+                    read_result = (self._file_manager.read_file(file_path), False)
+                if read_result is None:
                     continue
-                self._tab_manager.open_file_in_tab(file_path, content)
+                content, large_file_mode = read_result
+                self._tab_manager.open_file_in_tab(
+                    file_path,
+                    content,
+                    large_file_mode=large_file_mode,
+                )
                 self._recent_files.add(file_path)
         event.acceptProposedAction()
 
@@ -649,12 +654,17 @@ class MainWindow(QMainWindow):
                 if Path(path).exists():
                     reader = getattr(self, "_read_editor_file", None)
                     if callable(reader):
-                        content = reader(path, show_error=False)
+                        read_result = reader(path, show_error=False)
                     else:
-                        content = self._file_manager.read_file(path)
-                    if content is None:
+                        read_result = (self._file_manager.read_file(path), False)
+                    if read_result is None:
                         continue
-                    self._tab_manager.open_file_in_tab(path, content)
+                    content, large_file_mode = read_result
+                    self._tab_manager.open_file_in_tab(
+                        path,
+                        content,
+                        large_file_mode=large_file_mode,
+                    )
 
         # If no tabs restored, show the Welcome screen
         if self._tab_manager.count() == 0:
