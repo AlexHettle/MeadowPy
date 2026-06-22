@@ -283,10 +283,12 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self._output_panel, self._search_panel)
         self._search_panel.hide()
 
-        # Keep the search panel's root path in sync with the project folder
-        project_folder = self._settings.get("general.project_folder")
-        if project_folder and Path(project_folder).is_dir():
-            self._search_panel.set_root_path(project_folder)
+        # The file explorer is the source of truth for project search scope.
+        self._file_explorer.root_folder_changed.connect(
+            self._search_panel.set_root_path
+        )
+        if self._file_explorer.root_path:
+            self._search_panel.set_root_path(self._file_explorer.root_path)
 
         self._search_panel.navigate_to_file.connect(
             self._on_search_navigate
@@ -506,7 +508,6 @@ class MainWindow(QMainWindow):
                 self._file_explorer.set_root_folder(file_path)
                 self._file_explorer.show()
                 self._settings.set("general.project_folder", file_path)
-                self._search_panel.set_root_path(file_path)
             elif path.is_file():
                 reader = getattr(self, "_read_editor_file", None)
                 if callable(reader):

@@ -827,7 +827,7 @@ def test_open_folder_and_dialog_actions_wire_results(monkeypatch, tmp_path):
 
     assert file_explorer.root_paths == [str(folder)]
     assert settings.values["general.project_folder"] == str(folder)
-    assert search_panel.root_paths == [str(folder)]
+    assert search_panel.root_paths == []
     assert len(exec_calls) == 4
     assert connected == [controller._on_template_selected]
 

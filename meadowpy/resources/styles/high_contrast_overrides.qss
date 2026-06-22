@@ -207,6 +207,8 @@ QTabBar::tab:hover:!selected { background: #2A2A2A; color: #FFFFFF; }
 #aiChatPlaceholder { color: #FFFFFF; }
 #aiChatErrorLabel { color: #FFFFFF; }
 #aiChatStoppedLabel { color: #FFFFFF; }
+#searchScopeLabel,
+#searchStatusLabel { color: #FFFFFF; }
 
 /* User chat bubble - force black text on the white HC surface. */
 #chatBubbleUser { background: #FFFFFF; color: #000000; border: 2px solid #FFFFFF; }

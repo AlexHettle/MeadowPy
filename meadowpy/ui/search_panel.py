@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
@@ -165,8 +166,10 @@ class SearchPanel(QDockWidget):
         self._old_threads: list[QThread] = []
         self._old_workers: list[SearchWorker] = []
         self._large_files_skipped = 0
+        self._confirmed_broad_roots: set[str] = set()
 
         self._setup_ui()
+        self._update_scope_label()
 
     def _setup_ui(self) -> None:
         # -- custom dock title bar -------------------------------------
@@ -240,7 +243,11 @@ class SearchPanel(QDockWidget):
 
         layout.addLayout(controls)
 
-        # -- Status label --
+        # -- Scope + status labels --
+        self._scope_label = QLabel("")
+        self._scope_label.setObjectName("searchScopeLabel")
+        layout.addWidget(self._scope_label)
+
         self._status_label = QLabel("")
         self._status_label.setObjectName("searchStatusLabel")
         layout.addWidget(self._status_label)
@@ -261,9 +268,11 @@ class SearchPanel(QDockWidget):
 
     def set_root_path(self, path: str) -> None:
         self._root_path = path
+        self._update_scope_label()
 
     def focus_search(self) -> None:
         """Show, raise, and focus the search input."""
+        self._update_scope_label()
         self.show()
         self.raise_()
         self._search_input.setFocus()
@@ -273,8 +282,19 @@ class SearchPanel(QDockWidget):
 
     def _start_search(self) -> None:
         query = self._search_input.text()
-        if not query or not self._root_path:
+        if not query:
             return
+        if not self._root_path:
+            self._update_scope_label()
+            self._status_label.setText("Open a folder to search files.")
+            return
+        if self._is_broad_search_root(self._root_path):
+            root_key = self._normalized_root_key(self._root_path)
+            if root_key not in self._confirmed_broad_roots:
+                if not self._confirm_broad_search_root(self._root_path):
+                    self._status_label.setText("Search cancelled.")
+                    return
+                self._confirmed_broad_roots.add(root_key)
 
         # Cancel any running search
         self._cancel_search()
@@ -405,6 +425,83 @@ class SearchPanel(QDockWidget):
             return ""
         suffix = "file" if self._large_files_skipped == 1 else "files"
         return f" {self._large_files_skipped} large {suffix} skipped."
+
+    def _update_scope_label(self) -> None:
+        if not hasattr(self, "_scope_label"):
+            return
+        if not self._root_path:
+            text = "Open a folder to search files."
+            self._scope_label.setText(text)
+            self._scope_label.setToolTip(text)
+            return
+        path = Path(self._root_path)
+        label = self._scope_display_name(path)
+        text = f"Searching in: {label}"
+        self._scope_label.setText(text)
+        self._scope_label.setToolTip(str(path))
+
+    @staticmethod
+    def _scope_display_name(path: Path) -> str:
+        parts = [part for part in path.parts if part != path.anchor]
+        if len(parts) >= 2:
+            return str(Path(*parts[-2:]))
+        return path.name or str(path)
+
+    def _confirm_broad_search_root(self, root_path: str) -> bool:
+        path = Path(root_path)
+        reply = QMessageBox.question(
+            self,
+            "Search Broad Folder?",
+            "This folder may contain a large number of files:\n\n"
+            f"{path}\n\n"
+            "Searching it could take a while. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
+    @classmethod
+    def _is_broad_search_root(cls, root_path: str) -> bool:
+        root = cls._resolved_path(root_path)
+        if root is None:
+            return False
+        if root.parent == root:
+            return True
+        anchor = Path(root.anchor)
+        if root == anchor:
+            return True
+        return root in cls._broad_search_roots()
+
+    @staticmethod
+    def _normalized_root_key(root_path: str) -> str:
+        root = SearchPanel._resolved_path(root_path)
+        return str(root or Path(root_path))
+
+    @staticmethod
+    def _resolved_path(path: str | Path) -> Path | None:
+        try:
+            return Path(path).expanduser().resolve()
+        except OSError:
+            return None
+
+    @classmethod
+    def _broad_search_roots(cls) -> set[Path]:
+        roots: set[Path] = set()
+        home = cls._resolved_path(Path.home())
+        if home is not None:
+            roots.add(home)
+            for name in ("Desktop", "Documents", "Downloads"):
+                child = cls._resolved_path(home / name)
+                if child is not None:
+                    roots.add(child)
+
+        for env_name in ("OneDrive", "OneDriveCommercial", "OneDriveConsumer"):
+            env_value = os.environ.get(env_name)
+            if env_value:
+                env_root = cls._resolved_path(env_value)
+                if env_root is not None:
+                    roots.add(env_root)
+        return roots
 
     def _on_thread_finished(
         self, thread: QThread | None = None, worker: SearchWorker | None = None

@@ -1445,6 +1445,12 @@ QRadioButton::indicator:checked {
     border-color: {{ACCENT_HOVER}};
 }
 
+#searchScopeLabel,
+#searchStatusLabel {
+    color: #6C757D;
+    font-size: 11px;
+}
+
 #searchResultsTree {
     background: #FFFFFF;
     border: none;

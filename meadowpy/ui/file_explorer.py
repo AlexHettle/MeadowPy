@@ -269,6 +269,7 @@ class FileExplorerPanel(QDockWidget):
     file_deleted = pyqtSignal(str)       # deleted path
     file_created = pyqtSignal(str)       # new file path (open in editor)
     change_folder_requested = pyqtSignal()  # user clicked the project badge
+    root_folder_changed = pyqtSignal(str)  # active project folder root
 
     def __init__(self, parent=None):
         super().__init__("Explorer", parent)
@@ -610,6 +611,7 @@ class FileExplorerPanel(QDockWidget):
         self._empty_label.hide()
         self._tree.show()
         self._folder_row.show()
+        self.root_folder_changed.emit(folder_path)
 
     def collapse_all(self) -> None:
         """Collapse every expanded node."""

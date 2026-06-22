@@ -134,7 +134,6 @@ class WorkspaceController(MainWindowController):
             self._file_explorer.set_root_folder(folder)
             self._file_explorer.show()
             self._settings.set("general.project_folder", folder)
-            self._search_panel.set_root_path(folder)
 
     def _on_explorer_file_selected(self, file_path: str) -> None:
         """Open a file from the explorer in an editor tab."""

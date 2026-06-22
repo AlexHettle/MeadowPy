@@ -125,7 +125,7 @@ def test_drop_event_opens_files_and_project_folders(tmp_path):
     MainWindow.dropEvent(window, event)
 
     assert ("root", str(project)) in calls
-    assert ("search_root", str(project)) in calls
+    assert ("search_root", str(project)) not in calls
     assert ("read", str(script)) in calls
     assert ("open", str(script), "content") in calls
     assert ("recent", str(script)) in calls

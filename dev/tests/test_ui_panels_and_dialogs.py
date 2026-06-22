@@ -381,6 +381,9 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     navigated = Recorder()
     panel.navigate_to_file.connect(navigated)
 
+    assert panel._scope_label.text().startswith("Searching in: ")
+    assert panel._scope_label.toolTip() == str(tmp_path)
+
     file_path = str(tmp_path / "pkg" / "mod.py")
     panel._on_match_found(SearchResult(file_path, 2, 4, "    target()"))
     panel._on_match_found(SearchResult(file_path, 4, 0, "x" * 250))
@@ -407,6 +410,31 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     assert panel._status_label.text() == "2 results in 1 file 1 large file skipped."
     panel.focus_search()
     assert panel.isVisible()
+    panel.deleteLater()
+
+
+def test_search_panel_scope_empty_root_and_broad_root_cancel(qapp, tmp_path):
+    panel = SearchPanel()
+
+    assert panel._scope_label.text() == "Open a folder to search files."
+    panel._search_input.setText("needle")
+    panel._start_search()
+    assert panel._status_label.text() == "Open a folder to search files."
+
+    project = tmp_path / "parent" / "child"
+    project.mkdir(parents=True)
+    panel.set_root_path(str(project))
+    assert panel._scope_label.text() == "Searching in: parent\\child"
+
+    confirmations = []
+    panel._is_broad_search_root = lambda root: True
+    panel._confirm_broad_search_root = (
+        lambda root: confirmations.append(root) or False
+    )
+    panel._start_search()
+
+    assert confirmations == [str(project)]
+    assert panel._status_label.text() == "Search cancelled."
     panel.deleteLater()
 
 
@@ -696,9 +724,11 @@ def test_file_explorer_context_actions_create_rename_delete_and_theme(monkeypatc
     created = Recorder()
     renamed = Recorder()
     deleted = Recorder()
+    root_changed = Recorder()
     panel.file_created.connect(created)
     panel.file_renamed.connect(renamed)
     panel.file_deleted.connect(deleted)
+    panel.root_folder_changed.connect(root_changed)
 
     text_answers = iter([
         ("new.py", True),
@@ -731,6 +761,7 @@ def test_file_explorer_context_actions_create_rename_delete_and_theme(monkeypatc
 
     panel.set_root_folder(str(tmp_path))
     assert panel.root_path == str(tmp_path)
+    assert root_changed.calls == [(str(tmp_path),)]
     assert panel._project_badge.text() == tmp_path.name.upper()
     assert not panel._tree.isHidden()
 
