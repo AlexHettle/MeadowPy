@@ -15,7 +15,6 @@ import json
 import os
 import socket
 import sys
-import threading
 import traceback
 
 
@@ -139,9 +138,6 @@ class MeadowPyDebugger(bdb.Bdb):
         self._sock = sock
         self._buf = bytearray()
         self._breakpoints_map: dict[str, set[int]] = {}  # norm_path → {1-based lines}
-        self._stepping = False      # True when step-over / step-into / step-out requested
-        self._stop_on_next = False   # set by step_over
-        self._current_frame = None
         # On initial run, skip to the first breakpoint instead of pausing
         # on line 1.  Cleared once the user issues any step/continue command.
         self._initial_continue = True
@@ -197,7 +193,6 @@ class MeadowPyDebugger(bdb.Bdb):
 
         reason = "breakpoint" if is_breakpoint else "step"
 
-        self._current_frame = frame
         self._send_pause(frame, reason)
         self._command_loop(frame)
 

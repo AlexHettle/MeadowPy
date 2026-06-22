@@ -13,11 +13,9 @@ from PyQt6.QtCore import (
     QSize,
 )
 from PyQt6.QtGui import (
-    QAction,
     QColor,
     QFileSystemModel,
     QIcon,
-    QKeyEvent,
     QPalette,
 )
 from PyQt6.QtWidgets import (
@@ -35,16 +33,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from meadowpy.resources.resource_loader import (
-    darken_color,
-    get_icon_path,
-    lighten_color,
-    load_tinted_icon,
-)
+from meadowpy.resources.resource_loader import load_tinted_icon
 from meadowpy.core.file_manager import is_known_unsupported_editor_file
 from meadowpy.ui.item_delegates import NoFocusDelegate
 from meadowpy.ui.panel_title_bar import (
-    PANEL_TITLE_CONTROL_SIZE,
     PANEL_TITLE_ICON_SIZE,
     PANEL_TITLE_ICON_BUTTON_SIZE,
     configure_panel_title_bar,

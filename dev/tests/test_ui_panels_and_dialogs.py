@@ -20,7 +20,6 @@ import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
 from meadowpy.core.settings import Settings
 from meadowpy.resources.resource_loader import get_stylesheet
 from meadowpy.ui.ai_chat_panel import AIChatPanel
-from meadowpy.ui.debug_toolbar import DebugToolBar
 from meadowpy.ui.dialogs.about_dialog import AboutDialog
 from meadowpy.ui.dialogs.accent_color_picker import (
     AccentColorPickerDialog,
@@ -807,21 +806,7 @@ def test_file_explorer_context_actions_create_rename_delete_and_theme(monkeypatc
     panel.deleteLater()
 
 
-def test_debug_toolbar_and_keyword_popup_expose_action_state_and_content(qapp):
-    window = QWidget()
-    toolbar = DebugToolBar(window)
-    assert not toolbar.isVisible()
-    assert [action.text() for action in toolbar.actions()] == [
-        "Step Over (F10)",
-        "Step Into (F11)",
-        "Step Out (Shift+F11)",
-    ]
-
-    toolbar.set_paused(False)
-    assert all(not action.isEnabled() for action in toolbar.actions())
-    toolbar.set_paused(True)
-    assert all(action.isEnabled() for action in toolbar.actions())
-
+def test_keyword_popup_exposes_content(qapp):
     popup = KeywordHelpPopup(
         "for",
         "Repeat code for every item in a collection.",
@@ -832,8 +817,6 @@ def test_debug_toolbar_and_keyword_popup_expose_action_state_and_content(qapp):
     assert popup.minimumWidth() == 380
 
     popup.deleteLater()
-    toolbar.deleteLater()
-    window.deleteLater()
 
 
 def test_accent_color_picker_internal_widgets_pick_render_and_clamp(qapp):

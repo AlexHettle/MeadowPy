@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from PyQt6.QtGui import QIcon, QKeySequence
+from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QMenuBar, QMenu
 
-from meadowpy.resources.resource_loader import get_icon_path, load_themed_icon
+from meadowpy.resources.resource_loader import load_themed_icon
 
 
 class MenuBarBuilder:

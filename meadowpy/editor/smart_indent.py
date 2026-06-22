@@ -25,8 +25,6 @@ class SmartIndentHandler:
     - After return/break/continue/pass/raise, dedents the next line.
     """
 
-    INDENT_AFTER_COLON = True
-
     DEDENT_KEYWORDS = {"return", "break", "continue", "pass", "raise"}
 
     def __init__(self, editor: QsciScintilla, settings: Settings):
