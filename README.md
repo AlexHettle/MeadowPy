@@ -218,6 +218,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | UI overhaul                                        | ✅ Completed    |
 | Improved styling cohesion                          | ✅ Completed    |
 | Large-file safeguard                               | ✅ Completed    |
+| Complete high-quality documentation                                      | 🔄 In progress |
 | MacOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
