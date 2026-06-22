@@ -47,7 +47,12 @@ from meadowpy.ui.panel_title_bar import (
     PANEL_TITLE_VERTICAL_MARGIN,
 )
 from meadowpy.ui.problems_panel import ProblemsPanel
-from meadowpy.ui.search_panel import SearchPanel, SearchResult, SearchWorker
+from meadowpy.ui.search_panel import (
+    SearchPanel,
+    SearchResult,
+    SearchWorker,
+    _MAX_FILE_SIZE,
+)
 from meadowpy.ui.symbol_outline import SymbolOutlinePanel
 from meadowpy.ui.tool_bar import ToolBarBuilder, ToolbarGlowPainter
 from meadowpy.ui.welcome_widget import _WelcomeHeroWidget
@@ -336,6 +341,7 @@ def test_search_worker_reports_real_matches_and_ignores_unsuitable_files(tmp_pat
     hidden.mkdir()
     (hidden / "ignored.py").write_text("alpha\n", encoding="utf-8")
     (tmp_path / "image.png").write_bytes(b"alpha")
+    (tmp_path / "large.log").write_bytes(b"alpha\n" + b"x" * _MAX_FILE_SIZE)
 
     matches = []
     totals = []
@@ -345,6 +351,7 @@ def test_search_worker_reports_real_matches_and_ignores_unsuitable_files(tmp_pat
     worker.run()
 
     assert totals == [3]
+    assert worker.large_files_skipped == 1
     assert [m.line_num for m in matches] == [1, 2, 1]
     assert all(".git" not in m.file_path for m in matches)
 
@@ -392,6 +399,12 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     assert panel._search_btn.isEnabled()
     panel._on_search_finished(0)
     assert panel._status_label.text() == "No results found."
+    panel._large_files_skipped = 2
+    panel._on_search_finished(0)
+    assert panel._status_label.text() == "No results found. 2 large files skipped."
+    panel._large_files_skipped = 1
+    panel._on_search_finished(2)
+    assert panel._status_label.text() == "2 results in 1 file 1 large file skipped."
     panel.focus_search()
     assert panel.isVisible()
     panel.deleteLater()

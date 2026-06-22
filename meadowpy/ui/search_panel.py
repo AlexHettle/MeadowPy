@@ -73,12 +73,18 @@ class SearchWorker(QObject):
         self._case_sensitive = case_sensitive
         self._use_regex = use_regex
         self._cancelled = False
+        self._large_files_skipped = 0
+
+    @property
+    def large_files_skipped(self) -> int:
+        return self._large_files_skipped
 
     def cancel(self) -> None:
         self._cancelled = True
 
     def run(self) -> None:
         count = 0
+        self._large_files_skipped = 0
         try:
             regex = self._compile_pattern()
             if regex is None:
@@ -102,6 +108,7 @@ class SearchWorker(QObject):
                         continue
                     try:
                         if os.path.getsize(fpath) > _MAX_FILE_SIZE:
+                            self._large_files_skipped += 1
                             continue
                         with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                             for line_num, line_text in enumerate(f, start=1):
@@ -157,6 +164,7 @@ class SearchPanel(QDockWidget):
         self._file_items: dict[str, QTreeWidgetItem] = {}
         self._old_threads: list[QThread] = []
         self._old_workers: list[SearchWorker] = []
+        self._large_files_skipped = 0
 
         self._setup_ui()
 
@@ -274,6 +282,7 @@ class SearchPanel(QDockWidget):
         # Clear previous results
         self._tree.clear()
         self._file_items.clear()
+        self._large_files_skipped = 0
         self._status_label.setText("Searching…")
         self._search_btn.setEnabled(False)
 
@@ -375,14 +384,27 @@ class SearchPanel(QDockWidget):
 
     def _on_search_finished(self, total: int) -> None:
         file_count = len(self._file_items)
+        self._large_files_skipped = getattr(
+            self._worker,
+            "large_files_skipped",
+            self._large_files_skipped,
+        )
+        skipped_text = self._large_files_skipped_text()
         if total == 0:
-            self._status_label.setText("No results found.")
+            self._status_label.setText(f"No results found.{skipped_text}")
         else:
             self._status_label.setText(
                 f"{total} result{'s' if total != 1 else ''} "
                 f"in {file_count} file{'s' if file_count != 1 else ''}"
+                f"{skipped_text}"
             )
         self._search_btn.setEnabled(True)
+
+    def _large_files_skipped_text(self) -> str:
+        if self._large_files_skipped <= 0:
+            return ""
+        suffix = "file" if self._large_files_skipped == 1 else "files"
+        return f" {self._large_files_skipped} large {suffix} skipped."
 
     def _on_thread_finished(
         self, thread: QThread | None = None, worker: SearchWorker | None = None
