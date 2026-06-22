@@ -1,8 +1,21 @@
 """Smart indentation handler for Python code."""
 
+from io import StringIO
+import tokenize
+
 from PyQt6.Qsci import QsciScintilla
 
 from meadowpy.core.settings import Settings
+
+
+_IGNORED_TOKEN_TYPES = {
+    tokenize.COMMENT,
+    tokenize.DEDENT,
+    tokenize.ENDMARKER,
+    tokenize.INDENT,
+    tokenize.NEWLINE,
+    tokenize.NL,
+}
 
 
 class SmartIndentHandler:
@@ -37,8 +50,8 @@ class SmartIndentHandler:
         current_indent = self._get_line_indent(line)
         indent_str = self._get_indent_unit()
 
-        # Case 1: Line ends with colon -> extra indent
-        if stripped.endswith(":"):
+        # Case 1: Line ends with a code colon -> extra indent
+        if self._ends_with_code_colon(text_before_cursor):
             new_indent = current_indent + indent_str
             self._insert_newline_with_indent(new_indent)
             return True
@@ -65,6 +78,23 @@ class SmartIndentHandler:
         if self._settings.get("editor.use_spaces"):
             return " " * self._settings.get("editor.tab_width")
         return "\t"
+
+    def _ends_with_code_colon(self, text: str) -> bool:
+        """Return True when the last meaningful token is a Python code colon."""
+        last_token = None
+        try:
+            for token in tokenize.generate_tokens(StringIO(text).readline):
+                if token.type in _IGNORED_TOKEN_TYPES:
+                    continue
+                last_token = token
+        except (IndentationError, tokenize.TokenError):
+            return False
+
+        return (
+            last_token is not None
+            and last_token.type == tokenize.OP
+            and last_token.string == ":"
+        )
 
     def _insert_newline_with_indent(self, indent: str) -> None:
         """Insert a newline followed by the given indentation."""

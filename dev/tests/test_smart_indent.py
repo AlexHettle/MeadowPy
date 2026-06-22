@@ -27,6 +27,30 @@ def test_handle_return_adds_indent_after_colon(tmp_path):
     assert editor.getCursorPosition() == (1, 4)
 
 
+def test_handle_return_ignores_comment_colon(tmp_path):
+    _, handler = make_handler(tmp_path, text="# TODO:", cursor=(0, 7))
+
+    assert handler.handle_return() is False
+
+
+def test_handle_return_adds_indent_after_colon_with_trailing_comment(tmp_path):
+    editor, handler = make_handler(
+        tmp_path,
+        text="if ready:  # check",
+        cursor=(0, 18),
+    )
+
+    assert handler.handle_return() is True
+    assert editor.all_text() == "if ready:  # check\n    "
+    assert editor.getCursorPosition() == (1, 4)
+
+
+def test_handle_return_ignores_string_colon(tmp_path):
+    _, handler = make_handler(tmp_path, text='label = "TODO:"', cursor=(0, 15))
+
+    assert handler.handle_return() is False
+
+
 def test_handle_return_dedents_after_return_keyword(tmp_path):
     editor, handler = make_handler(tmp_path, text="    return value", cursor=(0, 16))
 
