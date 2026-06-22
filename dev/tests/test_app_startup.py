@@ -186,6 +186,7 @@ def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
     missing_file = tmp_path / "missing.py"
     settings = FakeSettings()
     stylesheet_calls = []
+    sweep_calls = []
 
     monkeypatch.setattr(app_module, "QApplication", FakeQApplication)
     monkeypatch.setattr(app_module, "_install_qt_message_logger", lambda: "handler")
@@ -193,6 +194,11 @@ def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
     monkeypatch.setattr(app_module, "RecentFilesManager", FakeRecentFiles)
     monkeypatch.setattr(app_module, "FileManager", FakeFileManager)
     monkeypatch.setattr(app_module, "MainWindow", FakeWindow)
+    monkeypatch.setattr(
+        app_module,
+        "sweep_selection_temp_files",
+        lambda: sweep_calls.append(True),
+    )
     monkeypatch.setattr(app_module, "MeadowPySplashScreen", FakeSplash)
     monkeypatch.setattr(app_module, "_MenuRoundedMaskFilter", FakeEventFilter)
     monkeypatch.setattr(app_module, "_ClipboardShortcutFilter", FakeEventFilter)
@@ -219,6 +225,7 @@ def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
     assert app._qapp.organization_name == APP_NAME
     assert app._qapp.application_version == VERSION
     assert settings.loaded is True
+    assert sweep_calls == [True]
     assert stylesheet_calls == [("custom", "light", "#246810")]
     assert app._qapp.stylesheets == ["/* qss */"]
     assert len(app._qapp.event_filters) == 2

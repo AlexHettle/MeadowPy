@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QProcess
 
 import meadowpy.core.process_runner as process_module
-from meadowpy.core.process_runner import ProcessRunner
+from meadowpy.core.process_runner import ProcessRunner, sweep_selection_temp_files
 from tests.helpers import FakeProcess, SignalRecorder
 
 
@@ -88,6 +88,65 @@ def test_start_process_configures_qprocess_and_replaces_existing(monkeypatch):
     assert second.working_directory == "C:/work2"
     assert second.channel_mode == QProcess.ProcessChannelMode.SeparateChannels
     assert second.start_args == ("python.exe", ["-u", "next.py"])
+
+
+def test_run_code_replaces_running_selection_without_leaking_old_temp(
+    tmp_path, monkeypatch
+):
+    created = []
+
+    class ProcessFactory(FakeQProcess):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            created.append(self)
+
+    monkeypatch.setattr(process_module, "QProcess", ProcessFactory)
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+    runner = ProcessRunner()
+    old_process = FakeQProcess()
+    old_process.state_value = QProcess.ProcessState.Running
+    runner._process = old_process
+    old_temp = tmp_path / "old_selection.py"
+    old_temp.write_text("print('old')", encoding="utf-8")
+    runner._temp_file = str(old_temp)
+
+    runner.run_code("print('new')", "python.exe", str(tmp_path))
+
+    assert old_process.killed is True
+    assert old_process.wait_calls == [1000]
+    assert not old_temp.exists()
+    assert runner._temp_file is not None
+    assert created[0].start_args == (
+        "python.exe",
+        ["-u", runner._temp_file],
+    )
+    assert created[0].working_directory == str(tmp_path)
+    assert created[0].channel_mode == QProcess.ProcessChannelMode.SeparateChannels
+    assert runner._temp_file != str(old_temp)
+    assert "print('new')" == process_module.Path(runner._temp_file).read_text(
+        encoding="utf-8"
+    )
+
+
+def test_sweep_selection_temp_files_removes_only_known_temp_names(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+    temp_dir = tmp_path / ".meadowpy" / "tmp"
+    temp_dir.mkdir(parents=True)
+    legacy_temp = temp_dir / "tmpabc123.py"
+    selection_temp = temp_dir / "selection-abc123.py"
+    unrelated_python = temp_dir / "notes.py"
+    unrelated_text = temp_dir / "tmpabc123.txt"
+    for path in (legacy_temp, selection_temp, unrelated_python, unrelated_text):
+        path.write_text("x", encoding="utf-8")
+
+    sweep_selection_temp_files()
+
+    assert not legacy_temp.exists()
+    assert not selection_temp.exists()
+    assert unrelated_python.exists()
+    assert unrelated_text.exists()
 
 
 def test_stop_waits_for_process_and_removes_temp_file(tmp_path):

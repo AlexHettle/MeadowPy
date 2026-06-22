@@ -6,6 +6,39 @@ from pathlib import Path
 
 from PyQt6.QtCore import QObject, QProcess, pyqtSignal
 
+from meadowpy.constants import CONFIG_DIR_NAME
+
+
+_TEMP_FILE_PATTERNS = ("tmp*.py", "selection-*.py")
+
+
+def _selection_temp_dir() -> Path:
+    return Path.home() / CONFIG_DIR_NAME / "tmp"
+
+
+def _unlink_temp_file(path: str | Path) -> bool:
+    try:
+        Path(path).unlink()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def sweep_selection_temp_files() -> None:
+    """Remove leftover Run Selection temp files from previous app sessions."""
+    tmp_dir = _selection_temp_dir()
+    try:
+        if not tmp_dir.is_dir():
+            return
+        for pattern in _TEMP_FILE_PATTERNS:
+            for path in tmp_dir.glob(pattern):
+                if path.is_file():
+                    _unlink_temp_file(path)
+    except OSError:
+        pass
+
 
 class ProcessRunner(QObject):
     """Asynchronous Python script runner using QProcess."""
@@ -34,13 +67,21 @@ class ProcessRunner(QObject):
         self, code: str, interpreter: str, working_dir: str
     ) -> None:
         """Run arbitrary Python code via a temporary file."""
-        tmp_dir = Path.home() / ".meadowpy" / "tmp"
+        tmp_dir = _selection_temp_dir()
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        fd, tmp_path = tempfile.mkstemp(suffix=".py", dir=str(tmp_dir))
+        fd, tmp_path = tempfile.mkstemp(
+            prefix="selection-",
+            suffix=".py",
+            dir=str(tmp_dir),
+        )
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(code)
+        try:
+            self._start_process(interpreter, ["-u", tmp_path], working_dir)
+        except Exception:
+            _unlink_temp_file(tmp_path)
+            raise
         self._temp_file = tmp_path
-        self._start_process(interpreter, ["-u", tmp_path], working_dir)
         self.process_started.emit("Running selection")
 
     def send_stdin(self, text: str) -> None:
@@ -79,6 +120,7 @@ class ProcessRunner(QObject):
                 self._process.kill()
                 self._process.waitForFinished(1000)
 
+        self._cleanup_temp()
         self._process = QProcess(self)
         self._process.setWorkingDirectory(working_dir)
         self._process.setProcessChannelMode(
@@ -121,6 +163,10 @@ class ProcessRunner(QObject):
             self.output_received.emit(text, "stderr")
 
     def _on_finished(self, exit_code: int, exit_status) -> None:
+        sender = self.sender()
+        if sender is not None and sender is not self._process:
+            return
+
         self._cleanup_temp()
         if exit_status == QProcess.ExitStatus.CrashExit:
             desc = "Process was terminated"
@@ -144,8 +190,5 @@ class ProcessRunner(QObject):
     def _cleanup_temp(self) -> None:
         """Remove temporary file created by run_code()."""
         if self._temp_file:
-            try:
-                os.unlink(self._temp_file)
-            except OSError:
-                pass
-            self._temp_file = None
+            if _unlink_temp_file(self._temp_file):
+                self._temp_file = None

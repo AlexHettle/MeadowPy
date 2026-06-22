@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication, QMenu, QMenuBar, QWidget
 
 from meadowpy.constants import APP_ID, APP_NAME, CONFIG_DIR_NAME, VERSION
 from meadowpy.core.file_manager import FileManager
+from meadowpy.core.process_runner import sweep_selection_temp_files
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.ui.main_window import MainWindow
 from meadowpy.core.settings import Settings
@@ -170,6 +171,7 @@ class MeadowPyApp:
         self._set_splash_status("Loading settings...")
         self._settings = Settings()
         self._settings.load()
+        sweep_selection_temp_files()
 
         # Load stylesheet based on saved theme
         self._set_splash_status("Applying theme...")
