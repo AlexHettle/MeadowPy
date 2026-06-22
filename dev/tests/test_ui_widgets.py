@@ -398,6 +398,8 @@ def test_venv_dialog_validates_inputs_and_reports_success(monkeypatch, qapp, tmp
             ]
 
         def create_venv(self, base_dir, venv_name, interpreter):
+            if venv_name == "fail-env":
+                raise RuntimeError("creation failed")
             self.created.append((base_dir, venv_name, interpreter))
             return str(tmp_path / venv_name)
 
@@ -416,17 +418,45 @@ def test_venv_dialog_validates_inputs_and_reports_success(monkeypatch, qapp, tmp
 
     manager = FakeManager()
     dialog = VenvDialog(manager, str(tmp_path / "script.py"))
+    chosen_dir = tmp_path / "chosen"
+    monkeypatch.setattr(
+        "meadowpy.ui.dialogs.venv_dialog.QFileDialog.getExistingDirectory",
+        lambda parent, title, directory: str(chosen_dir),
+    )
+
+    dialog._browse_directory()
+
+    assert dialog._dir_edit.text() == str(chosen_dir)
 
     dialog._dir_edit.setText("")
     dialog._create_venv()
     assert messages[-1][1] == "Missing Directory"
 
+    dialog._dir_edit.setText(str(tmp_path))
+    dialog._name_edit.setText("")
+    dialog._create_venv()
+    assert messages[-1][1] == "Missing Name"
+
     existing = tmp_path / ".venv"
     existing.mkdir()
-    dialog._dir_edit.setText(str(tmp_path))
     dialog._name_edit.setText(".venv")
     dialog._create_venv()
     assert messages[-1][1] == "Already Exists"
+
+    dialog._name_edit.setText("no-interpreter-env")
+    dialog._interp_combo.clear()
+    dialog._create_venv()
+    assert messages[-1][1] == "No Interpreter"
+
+    dialog._interp_combo.addItem("System Python 3.11  (python.exe)", "python.exe")
+    dialog._name_edit.setText("fail-env")
+    dialog._create_venv()
+    assert messages[-1] == (
+        "critical",
+        "Error",
+        "Failed to create virtual environment:\ncreation failed",
+    )
+    assert dialog._info_label.text() == ""
 
     dialog._name_edit.setText("new-env")
     dialog._create_venv()
