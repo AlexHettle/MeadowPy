@@ -6,6 +6,7 @@ from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QMenu, QStatusBar
 
 import meadowpy.ui.ai_chat_widgets as ai_chat_widgets_module
+import meadowpy.ui.model_selector as model_selector_module
 from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.linter import LintIssue
 from meadowpy.ui.ai_chat_widgets import ChatView
@@ -191,6 +192,119 @@ def test_model_selector_menu_builders_emit_user_choices(qapp):
     ][0]
     setup_action.trigger()
     assert chosen.calls[-1] == ("__setup__",)
+
+
+def test_model_selector_show_at_chooses_menu_for_connection_state(monkeypatch, qapp):
+    created_menus = []
+
+    class FakeSignal:
+        def __init__(self):
+            self.callbacks = []
+
+        def connect(self, callback):
+            self.callbacks.append(callback)
+
+    class FakeAction:
+        def __init__(self, text):
+            self._text = text
+            self._enabled = True
+            self._checkable = False
+            self._checked = False
+            self.triggered = FakeSignal()
+
+        def text(self):
+            return self._text
+
+        def setEnabled(self, enabled):
+            self._enabled = enabled
+
+        def isEnabled(self):
+            return self._enabled
+
+        def setCheckable(self, checkable):
+            self._checkable = checkable
+
+        def isCheckable(self):
+            return self._checkable
+
+        def setChecked(self, checked):
+            self._checked = checked
+
+        def isChecked(self):
+            return self._checked
+
+    class FakeMenu:
+        def __init__(self, parent=None):
+            self.parent = parent
+            self.object_name = ""
+            self.exec_pos = None
+            self._actions = []
+            created_menus.append(self)
+
+        def setObjectName(self, name):
+            self.object_name = name
+
+        def addAction(self, text):
+            action = FakeAction(text)
+            self._actions.append(action)
+            return action
+
+        def addSeparator(self):
+            self._actions.append(FakeAction("---"))
+
+        def actions(self):
+            return self._actions
+
+        def exec(self, pos):
+            self.exec_pos = pos
+
+    monkeypatch.setattr(model_selector_module, "QMenu", FakeMenu)
+    popup = ModelSelectorPopup()
+    pos = QPoint(4, 8)
+
+    popup.show_at(pos)
+
+    offline_menu = created_menus[-1]
+    assert offline_menu.object_name == "modelSelectorMenu"
+    assert offline_menu.exec_pos == pos
+    assert [action.text() for action in offline_menu.actions()] == [
+        "Ollama is not running",
+        "---",
+        "Setup/check Ollama...",
+        "Check connection...",
+    ]
+
+    popup.set_connected(True)
+    popup.show_at(pos)
+
+    no_models_menu = created_menus[-1]
+    assert [action.text() for action in no_models_menu.actions()] == [
+        "No models installed",
+        "---",
+        "Setup/check Ollama...",
+        "Refresh models...",
+    ]
+
+    popup.set_models(["llama3", "qwen3"])
+    popup.set_current_model("qwen3")
+    popup.show_at(pos)
+
+    model_menu = created_menus[-1]
+    qwen_action = [
+        action for action in model_menu.actions()
+        if action.text() == "qwen3"
+    ][0]
+    assert qwen_action.isCheckable() is True
+    assert qwen_action.isChecked() is True
+    assert [action.text() for action in model_menu.actions()] == [
+        "Select AI Model",
+        "---",
+        "llama3",
+        "qwen3",
+        "---",
+        "Setup/check Ollama...",
+        "Refresh models...",
+    ]
 
 
 def test_chat_view_copy_all_action_disables_when_empty(monkeypatch, qapp):
