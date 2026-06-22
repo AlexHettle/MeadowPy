@@ -372,6 +372,68 @@ def test_editor_font_family_falls_back_to_safe_scalable_font(monkeypatch):
     assert editor_fonts.editor_font_family("Laggy Display") == "Consolas"
 
 
+def test_editor_font_helpers_handle_font_database_failures(monkeypatch):
+    def raise_runtime_error(*args):
+        raise RuntimeError("font database unavailable")
+
+    monkeypatch.setattr(
+        editor_fonts.QFontDatabase,
+        "families",
+        raise_runtime_error,
+    )
+    assert editor_fonts._families() == []
+    assert editor_fonts.is_editor_safe_font_family(None) is False
+    assert editor_fonts.is_editor_safe_font_family("") is False
+    assert editor_fonts.is_editor_safe_font_family("Any Font") is True
+
+    monkeypatch.setattr(
+        editor_fonts.QFontDatabase,
+        "isSmoothlyScalable",
+        lambda family: family == "Smooth Mono",
+    )
+    assert editor_fonts._is_smoothly_scalable("Smooth Mono") is True
+
+    monkeypatch.setattr(editor_fonts, "_families", lambda: ["Broken Mono"])
+    monkeypatch.setattr(
+        editor_fonts,
+        "_is_smoothly_scalable",
+        raise_runtime_error,
+    )
+    assert editor_fonts.is_editor_safe_font_family("Broken Mono") is False
+
+
+def test_editor_font_family_falls_back_to_installed_safe_family(monkeypatch):
+    monkeypatch.setattr(editor_fonts, "_families", lambda: ["Project Mono"])
+    monkeypatch.setattr(
+        editor_fonts,
+        "EDITOR_FONT_FALLBACKS",
+        ("Missing Fallback",),
+    )
+    monkeypatch.setattr(
+        editor_fonts,
+        "_is_smoothly_scalable",
+        lambda family: family == "Project Mono",
+    )
+
+    assert editor_fonts.editor_font_family("Missing Preferred") == "Project Mono"
+
+
+def test_editor_font_family_returns_default_when_no_safe_fonts(monkeypatch):
+    monkeypatch.setattr(editor_fonts, "_families", lambda: ["Laggy Display"])
+    monkeypatch.setattr(
+        editor_fonts,
+        "EDITOR_FONT_FALLBACKS",
+        ("Missing Fallback",),
+    )
+    monkeypatch.setattr(
+        editor_fonts,
+        "_is_smoothly_scalable",
+        lambda family: False,
+    )
+
+    assert editor_fonts.editor_font_family("Missing Preferred") == "Consolas"
+
+
 class GuideStyleHarness:
     def __init__(self):
         self.indentation_guides = None
