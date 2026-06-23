@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtGui import QKeyEvent, QTextCursor
 from PyQt6.QtWidgets import QMenu, QStatusBar
 
 import meadowpy.ui.ai_chat_widgets as ai_chat_widgets_module
 import meadowpy.ui.model_selector as model_selector_module
 from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.linter import LintIssue
-from meadowpy.ui.ai_chat_widgets import ChatView
+from meadowpy.ui.ai_chat_widgets import ChatBubble, ChatInput, ChatView
 from meadowpy.ui.call_stack_panel import CallStackPanel
 from meadowpy.ui.dialogs.venv_dialog import VenvDialog
 from meadowpy.ui.model_selector import ModelSelectorPopup
@@ -364,6 +365,82 @@ def test_chat_view_copy_all_action_disables_when_empty(monkeypatch, qapp):
 
     assert created_menus[-1].actions[0].isEnabled() is True
     assert copied == ["Hello\n\nStopped"]
+    view.deleteLater()
+
+
+def test_chat_input_enter_submits_shift_enter_and_text_key_edits(qapp):
+    input_area = ChatInput()
+    submitted = Recorder()
+    input_area.submit_pressed.connect(submitted)
+    input_area.setPlainText("hello")
+    input_area.moveCursor(QTextCursor.MoveOperation.End)
+
+    input_area.keyPressEvent(
+        QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Return,
+            Qt.KeyboardModifier.NoModifier,
+        )
+    )
+
+    assert submitted.calls == [()]
+    assert input_area.toPlainText() == "hello"
+
+    input_area.keyPressEvent(
+        QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Return,
+            Qt.KeyboardModifier.ShiftModifier,
+            "\n",
+        )
+    )
+    input_area.keyPressEvent(
+        QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_A,
+            Qt.KeyboardModifier.NoModifier,
+            "a",
+        )
+    )
+
+    assert submitted.calls == [()]
+    assert input_area.toPlainText() == "hello\na"
+    input_area.deleteLater()
+
+
+def test_chat_bubble_html_plain_text_and_link_forwarding(qapp):
+    bubble = ChatBubble("ai")
+    opened = Recorder()
+    bubble.link_clicked.connect(opened)
+    html = '<b>Hello</b> <a href="https://example.test">there</a>'
+
+    bubble.set_html(html)
+    bubble._label.linkActivated.emit("https://example.test")
+
+    assert bubble.objectName() == "chatBubbleAi"
+    assert bubble.html() == html
+    assert bubble.plain_text() == "Hello there"
+    assert opened.calls == [("https://example.test",)]
+
+    user_bubble = ChatBubble("user")
+    assert user_bubble.objectName() == "chatBubbleUser"
+    bubble.deleteLater()
+    user_bubble.deleteLater()
+
+
+def test_chat_view_scroll_to_value_clamps_to_scrollbar_range(qapp):
+    view = ChatView()
+    scrollbar = view.verticalScrollBar()
+    scrollbar.setRange(10, 50)
+
+    view.scroll_to_value(100)
+    assert view.scroll_value() == 50
+
+    view.scroll_to_value(0)
+    assert view.scroll_value() == 10
+
+    view.scroll_to_value(30)
+    assert view.scroll_value() == 30
     view.deleteLater()
 
 
