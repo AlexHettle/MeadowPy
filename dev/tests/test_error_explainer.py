@@ -1,3 +1,6 @@
+import re
+
+from meadowpy.core import error_explainer
 from meadowpy.core.error_explainer import explain_error
 
 
@@ -35,3 +38,15 @@ def test_explain_error_matches_unbound_local_error_old_and_new_wording():
 
 def test_explain_error_returns_none_for_unknown_error():
     assert explain_error("TotallyUnknownError: no mapping") is None
+
+
+def test_explain_error_falls_back_to_raw_template_for_bad_placeholders(monkeypatch):
+    monkeypatch.setattr(
+        error_explainer,
+        "ERROR_PATTERNS",
+        [(re.compile(r"ExampleError: (.+)"), "Broken placeholder {1}")],
+    )
+
+    explanation = explain_error("ExampleError: mismatched template")
+
+    assert explanation == "\U0001f4a1 Broken placeholder {1}\n"
