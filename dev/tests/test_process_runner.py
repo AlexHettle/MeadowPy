@@ -1,3 +1,4 @@
+import pytest
 from PyQt6.QtCore import QProcess
 
 import meadowpy.core.process_runner as process_module
@@ -44,6 +45,22 @@ def test_run_code_writes_temp_file_and_starts_process(tmp_path, monkeypatch):
     assert temp_file is not None
 
 
+def test_run_code_removes_temp_file_when_start_process_fails(tmp_path, monkeypatch):
+    runner = ProcessRunner()
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+
+    def fail_start(interpreter, args, working_dir):
+        raise RuntimeError("cannot start")
+
+    runner._start_process = fail_start
+
+    with pytest.raises(RuntimeError, match="cannot start"):
+        runner.run_code("print('hello')", "python.exe", str(tmp_path))
+
+    assert runner._temp_file is None
+    assert list(process_module._selection_temp_dir().glob("selection-*.py")) == []
+
+
 def test_send_stdin_only_writes_when_process_is_running():
     runner = ProcessRunner()
     process = FakeProcess()
@@ -64,6 +81,18 @@ def test_stop_kills_active_process():
     runner.stop()
 
     assert process.killed is True
+
+
+def test_stop_noops_when_process_is_not_running():
+    runner = ProcessRunner()
+    process = FakeProcess()
+    process.state_value = QProcess.ProcessState.NotRunning
+    runner._process = process
+
+    runner.stop()
+
+    assert process.killed is False
+    assert process.wait_calls == []
 
 
 def test_start_process_configures_qprocess_and_replaces_existing(monkeypatch):
@@ -149,6 +178,45 @@ def test_sweep_selection_temp_files_removes_only_known_temp_names(
     assert unrelated_text.exists()
 
 
+def test_unlink_temp_file_handles_missing_and_os_errors(tmp_path, monkeypatch):
+    assert process_module._unlink_temp_file(tmp_path / "already-gone.py") is True
+
+    locked_file = tmp_path / "selection-locked.py"
+    locked_file.write_text("print('x')", encoding="utf-8")
+
+    def raise_os_error(self):
+        raise OSError("locked")
+
+    monkeypatch.setattr(process_module.Path, "unlink", raise_os_error)
+
+    assert process_module._unlink_temp_file(locked_file) is False
+    assert locked_file.exists()
+
+
+def test_sweep_selection_temp_files_noops_for_missing_directory(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+
+    sweep_selection_temp_files()
+
+    assert not process_module._selection_temp_dir().exists()
+
+
+def test_sweep_selection_temp_files_ignores_filesystem_errors(monkeypatch):
+    class BrokenTempDir:
+        def is_dir(self):
+            raise OSError("cannot inspect")
+
+    monkeypatch.setattr(
+        process_module,
+        "_selection_temp_dir",
+        lambda: BrokenTempDir(),
+    )
+
+    sweep_selection_temp_files()
+
+
 def test_stop_waits_for_process_and_removes_temp_file(tmp_path):
     runner = ProcessRunner()
     process = FakeQProcess()
@@ -199,6 +267,29 @@ def test_finished_signal_uses_exit_status_and_cleans_temp(tmp_path):
         (1, "Process was terminated"),
     ]
     assert runner._temp_file is None
+
+
+def test_finished_ignores_signal_from_stale_process(tmp_path):
+    stale_process = object()
+    current_process = object()
+
+    class RunnerWithSender(ProcessRunner):
+        def sender(self):
+            return stale_process
+
+    runner = RunnerWithSender()
+    runner._process = current_process
+    finished = SignalRecorder()
+    runner.process_finished.connect(finished)
+    temp_file = tmp_path / "selection.py"
+    temp_file.write_text("print('x')", encoding="utf-8")
+    runner._temp_file = str(temp_file)
+
+    runner._on_finished(0, QProcess.ExitStatus.NormalExit)
+
+    assert finished.calls == []
+    assert runner._temp_file == str(temp_file)
+    assert temp_file.exists()
 
 
 def test_on_error_maps_known_process_errors():
