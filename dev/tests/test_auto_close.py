@@ -18,6 +18,17 @@ def test_handle_key_returns_false_when_feature_disabled(tmp_path):
     assert editor.all_text() == ""
 
 
+def test_handle_key_ignores_empty_text_and_selection(tmp_path):
+    editor, handler = make_handler(tmp_path)
+
+    assert handler.handle_key(DummyKeyEvent("")) is False
+    assert editor.all_text() == ""
+
+    editor.set_selected(True)
+    assert handler.handle_key(DummyKeyEvent("(")) is False
+    assert editor.all_text() == ""
+
+
 def test_handle_key_inserts_matching_pair_for_openers(tmp_path):
     editor, handler = make_handler(tmp_path, text="value", cursor=(0, 5))
 
@@ -40,6 +51,22 @@ def test_handle_key_inserts_quote_pair_when_followed_by_whitespace(tmp_path):
     assert handler.handle_key(DummyKeyEvent('"')) is True
     assert editor.all_text() == 'name ""'
     assert editor.getCursorPosition() == (0, 6)
+
+
+def test_handle_key_inserts_quote_pair_at_end_of_line(tmp_path):
+    editor, handler = make_handler(tmp_path, text="name", cursor=(0, 4))
+
+    assert handler.handle_key(DummyKeyEvent("'")) is True
+    assert editor.all_text() == "name''"
+    assert editor.getCursorPosition() == (0, 5)
+
+
+def test_handle_key_does_not_pair_quote_before_word_character(tmp_path):
+    editor, handler = make_handler(tmp_path, text="name=value", cursor=(0, 5))
+
+    assert handler.handle_key(DummyKeyEvent('"')) is False
+    assert editor.all_text() == "name=value"
+    assert editor.getCursorPosition() == (0, 5)
 
 
 def test_handle_key_skips_existing_closing_quote(tmp_path):
@@ -73,6 +100,31 @@ def test_handle_backspace_removes_auto_inserted_pair(tmp_path):
     assert handler.handle_backspace() is True
     assert editor.all_text() == ""
     assert editor.getCursorPosition() == (0, 0)
+
+
+def test_handle_backspace_returns_false_when_feature_disabled(tmp_path):
+    editor, handler = make_handler(tmp_path, text="()", cursor=(0, 1), enabled=False)
+
+    assert handler.handle_backspace() is False
+    assert editor.all_text() == "()"
+
+
+def test_handle_backspace_ignores_start_and_out_of_range_cursor(tmp_path):
+    editor, handler = make_handler(tmp_path, text="()", cursor=(0, 0))
+
+    assert handler.handle_backspace() is False
+    assert editor.all_text() == "()"
+
+    editor.setCursorPosition(0, 3)
+    assert handler.handle_backspace() is False
+    assert editor.all_text() == "()"
+
+
+def test_handle_backspace_ignores_non_pair_characters(tmp_path):
+    editor, handler = make_handler(tmp_path, text="ab", cursor=(0, 1))
+
+    assert handler.handle_backspace() is False
+    assert editor.all_text() == "ab"
 
 
 def test_handle_backspace_ignores_selected_text(tmp_path):
