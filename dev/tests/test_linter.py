@@ -5,6 +5,10 @@ from meadowpy.core.linter import LintRunner, LintWorker
 from tests.helpers import DummySignal, FakeThread, SignalRecorder
 
 
+def test_is_style_issue_returns_false_for_unknown_linter():
+    assert linter_module._is_style_issue("mypy", "E501") is False
+
+
 def test_parse_flake8_output_uses_zero_based_positions_and_severity():
     worker = LintWorker("print('x')\n", "demo.py", "flake8")
 
@@ -79,6 +83,26 @@ def test_run_emits_install_error_when_flake8_module_is_missing(monkeypatch):
     worker.run()
 
     assert errors.calls == [("'flake8' is not installed. Install it with: pip install flake8",)]
+    assert finished.calls == [([],)]
+
+
+def test_run_emits_install_error_when_linter_executable_is_missing(monkeypatch):
+    worker = LintWorker("print('x')\n", "demo.py", "flake8")
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    worker.error_occurred.connect(errors)
+    worker.finished.connect(finished)
+    monkeypatch.setattr(
+        worker,
+        "_run_flake8",
+        lambda: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+
+    worker.run()
+
+    assert errors.calls == [(
+        "'flake8' is not installed. Install it with: pip install flake8",
+    )]
     assert finished.calls == [([],)]
 
 
@@ -294,5 +318,19 @@ def test_stop_terminates_old_threads_when_needed():
 
     assert stubborn.quit_called == 1
     assert stubborn.terminate_called == 1
+    assert runner._old_threads == []
+    assert runner._old_workers == []
+
+
+def test_cleanup_thread_removes_keep_alive_refs_and_tolerates_missing_refs():
+    runner = LintRunner()
+    thread = object()
+    worker = object()
+    runner._old_threads = [thread]
+    runner._old_workers = [worker]
+
+    runner._cleanup_thread(thread, worker)
+    runner._cleanup_thread(thread, worker)
+
     assert runner._old_threads == []
     assert runner._old_workers == []
