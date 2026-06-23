@@ -164,3 +164,13 @@ def test_load_tinted_icon_renders_existing_template(qapp):
 
 def test_get_font_path_returns_empty_for_missing_font():
     assert resource_loader.get_font_path("missing-font.ttf") == ""
+
+
+def test_get_icon_path_returns_empty_for_missing_icon():
+    assert resource_loader.get_icon_path("missing-icon") == ""
+
+
+def test_load_themed_icon_returns_empty_icon_for_missing_asset(qapp):
+    icon = resource_loader.load_themed_icon("missing-icon")
+
+    assert icon.isNull()
