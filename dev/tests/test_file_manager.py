@@ -97,6 +97,16 @@ def test_read_file_falls_back_to_latin1(tmp_path):
     assert manager.read_file(str(file_path)) == "café"
 
 
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-32"])
+def test_read_file_decodes_unicode_bom_text(tmp_path, encoding):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / f"unicode-{encoding}.txt"
+    file_path.write_bytes("first\r\nsecond".encode(encoding))
+
+    assert manager.read_file(str(file_path)) == "first\nsecond"
+
+
 def test_read_file_allows_non_python_text_files(tmp_path):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)
