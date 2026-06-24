@@ -49,12 +49,19 @@ def test_remove_and_clear_update_settings(tmp_path):
 
     manager.add(str(alpha))
     manager.add(str(beta))
+
+    recorder = SignalRecorder()
+    manager.recent_files_changed.connect(recorder)
+
     manager.remove(str(alpha))
-    assert manager.get_files() == [str(beta.resolve())]
+    remaining = str(beta.resolve())
+    assert manager.get_files() == [remaining]
+    assert recorder.calls == [([remaining],)]
 
     manager.clear()
     assert manager.get_files() == []
     assert settings.get("window.recent_files") == []
+    assert recorder.calls == [([remaining],), ([],)]
 
 
 def test_get_files_returns_copy(tmp_path):
