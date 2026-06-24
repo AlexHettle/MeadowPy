@@ -72,13 +72,20 @@ def test_save_file_returns_false_on_oserror(monkeypatch):
 def test_save_file_as_uses_dialog_and_returns_path(monkeypatch):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)
+    saved = []
     monkeypatch.setattr(
         "meadowpy.core.file_manager.QFileDialog.getSaveFileName",
         lambda *args, **kwargs: ("picked.py", ""),
     )
-    monkeypatch.setattr(manager, "save_file", lambda file_path, content: file_path == "picked.py")
+
+    def fake_save_file(file_path, content):
+        saved.append((file_path, content))
+        return file_path == "picked.py"
+
+    monkeypatch.setattr(manager, "save_file", fake_save_file)
 
     assert manager.save_file_as("content") == "picked.py"
+    assert saved == [("picked.py", "content")]
 
 
 def test_read_file_falls_back_to_latin1(tmp_path):
