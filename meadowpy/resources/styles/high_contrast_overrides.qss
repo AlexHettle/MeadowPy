@@ -285,6 +285,40 @@ QPushButton:default:hover {
     border-color: #7F7F7F;
 }
 
+/* Shortcut editor. */
+#shortcutSidebar,
+#shortcutDetailPane,
+#shortcutFooter,
+#shortcutCurrentBox,
+#shortcutCaptureBox {
+    background: #000000;
+    color: #FFFFFF;
+    border-color: #FFFFFF;
+}
+#shortcutRow[selected="true"] {
+    background: #000000;
+    border: 2px solid #FFFFFF;
+}
+#shortcutChangeBtn,
+#shortcutConflictPrimary,
+#shortcutDangerBtn {
+    background: #FFFFFF;
+    color: #000000;
+    border: 2px solid #FFFFFF;
+}
+#shortcutResetBtn,
+#shortcutConflictSecondary,
+#shortcutCloseBtn {
+    background: #000000;
+    color: #FFFFFF;
+    border: 2px solid #FFFFFF;
+}
+#shortcutLinkBtn {
+    background: transparent;
+    color: #FFFFFF;
+    border: none;
+}
+
 /* Status bar should stay black-on-white at the bottom of the window. */
 QStatusBar { background: #FFFFFF; color: #000000; }
 QStatusBar QLabel,

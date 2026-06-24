@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
 from meadowpy.core.settings import Settings
+from meadowpy.core.shortcuts import get_shortcut, set_shortcut
 from meadowpy.resources.resource_loader import get_stylesheet
 from meadowpy.ui.ai_chat_panel import AIChatPanel
 from meadowpy.ui.dialogs.about_dialog import AboutDialog
@@ -713,6 +714,29 @@ def test_shortcut_reference_dialog_filters_categories_rows_and_empty_state(qapp)
     dialog._on_filter("")
     assert all(not card.isHidden() for card in dialog._cards)
     assert dialog._no_results.isHidden()
+    dialog.deleteLater()
+
+
+def test_shortcut_reference_dialog_reflects_custom_shortcuts_and_reset(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    dialog = ShortcutReferenceDialog(settings=settings)
+
+    dialog._select_shortcut("file.save")
+    assert dialog._detail_title.text() == "Save"
+    assert not dialog._reset_btn.isEnabled()
+
+    set_shortcut(settings, "file.save", "Ctrl+Alt+S")
+    dialog._refresh_all()
+
+    assert dialog._rows_by_id["file.save"]._shortcut_text == "ctrl+alt+s"
+    assert dialog._detail_title.text() == "Save"
+    assert dialog._reset_btn.isEnabled()
+    assert "customized" in dialog._default_note.text()
+
+    dialog._on_reset_current()
+
+    assert get_shortcut(settings, "file.save") == "Ctrl+S"
+    assert not dialog._reset_btn.isEnabled()
     dialog.deleteLater()
 
 

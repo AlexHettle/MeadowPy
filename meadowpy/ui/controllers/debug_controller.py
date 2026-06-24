@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from meadowpy.core.debug_manager import DebugManager, DebugState
+from meadowpy.core.shortcuts import get_default_shortcut
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.ui.controllers.run_eligibility import can_run_editor
 from meadowpy.ui.controllers.window_context import MainWindowController
@@ -123,14 +124,32 @@ class DebugController(MainWindowController):
             if not getattr(self, "_run_is_continue", False):
                 self._run_action.triggered.disconnect(self.action_run_file)
                 self._run_action.triggered.connect(self.action_debug_continue)
-                self._run_action.setToolTip("Continue (F5)")
+                self._run_action.setToolTip(
+                    f"Continue{self._run_shortcut_suffix()}"
+                )
                 self._run_is_continue = True
         else:
             if getattr(self, "_run_is_continue", False):
                 self._run_action.triggered.disconnect(self.action_debug_continue)
                 self._run_action.triggered.connect(self.action_run_file)
-                self._run_action.setToolTip("Run File (F5)")
+                self._run_action.setToolTip(
+                    f"Run File{self._run_shortcut_suffix()}"
+                )
                 self._run_is_continue = False
+
+    def _refresh_debug_shortcut_tooltips(self) -> None:
+        """Refresh debug-mode tooltip text after shortcut customization."""
+        if getattr(self, "_run_is_continue", False):
+            self._run_action.setToolTip(
+                f"Continue{self._run_shortcut_suffix()}"
+            )
+
+    def _run_shortcut_suffix(self) -> str:
+        shortcut_suffix = getattr(self.window, "_shortcut_suffix", None)
+        if callable(shortcut_suffix):
+            return shortcut_suffix("run.file")
+        shortcut = get_default_shortcut("run.file")
+        return f" ({shortcut})" if shortcut else ""
 
     def _on_debug_state_changed(self, state: DebugState) -> None:
         """Update UI state based on debug lifecycle changes."""

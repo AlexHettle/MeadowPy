@@ -12,6 +12,7 @@ from meadowpy.constants import APP_NAME
 from meadowpy.core.settings import Settings
 from meadowpy.core.file_manager import FileManager
 from meadowpy.core.recent_files import RecentFilesManager
+from meadowpy.core.shortcuts import get_shortcut
 from meadowpy.resources.resource_loader import (
     current_accent_hex,
     load_themed_icon,
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
             self._debug_controller,
             self._ai_assistant_controller,
         )
+        self._shortcut_actions = {}
 
         self._setup_window()
         self._create_tab_manager()
@@ -300,14 +302,20 @@ class MainWindow(QMainWindow):
 
         self._run_action = self._make_action(
             load_themed_icon("run", theme_name),
-            "Run File", "F5", self.action_run_file,
+            "Run File",
+            "F5",
+            self.action_run_file,
+            shortcut_id="run.file",
+            tooltip_template="Run your Python file{shortcut_suffix}",
         )
-        self._run_action.setToolTip("Run your Python file (F5)")
         self._stop_action = self._make_action(
             load_themed_icon("stop", theme_name),
-            "Stop Process", "Ctrl+F5", self.action_stop_process,
+            "Stop Process",
+            "Ctrl+F5",
+            self.action_stop_process,
+            shortcut_id="run.stop",
+            tooltip_template="Stop the running program{shortcut_suffix}",
         )
-        self._stop_action.setToolTip("Stop the running program (Ctrl+F5)")
         self._stop_action.setEnabled(False)
 
     def _refresh_themed_icons(self) -> None:
@@ -340,7 +348,16 @@ class MainWindow(QMainWindow):
                 if btn is not None:
                     btn.setIcon(load_themed_icon(icon_name, theme_name))
 
-    def _make_action(self, icon_or_path, text, shortcut, callback):
+    def _make_action(
+        self,
+        icon_or_path,
+        text,
+        shortcut,
+        callback,
+        *,
+        shortcut_id: str | None = None,
+        tooltip_template: str | None = None,
+    ):
         from PyQt6.QtGui import QAction
         if isinstance(icon_or_path, QIcon):
             icon = icon_or_path
@@ -349,10 +366,73 @@ class MainWindow(QMainWindow):
         else:
             icon = QIcon()
         action = QAction(icon, text, self)
-        action.setShortcut(QKeySequence(shortcut))
-        action.setToolTip(f"{text} ({shortcut})")
         action.triggered.connect(callback)
+        if shortcut_id:
+            self.register_shortcut_action(
+                shortcut_id,
+                action,
+                tooltip_template or f"{text}" + "{shortcut_suffix}",
+            )
+        else:
+            action.setShortcut(QKeySequence(shortcut))
+            action.setToolTip(f"{text} ({shortcut})")
         return action
+
+    def register_shortcut_action(
+        self,
+        shortcut_id: str,
+        action,
+        tooltip_template: str | None = None,
+    ) -> None:
+        """Track and apply a configurable shortcut to a QAction."""
+        self._shortcut_actions[shortcut_id] = (action, tooltip_template)
+        action.setProperty("shortcut_id", shortcut_id)
+        if tooltip_template is not None:
+            action.setProperty("shortcut_tooltip_template", tooltip_template)
+        self._apply_shortcut_to_action(shortcut_id, action, tooltip_template)
+
+    def _apply_shortcut_to_action(
+        self,
+        shortcut_id: str,
+        action,
+        tooltip_template: str | None = None,
+    ) -> None:
+        shortcut = get_shortcut(self._settings, shortcut_id)
+        action.setShortcut(QKeySequence(shortcut) if shortcut else QKeySequence())
+        template = tooltip_template
+        if template is None:
+            template = action.property("shortcut_tooltip_template")
+        if template:
+            action.setToolTip(
+                template.format(
+                    shortcut=shortcut,
+                    shortcut_suffix=f" ({shortcut})" if shortcut else "",
+                )
+            )
+
+    def _shortcut_text(self, shortcut_id: str) -> str:
+        """Return the active shortcut text for UI labels and tooltips."""
+        return get_shortcut(self._settings, shortcut_id)
+
+    def _shortcut_suffix(self, shortcut_id: str) -> str:
+        """Return a parenthesized shortcut suffix, or an empty string."""
+        shortcut = self._shortcut_text(shortcut_id)
+        return f" ({shortcut})" if shortcut else ""
+
+    def _shortcut_tooltip(self, text: str, shortcut_id: str) -> str:
+        """Return tooltip text with the active shortcut appended."""
+        return f"{text}{self._shortcut_suffix(shortcut_id)}"
+
+    def _refresh_shortcut_actions(self) -> None:
+        """Re-apply shortcut settings to existing actions and tooltips."""
+        for shortcut_id, (action, tooltip_template) in self._shortcut_actions.items():
+            self._apply_shortcut_to_action(shortcut_id, action, tooltip_template)
+        toolbar = getattr(self, "_toolbar_builder", None)
+        if toolbar is not None:
+            toolbar.update_shortcut_tooltips()
+        refresh_debug = getattr(self, "_refresh_debug_shortcut_tooltips", None)
+        if callable(refresh_debug):
+            refresh_debug()
 
     def _create_debug_panels(self) -> None:
         """Create the debug dock panels (Variables, Call Stack, Watch)."""
@@ -390,9 +470,12 @@ class MainWindow(QMainWindow):
         theme_name = self._settings.get("editor.theme") or ""
         self._debug_action = self._make_action(
             load_themed_icon("debug", theme_name),
-            "Start Debugging", "F6", self.action_start_debug,
+            "Start Debugging",
+            "F6",
+            self.action_start_debug,
+            shortcut_id="debug.start",
+            tooltip_template="Run with debugger - pause at breakpoints{shortcut_suffix}",
         )
-        self._debug_action.setToolTip("Run with debugger \u2014 pause at breakpoints (F6)")
 
     def _create_ai_chat_panel(self) -> None:
         """Create the AI chat sidebar panel on the right side."""

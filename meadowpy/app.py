@@ -13,13 +13,20 @@ from PyQt6.QtCore import (
     QTimer,
     qInstallMessageHandler,
 )
-from PyQt6.QtGui import QFont, QIcon, QKeyEvent, QKeySequence
+from PyQt6.QtGui import QFont, QIcon, QKeyEvent
 from PyQt6.QtWidgets import QApplication, QMenu, QMenuBar, QWidget
 
 from meadowpy.constants import APP_ID, APP_NAME, CONFIG_DIR_NAME, VERSION
 from meadowpy.core.file_manager import FileManager
 from meadowpy.core.process_runner import sweep_selection_temp_files
 from meadowpy.core.recent_files import RecentFilesManager
+from meadowpy.core.shortcuts import (
+    STANDARD_EDIT_SHORTCUTS,
+    event_matches_shortcut,
+    get_default_shortcut,
+    get_shortcut,
+    shortcut_from_key_event,
+)
 from meadowpy.ui.main_window import MainWindow
 from meadowpy.core.settings import Settings
 from meadowpy.core.startup import remaining_delay_ms
@@ -100,47 +107,79 @@ class _MenuRoundedMaskFilter(QObject):
 
 
 class _ClipboardShortcutFilter(QObject):
-    """App-level event filter that routes clipboard shortcuts to the focused widget.
+    """App-level event filter that routes edit shortcuts to the focused widget.
 
     QScintilla handles Ctrl+C/V/X/A internally, but other text widgets
     (QTextBrowser, QPlainTextEdit, QLineEdit) can have their clipboard
-    shortcuts silently consumed by Qt's shortcut system.  This filter
-    intercepts ShortcutOverride for those keys and accepts the event so
-    the key press always reaches the focused widget's keyPressEvent.
+    shortcuts silently consumed by Qt's shortcut system. This filter also
+    honors custom shortcuts for standard edit commands.
     """
 
-    _CLIPBOARD_KEYS = frozenset({
-        QKeySequence.StandardKey.Copy,
-        QKeySequence.StandardKey.Cut,
-        QKeySequence.StandardKey.Paste,
-        QKeySequence.StandardKey.SelectAll,
-        QKeySequence.StandardKey.Undo,
-        QKeySequence.StandardKey.Redo,
-    })
+    def __init__(self, settings=None, parent=None):
+        super().__init__(parent)
+        self._settings = settings
 
     def eventFilter(self, obj, event):
         etype = event.type()
-        if etype != QEvent.Type.ShortcutOverride:
+        if etype not in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
             return False
         if not isinstance(event, QKeyEvent):
             return False
 
-        # Only act when a non-QScintilla text widget has focus
+        # Only act when a text-like widget has focus.
         focus = QApplication.focusWidget()
         if focus is None:
             return False
-
-        # Let QScintilla handle its own shortcuts
-        from PyQt6.Qsci import QsciScintilla
-        if isinstance(focus, QsciScintilla):
+        if not self._focused_widget_supports_edit_shortcuts(focus):
             return False
 
-        # Check if this is a standard clipboard/edit key
-        for key in self._CLIPBOARD_KEYS:
-            if event.matches(key):
+        if etype == QEvent.Type.ShortcutOverride:
+            if self._event_matches_active_edit_shortcut(event):
                 event.accept()
                 return True
+            return False
 
+        shortcut_text = shortcut_from_key_event(event)
+        if not shortcut_text:
+            return False
+
+        handled_id = self._edit_shortcut_id_for_event(event)
+        if handled_id:
+            method_name, _standard_key = STANDARD_EDIT_SHORTCUTS[handled_id]
+            method = getattr(focus, method_name, None)
+            if callable(method):
+                method()
+                return True
+
+        if self._event_matches_reassigned_default(event):
+            return True
+        return False
+
+    def _focused_widget_supports_edit_shortcuts(self, widget) -> bool:
+        return any(
+            hasattr(widget, method_name)
+            for method_name, _standard_key in STANDARD_EDIT_SHORTCUTS.values()
+        )
+
+    def _event_matches_active_edit_shortcut(self, event: QKeyEvent) -> bool:
+        return self._edit_shortcut_id_for_event(event) is not None
+
+    def _edit_shortcut_id_for_event(self, event: QKeyEvent) -> str | None:
+        for shortcut_id in STANDARD_EDIT_SHORTCUTS:
+            if event_matches_shortcut(
+                event,
+                get_shortcut(self._settings, shortcut_id),
+            ):
+                return shortcut_id
+        return None
+
+    def _event_matches_reassigned_default(self, event: QKeyEvent) -> bool:
+        """Block stale native defaults after users move them elsewhere."""
+        for shortcut_id in STANDARD_EDIT_SHORTCUTS:
+            default = get_default_shortcut(shortcut_id)
+            active = get_shortcut(self._settings, shortcut_id)
+            if active != default and event_matches_shortcut(event, default):
+                return True
         return False
 
 
@@ -204,7 +243,10 @@ class MeadowPyApp:
 
         # Ensure clipboard shortcuts (Ctrl+C/V/X/A/Z/Y) always reach the
         # focused text widget instead of being consumed by QActions.
-        self._clipboard_filter = _ClipboardShortcutFilter(self._qapp)
+        self._clipboard_filter = _ClipboardShortcutFilter(
+            self._settings,
+            self._qapp,
+        )
         self._qapp.installEventFilter(self._clipboard_filter)
 
         # Force Segoe UI on all widgets (QSS overrides QApplication.setFont)

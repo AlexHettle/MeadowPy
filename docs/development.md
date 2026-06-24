@@ -241,19 +241,21 @@ Toolbar actions are created in:
 meadowpy/ui/tool_bar.py
 ```
 
-The in-app keyboard shortcut reference is defined in:
+The in-app keyboard shortcut editor is driven by shared shortcut metadata in:
 
 ```text
-meadowpy/ui/dialogs/shortcut_reference_dialog.py
+meadowpy/core/shortcuts.py
 ```
 
 When adding a shortcut:
 
-1. Add or update the `QAction` shortcut.
-2. Add the shortcut to `ShortcutReferenceDialog.SHORTCUTS` if it should be
-   visible in the in-app reference.
-3. Update [Shortcuts](shortcuts.md).
-4. Add or update tests if the shortcut affects behavior.
+1. Add the shortcut definition to `meadowpy/core/shortcuts.py`.
+2. Register the related `QAction` with `MainWindow.register_shortcut_action`
+   or `MenuBarBuilder._set_shortcut`.
+3. For editor-owned shortcuts, read the active key with
+   `get_shortcut(settings, shortcut_id)`.
+4. Update [Shortcuts](shortcuts.md).
+5. Add or update tests if the shortcut affects behavior.
 
 ## Adding Preferences
 

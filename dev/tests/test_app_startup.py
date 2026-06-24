@@ -174,8 +174,9 @@ class FakeWindow:
 
 
 class FakeEventFilter:
-    def __init__(self, parent):
-        self.parent = parent
+    def __init__(self, *args):
+        self.args = args
+        self.parent = args[-1] if args else None
 
 
 def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
@@ -328,8 +329,18 @@ def test_menu_filter_clears_hard_masks_so_qss_controls_popup_surface(qapp):
 
 
 def test_clipboard_shortcut_filter_accepts_text_widget_shortcuts(monkeypatch, qapp):
+    class ShortcutSettings:
+        def __init__(self):
+            self.values = {}
+
+        def get(self, key, default=None):
+            return self.values.get(key, default)
+
+        def set(self, key, value):
+            self.values[key] = value
+
     text_widget = QLineEdit()
-    shortcut_filter = _ClipboardShortcutFilter()
+    shortcut_filter = _ClipboardShortcutFilter(ShortcutSettings())
     monkeypatch.setattr(
         app_module.QApplication,
         "focusWidget",
@@ -355,7 +366,7 @@ def test_clipboard_shortcut_filter_accepts_text_widget_shortcuts(monkeypatch, qa
     assert shortcut_filter.eventFilter(text_widget, copy_event) is True
     assert copy_event.isAccepted()
     assert shortcut_filter.eventFilter(text_widget, ordinary_event) is False
-    assert shortcut_filter.eventFilter(text_widget, key_press_event) is False
+    assert shortcut_filter.eventFilter(text_widget, key_press_event) is True
 
     monkeypatch.setattr(
         app_module.QApplication,

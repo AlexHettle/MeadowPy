@@ -19,6 +19,7 @@ from PyQt6.Qsci import QsciScintilla
 
 from meadowpy.core.file_types import is_python_file_path
 from meadowpy.core.settings import Settings
+from meadowpy.core.shortcuts import event_matches_shortcut, get_shortcut
 from meadowpy.editor.editor_config import EditorConfigurator
 from meadowpy.editor.smart_indent import SmartIndentHandler
 from meadowpy.editor.auto_close import AutoCloseHandler
@@ -413,10 +414,12 @@ class CodeEditor(QsciScintilla):
 
     def keyPressEvent(self, event) -> None:
         """Override to handle smart indent and auto-close."""
-        # Ctrl+/ → toggle comment (intercept before Scintilla / super)
+        # Toggle comment shortcut (intercept before Scintilla / super)
         if (
-            event.key() == Qt.Key.Key_Slash
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            event_matches_shortcut(
+                event,
+                get_shortcut(self._settings, "edit.toggle_comment"),
+            )
         ):
             if self._breakpoints_supported():
                 self.toggle_comment()
@@ -549,7 +552,12 @@ class CodeEditor(QsciScintilla):
                 # Match VS Code / Sublime wording when there's no selection
                 toggle_label = toggle_label.replace("Selection", "Line")
             toggle_action = menu.addAction(toggle_label)
-            toggle_action.setShortcut(QKeySequence("Ctrl+/"))
+            shortcut = get_shortcut(
+                getattr(self, "_settings", None),
+                "edit.toggle_comment",
+            )
+            if shortcut:
+                toggle_action.setShortcut(QKeySequence(shortcut))
             toggle_action.triggered.connect(self.toggle_comment)
 
         if word and python_mode:

@@ -701,6 +701,11 @@ class WorkspaceController(MainWindowController):
             if hasattr(self, "_status_bar_manager"):
                 self._status_bar_manager.refresh_lint_colors()
 
+        if key == "shortcuts.custom":
+            refresh_shortcuts = getattr(self.window, "_refresh_shortcut_actions", None)
+            if callable(refresh_shortcuts):
+                refresh_shortcuts()
+
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)
             if isinstance(editor, CodeEditor):

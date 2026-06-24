@@ -10,6 +10,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QToolBar, QToolButton, QWidget
 
+from meadowpy.core.shortcuts import get_default_shortcut, get_shortcut
 from meadowpy.resources.resource_loader import (
     load_themed_icon,
     theme_is_high_contrast,
@@ -226,6 +227,7 @@ class ToolBarBuilder:
 
     def __init__(self, main_window):
         self._window = main_window
+        self._tooltip_actions = []
 
     def build(self) -> QToolBar:
         """Build and return the main toolbar."""
@@ -235,14 +237,50 @@ class ToolBarBuilder:
         toolbar.setIconSize(QSize(20, 20))
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
-        self._add(toolbar, "new", "Create a new blank file (Ctrl+N)", self._window.action_new_file)
-        self._add(toolbar, "open_file", "Open an existing file (Ctrl+O)", self._window.action_open_file)
-        self._add(toolbar, "save", "Save the current file (Ctrl+S)", self._window.action_save)
+        self._add(
+            toolbar,
+            "new",
+            "Create a new blank file",
+            self._window.action_new_file,
+            "file.new",
+        )
+        self._add(
+            toolbar,
+            "open_file",
+            "Open an existing file",
+            self._window.action_open_file,
+            "file.open",
+        )
+        self._add(
+            toolbar,
+            "save",
+            "Save the current file",
+            self._window.action_save,
+            "file.save",
+        )
         toolbar.addSeparator()
-        self._add(toolbar, "undo", "Undo last change (Ctrl+Z)", lambda: self._editor_call("undo"))
-        self._add(toolbar, "redo", "Redo undone change (Ctrl+Y)", lambda: self._editor_call("redo"))
+        self._add(
+            toolbar,
+            "undo",
+            "Undo last change",
+            lambda: self._editor_call("undo"),
+            "edit.undo",
+        )
+        self._add(
+            toolbar,
+            "redo",
+            "Redo undone change",
+            lambda: self._editor_call("redo"),
+            "edit.redo",
+        )
         toolbar.addSeparator()
-        self._add(toolbar, "find", "Find text in the current file (Ctrl+F)", self._window.action_toggle_find)
+        self._add(
+            toolbar,
+            "find",
+            "Find text in the current file",
+            self._window.action_toggle_find,
+            "edit.find",
+        )
         toolbar.addSeparator()
 
         # Run/Stop/Debug use shared QActions from main_window so enable/disable
@@ -269,19 +307,31 @@ class ToolBarBuilder:
         self._window._step_over_action = toolbar.addAction(
             self._icon("step_over"), "Step Over"
         )
-        self._window._step_over_action.setToolTip("Step Over (F10)")
+        self._track_tooltip(
+            self._window._step_over_action,
+            "Step Over",
+            "debug.step_over",
+        )
         self._window._step_over_action.setVisible(False)
 
         self._window._step_into_action = toolbar.addAction(
             self._icon("step_into"), "Step Into"
         )
-        self._window._step_into_action.setToolTip("Step Into (F11)")
+        self._track_tooltip(
+            self._window._step_into_action,
+            "Step Into",
+            "debug.step_into",
+        )
         self._window._step_into_action.setVisible(False)
 
         self._window._step_out_action = toolbar.addAction(
             self._icon("step_out"), "Step Out"
         )
-        self._window._step_out_action.setToolTip("Step Out (Shift+F11)")
+        self._track_tooltip(
+            self._window._step_out_action,
+            "Step Out",
+            "debug.step_out",
+        )
         self._window._step_out_action.setVisible(False)
 
         # Glow painter — draws radial gradients behind the icon-only controls.
@@ -315,9 +365,38 @@ class ToolBarBuilder:
         display_name = getattr(editor, "display_name", None)
         run_btn.set_target_name(display_name or "File")
 
-    def _add(self, toolbar: QToolBar, icon_name: str, tooltip: str, callback) -> None:
-        action = toolbar.addAction(self._icon(icon_name), tooltip.split(" (")[0], callback)
-        action.setToolTip(tooltip)
+    def update_shortcut_tooltips(self) -> None:
+        """Refresh toolbar tooltip text after shortcut customization."""
+        for action, text, shortcut_id in self._tooltip_actions:
+            self._apply_tooltip(action, text, shortcut_id)
+
+    def _add(
+        self,
+        toolbar: QToolBar,
+        icon_name: str,
+        tooltip: str,
+        callback,
+        shortcut_id: str | None = None,
+    ) -> None:
+        action = toolbar.addAction(self._icon(icon_name), tooltip, callback)
+        if shortcut_id is None:
+            action.setToolTip(tooltip)
+        else:
+            self._track_tooltip(action, tooltip, shortcut_id)
+
+    def _track_tooltip(self, action, text: str, shortcut_id: str) -> None:
+        self._tooltip_actions.append((action, text, shortcut_id))
+        self._apply_tooltip(action, text, shortcut_id)
+
+    def _apply_tooltip(self, action, text: str, shortcut_id: str) -> None:
+        shortcut = self._active_shortcut(shortcut_id)
+        action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
+
+    def _active_shortcut(self, shortcut_id: str) -> str:
+        settings = getattr(self._window, "_settings", None)
+        if settings is not None:
+            return get_shortcut(settings, shortcut_id)
+        return get_default_shortcut(shortcut_id)
 
     def _icon(self, name: str) -> QIcon:
         # Route through the themed loader so colorful SVGs (run/debug/stop/

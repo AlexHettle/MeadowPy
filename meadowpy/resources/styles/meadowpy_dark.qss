@@ -1616,6 +1616,20 @@ QDockWidget::title {
     background: #1E1E1E;
 }
 
+#shortcutSidebar {
+    background: #191A1A;
+    border-right: 1px solid #2D2D30;
+}
+
+#shortcutDetailPane {
+    background: #1E1E1E;
+}
+
+#shortcutFooter {
+    background: #1E1E1E;
+    border-top: 1px solid #2D2D30;
+}
+
 #shortcutTitle {
     color: #EEEEEE;
 }
@@ -1671,32 +1685,116 @@ QDockWidget::title {
     background: #2A2D2E;
 }
 
+#shortcutRow[selected="true"] {
+    background: #1E2C22;
+    border-left: 2px solid {{ACCENT}};
+}
+
 #shortcutActionLabel {
     color: #CCCCCC;
     font-size: 13px;
 }
 
+#shortcutBadgeRow {
+    background: transparent;
+    border: none;
+}
+
 #shortcutKeyBadge {
     background: #3C3C3C;
     color: #DDDDDD;
-    border: 1px solid #555555;
-    border-bottom: 2px solid #555555;
+    border: none;
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 4px 9px;
     font-family: "Consolas", monospace;
     font-size: 12px;
     min-width: 22px;
 }
 
-#shortcutKeyPlus {
-    color: #666666;
+#shortcutEmptyBadge {
+    color: #888888;
+    border: 1px solid #3C3C3C;
+    border-radius: 4px;
+    padding: 3px 8px;
     font-size: 12px;
+}
+
+#shortcutDetailCategory {
+    color: #888888;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#shortcutCurrentBox,
+#shortcutCaptureBox {
+    background: #202324;
+    border: 1px solid #3C3C3C;
+    border-radius: 8px;
+}
+
+#shortcutCaptureText {
+    color: #EEEEEE;
+    font-size: 18px;
+    font-weight: 700;
 }
 
 #shortcutNoResults {
     color: #666666;
     font-size: 13px;
     padding: 20px;
+}
+
+#shortcutChangeBtn,
+#shortcutConflictPrimary {
+    background: #1E2C22;
+    color: #BFE8C8;
+    border: 1px solid {{ACCENT}};
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-weight: 600;
+}
+
+#shortcutChangeBtn:hover,
+#shortcutConflictPrimary:hover {
+    background: #243A2A;
+}
+
+#shortcutResetBtn,
+#shortcutConflictSecondary {
+    background: transparent;
+    color: #AAAAAA;
+    border: 1px solid #3C3C3C;
+    border-radius: 8px;
+    padding: 7px 14px;
+}
+
+#shortcutResetBtn:hover,
+#shortcutConflictSecondary:hover {
+    background: #2A2D2E;
+    color: #DDDDDD;
+}
+
+#shortcutLinkBtn {
+    background: transparent;
+    color: #AAAAAA;
+    border: none;
+    padding: 6px 8px;
+}
+
+#shortcutLinkBtn:hover {
+    color: #DDDDDD;
+}
+
+#shortcutDangerBtn {
+    background: #9E3B3B;
+    color: #FFFFFF;
+    border: 1px solid #B94A4A;
+    border-radius: 8px;
+    padding: 7px 18px;
+}
+
+#shortcutDangerBtn:hover {
+    background: #B94A4A;
 }
 
 #shortcutCloseBtn {

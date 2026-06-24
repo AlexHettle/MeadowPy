@@ -135,7 +135,7 @@ MeadowPy is designed from the ground up for people learning to code.
 
 ![Example library panel showing categories of code samples with a preview pane](meadowpy/resources/Images/example%20library.png)
 
-**Keyboard shortcut reference** — Available under Help, a full table of every shortcut organized by category.
+**Keyboard shortcut editor** — Available under Help, a searchable list of shortcuts that can be customized and reset.
 
 ## Features
 
@@ -223,7 +223,7 @@ MeadowPy is actively developed. Here's what's coming next:
 | LM Studio integration                              | 🔄 In progress |
 | Integrated terminal panel                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
-| Keyboard shortcut editor                           | 🔄 In progress |
+| Keyboard shortcut editor                           | ✅ Completed    |
 | Improve linter customization                       | 🔄 In progress |
 | Improved syntax highlighting                       | 📋 Planned     |
 | Plot / output preview                              | 📋 Planned     |

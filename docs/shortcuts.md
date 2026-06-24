@@ -1,12 +1,19 @@
 # Shortcuts
 
-This page lists MeadowPy keyboard shortcuts and contextual editor shortcuts.
+This page lists MeadowPy default keyboard shortcuts and contextual editor
+shortcuts. Application shortcuts can be customized in MeadowPy.
 
-The in-app shortcut reference is available from:
+The in-app shortcut editor is available from:
 
 ```text
 Help > Keyboard Shortcuts
 ```
+
+Select a command, click **Change**, then press the new keys. MeadowPy warns
+when a key combination is already assigned and lets you either pick another
+combination or move the shortcut to the selected command. Use **Reset to
+default** for one command, or **Reset all to defaults** to restore every
+shortcut.
 
 Related docs:
 

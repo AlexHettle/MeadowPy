@@ -389,10 +389,11 @@ Settings are saved to:
 
 ## Keyboard Shortcuts
 
-Open the in-app shortcut reference from:
+Open the in-app shortcut editor from:
 
 ```text
 Help > Keyboard Shortcuts
 ```
 
-For a full written list, see [Shortcuts](shortcuts.md).
+Use it to search, change, and reset shortcuts. For the default written list,
+see [Shortcuts](shortcuts.md).

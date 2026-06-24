@@ -76,4 +76,8 @@ DEFAULT_SETTINGS = {
     "ollama.api_url": "http://localhost:11434",
     "ollama.selected_model": "",
     "ollama.auto_connect": True,
+
+    # User-customized keyboard shortcuts. Values are stored by stable shortcut
+    # id, and missing ids fall back to meadowpy.core.shortcuts defaults.
+    "shortcuts.custom": {},
 }

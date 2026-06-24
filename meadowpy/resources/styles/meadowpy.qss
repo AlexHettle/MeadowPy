@@ -1502,6 +1502,20 @@ QRadioButton::indicator:checked {
     background: #FFFFFF;
 }
 
+#shortcutSidebar {
+    background: #F8F9FA;
+    border-right: 1px solid #DEE2E6;
+}
+
+#shortcutDetailPane {
+    background: #FFFFFF;
+}
+
+#shortcutFooter {
+    background: #FFFFFF;
+    border-top: 1px solid #DEE2E6;
+}
+
 #shortcutTitle {
     color: #333333;
 }
@@ -1557,32 +1571,116 @@ QRadioButton::indicator:checked {
     background: #F5F7FA;
 }
 
+#shortcutRow[selected="true"] {
+    background: #E8F0E8;
+    border-left: 2px solid {{ACCENT}};
+}
+
 #shortcutActionLabel {
     color: #444444;
     font-size: 13px;
 }
 
+#shortcutBadgeRow {
+    background: transparent;
+    border: none;
+}
+
 #shortcutKeyBadge {
     background: #F0F0F0;
     color: #333333;
-    border: 1px solid #CCCCCC;
-    border-bottom: 2px solid #BBBBBB;
+    border: none;
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 4px 9px;
     font-family: "Consolas", monospace;
     font-size: 12px;
     min-width: 22px;
 }
 
-#shortcutKeyPlus {
-    color: #999999;
+#shortcutEmptyBadge {
+    color: #777777;
+    border: 1px solid #DEE2E6;
+    border-radius: 4px;
+    padding: 3px 8px;
     font-size: 12px;
+}
+
+#shortcutDetailCategory {
+    color: #777777;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#shortcutCurrentBox,
+#shortcutCaptureBox {
+    background: #F8F9FA;
+    border: 1px solid #DEE2E6;
+    border-radius: 8px;
+}
+
+#shortcutCaptureText {
+    color: #333333;
+    font-size: 18px;
+    font-weight: 700;
 }
 
 #shortcutNoResults {
     color: #999999;
     font-size: 13px;
     padding: 20px;
+}
+
+#shortcutChangeBtn,
+#shortcutConflictPrimary {
+    background: #E8F0E8;
+    color: #1B5E20;
+    border: 1px solid {{ACCENT}};
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-weight: 600;
+}
+
+#shortcutChangeBtn:hover,
+#shortcutConflictPrimary:hover {
+    background: #DCEBDD;
+}
+
+#shortcutResetBtn,
+#shortcutConflictSecondary {
+    background: transparent;
+    color: #555555;
+    border: 1px solid #DEE2E6;
+    border-radius: 8px;
+    padding: 7px 14px;
+}
+
+#shortcutResetBtn:hover,
+#shortcutConflictSecondary:hover {
+    background: #F5F7FA;
+    color: #333333;
+}
+
+#shortcutLinkBtn {
+    background: transparent;
+    color: #555555;
+    border: none;
+    padding: 6px 8px;
+}
+
+#shortcutLinkBtn:hover {
+    color: #333333;
+}
+
+#shortcutDangerBtn {
+    background: #B94A4A;
+    color: #FFFFFF;
+    border: 1px solid #9E3B3B;
+    border-radius: 8px;
+    padding: 7px 18px;
+}
+
+#shortcutDangerBtn:hover {
+    background: #9E3B3B;
 }
 
 #shortcutCloseBtn {

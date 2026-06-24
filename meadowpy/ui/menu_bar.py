@@ -5,6 +5,7 @@ from pathlib import Path
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QMenuBar, QMenu
 
+from meadowpy.core.shortcuts import get_default_shortcut
 from meadowpy.resources.resource_loader import load_themed_icon
 
 
@@ -57,19 +58,33 @@ class MenuBarBuilder:
         clear_action = self._recent_files_menu.addAction("Clear Recent Files")
         clear_action.triggered.connect(self._window._recent_files.clear)
 
+    def _set_shortcut(
+        self,
+        action,
+        shortcut_id: str,
+        tooltip_template: str | None = None,
+    ) -> None:
+        """Apply a configurable shortcut, falling back to defaults in tests."""
+        register = getattr(self._window, "register_shortcut_action", None)
+        if callable(register):
+            register(shortcut_id, action, tooltip_template)
+            return
+        default = get_default_shortcut(shortcut_id)
+        action.setShortcut(QKeySequence(default) if default else QKeySequence())
+
     def _build_file_menu(self, menu_bar: QMenuBar) -> None:
         file_menu = menu_bar.addMenu("&File")
 
         new_action = file_menu.addAction("&New File")
-        new_action.setShortcut(QKeySequence("Ctrl+N"))
+        self._set_shortcut(new_action, "file.new")
         new_action.triggered.connect(self._window.action_new_file)
 
         open_action = file_menu.addAction("&Open File...")
-        open_action.setShortcut(QKeySequence("Ctrl+O"))
+        self._set_shortcut(open_action, "file.open")
         open_action.triggered.connect(self._window.action_open_file)
 
         open_folder_action = file_menu.addAction("Open F&older...")
-        open_folder_action.setShortcut(QKeySequence("Ctrl+Shift+K"))
+        self._set_shortcut(open_folder_action, "file.open_folder")
         open_folder_action.triggered.connect(self._window.action_open_folder)
 
         file_menu.addSeparator()
@@ -80,29 +95,29 @@ class MenuBarBuilder:
         file_menu.addSeparator()
 
         save_action = file_menu.addAction("&Save")
-        save_action.setShortcut(QKeySequence("Ctrl+S"))
+        self._set_shortcut(save_action, "file.save")
         save_action.triggered.connect(self._window.action_save)
 
         save_as_action = file_menu.addAction("Save &As...")
-        save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self._set_shortcut(save_as_action, "file.save_as")
         save_as_action.triggered.connect(self._window.action_save_as)
 
         file_menu.addSeparator()
 
         close_tab_action = file_menu.addAction("&Close Tab")
-        close_tab_action.setShortcut(QKeySequence("Ctrl+W"))
+        self._set_shortcut(close_tab_action, "file.close_tab")
         close_tab_action.triggered.connect(self._window.action_close_tab)
 
         file_menu.addSeparator()
 
         prefs_action = file_menu.addAction("&Preferences...")
-        prefs_action.setShortcut(QKeySequence("Ctrl+,"))
+        self._set_shortcut(prefs_action, "file.preferences")
         prefs_action.triggered.connect(self._window.action_preferences)
 
         file_menu.addSeparator()
 
         exit_action = file_menu.addAction("E&xit")
-        exit_action.setShortcut(QKeySequence("Ctrl+Q"))
+        self._set_shortcut(exit_action, "file.exit")
         exit_action.triggered.connect(self._window.close)
 
     def _build_edit_menu(self, menu_bar: QMenuBar) -> None:
@@ -140,36 +155,36 @@ class MenuBarBuilder:
         edit_menu.addSeparator()
 
         find = edit_menu.addAction("&Find...")
-        find.setShortcut(QKeySequence("Ctrl+F"))
+        self._set_shortcut(find, "edit.find")
         find.triggered.connect(self._window.action_toggle_find)
 
         replace = edit_menu.addAction("&Replace...")
-        replace.setShortcut(QKeySequence("Ctrl+H"))
+        self._set_shortcut(replace, "edit.replace")
         replace.triggered.connect(self._window.action_toggle_find_replace)
 
         search_files = edit_menu.addAction("Search in &Files...")
-        search_files.setShortcut(QKeySequence("Ctrl+Shift+F"))
+        self._set_shortcut(search_files, "edit.search_files")
         search_files.triggered.connect(self._window.action_search_in_files)
 
         edit_menu.addSeparator()
 
         goto_line = edit_menu.addAction("&Go to Line...")
-        goto_line.setShortcut(QKeySequence("Ctrl+G"))
+        self._set_shortcut(goto_line, "edit.goto_line")
         goto_line.triggered.connect(self._window.action_goto_line)
 
     def _build_view_menu(self, menu_bar: QMenuBar) -> None:
         view_menu = menu_bar.addMenu("&View")
 
         zoom_in = view_menu.addAction("Zoom &In")
-        zoom_in.setShortcut(QKeySequence("Ctrl+="))
+        self._set_shortcut(zoom_in, "view.zoom_in")
         zoom_in.triggered.connect(lambda: self._window.action_zoom(1))
 
         zoom_out = view_menu.addAction("Zoom &Out")
-        zoom_out.setShortcut(QKeySequence("Ctrl+-"))
+        self._set_shortcut(zoom_out, "view.zoom_out")
         zoom_out.triggered.connect(lambda: self._window.action_zoom(-1))
 
         zoom_reset = view_menu.addAction("&Reset Zoom")
-        zoom_reset.setShortcut(QKeySequence("Ctrl+0"))
+        self._set_shortcut(zoom_reset, "view.reset_zoom")
         zoom_reset.triggered.connect(lambda: self._window.action_zoom(0))
 
         view_menu.addSeparator()
@@ -186,27 +201,27 @@ class MenuBarBuilder:
         # even when panels are closed via their title-bar X button.
         explorer = self._window._file_explorer.toggleViewAction()
         explorer.setText("File &Explorer")
-        explorer.setShortcut(QKeySequence("Ctrl+Shift+E"))
+        self._set_shortcut(explorer, "view.file_explorer")
         view_menu.addAction(explorer)
 
         outline = self._window._symbol_outline.toggleViewAction()
         outline.setText("Symbol &Outline")
-        outline.setShortcut(QKeySequence("Ctrl+Shift+O"))
+        self._set_shortcut(outline, "view.symbol_outline")
         view_menu.addAction(outline)
 
         problems = self._window._problems_panel.toggleViewAction()
         problems.setText("&Problems Panel")
-        problems.setShortcut(QKeySequence("Ctrl+Shift+M"))
+        self._set_shortcut(problems, "view.problems")
         view_menu.addAction(problems)
 
         output = self._window._output_panel.toggleViewAction()
         output.setText("&Output Panel")
-        output.setShortcut(QKeySequence("Ctrl+`"))
+        self._set_shortcut(output, "view.output")
         view_menu.addAction(output)
 
         search = self._window._search_panel.toggleViewAction()
         search.setText("&Search Panel")
-        search.setShortcut(QKeySequence("Ctrl+Shift+J"))
+        self._set_shortcut(search, "view.search")
         view_menu.addAction(search)
 
         view_menu.addSeparator()
@@ -224,7 +239,7 @@ class MenuBarBuilder:
         self._window._run_selection_action = run_menu.addAction(
             "Run &Selection / Line"
         )
-        self._window._run_selection_action.setShortcut(QKeySequence("Shift+F5"))
+        self._set_shortcut(self._window._run_selection_action, "run.selection")
         self._window._run_selection_action.triggered.connect(
             self._window.action_run_selection
         )
@@ -246,34 +261,34 @@ class MenuBarBuilder:
         run_menu.addAction(self._window._debug_action)
 
         self._window._debug_continue_action = run_menu.addAction("&Continue")
-        self._window._debug_continue_action.setShortcut(QKeySequence("Ctrl+F6"))
+        self._set_shortcut(self._window._debug_continue_action, "debug.continue")
         self._window._debug_continue_action.triggered.connect(self._window.action_debug_continue)
         self._window._debug_continue_action.setEnabled(False)
 
         self._window._debug_step_over_action = run_menu.addAction("Step &Over")
-        self._window._debug_step_over_action.setShortcut(QKeySequence("F10"))
+        self._set_shortcut(self._window._debug_step_over_action, "debug.step_over")
         self._window._debug_step_over_action.triggered.connect(self._window.action_debug_step_over)
         self._window._debug_step_over_action.setEnabled(False)
 
         self._window._debug_step_into_action = run_menu.addAction("Step &Into")
-        self._window._debug_step_into_action.setShortcut(QKeySequence("F11"))
+        self._set_shortcut(self._window._debug_step_into_action, "debug.step_into")
         self._window._debug_step_into_action.triggered.connect(self._window.action_debug_step_into)
         self._window._debug_step_into_action.setEnabled(False)
 
         self._window._debug_step_out_action = run_menu.addAction("Step Ou&t")
-        self._window._debug_step_out_action.setShortcut(QKeySequence("Shift+F11"))
+        self._set_shortcut(self._window._debug_step_out_action, "debug.step_out")
         self._window._debug_step_out_action.triggered.connect(self._window.action_debug_step_out)
         self._window._debug_step_out_action.setEnabled(False)
 
         self._window._debug_stop_action = run_menu.addAction("Stop &Debugging")
-        self._window._debug_stop_action.setShortcut(QKeySequence("Ctrl+Shift+F5"))
+        self._set_shortcut(self._window._debug_stop_action, "debug.stop")
         self._window._debug_stop_action.triggered.connect(self._window.action_stop_debug)
         self._window._debug_stop_action.setEnabled(False)
 
         run_menu.addSeparator()
 
         toggle_bp = run_menu.addAction("Toggle &Breakpoint")
-        toggle_bp.setShortcut(QKeySequence("F9"))
+        self._set_shortcut(toggle_bp, "debug.toggle_breakpoint")
         toggle_bp.triggered.connect(self._window.action_toggle_breakpoint)
 
         clear_all_bp = run_menu.addAction("Clear All Brea&kpoints")
@@ -291,9 +306,10 @@ class MenuBarBuilder:
         ai_menu = menu_bar.addMenu("A&I")
 
         review = ai_menu.addAction("&Review Current File")
-        review.setShortcut(QKeySequence("Ctrl+Shift+R"))
-        review.setToolTip(
-            "Ask the AI to review your entire file and give feedback"
+        self._set_shortcut(
+            review,
+            "ai.review_file",
+            "Ask the AI to review your entire file and give feedback{shortcut_suffix}",
         )
         review.triggered.connect(self._window.action_ai_review_file)
         self._window._ai_review_file_action = review
@@ -307,7 +323,7 @@ class MenuBarBuilder:
 
         ai_chat = self._window._ai_chat_panel.toggleViewAction()
         ai_chat.setText("&AI Chat Panel")
-        ai_chat.setShortcut(QKeySequence("Ctrl+Shift+A"))
+        self._set_shortcut(ai_chat, "ai.chat_panel")
         ai_menu.addAction(ai_chat)
 
         ai_menu.addSeparator()
@@ -323,7 +339,7 @@ class MenuBarBuilder:
         welcome.triggered.connect(self._window.action_show_welcome)
 
         examples = help_menu.addAction("&Example Library...")
-        examples.setShortcut(QKeySequence("Ctrl+Shift+L"))
+        self._set_shortcut(examples, "help.example_library")
         examples.triggered.connect(self._window.action_example_library)
 
         shortcuts = help_menu.addAction("&Keyboard Shortcuts...")
