@@ -62,6 +62,47 @@ def test_lint_style_issues_default_on_and_persists(tmp_path):
     assert reloaded.get("editor.show_lint_style_issues") is False
 
 
+def test_restore_tabs_defaults_to_welcome_first(tmp_path):
+    settings = Settings(tmp_path)
+
+    assert settings.get("general.restore_tabs_on_startup") is False
+    assert settings.get("general.restore_tabs_on_startup_explicit") is False
+
+
+def test_load_migrates_legacy_restore_tabs_default_to_welcome_first(tmp_path):
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(
+        json.dumps({
+            "general.restore_tabs_on_startup": True,
+            "general.open_files": ["Calculator.py"],
+        }),
+        encoding="utf-8",
+    )
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("general.restore_tabs_on_startup") is False
+    assert settings.get("general.restore_tabs_on_startup_explicit") is True
+    assert settings.get("general.open_files") == ["Calculator.py"]
+
+
+def test_load_preserves_explicit_restore_tabs_choice(tmp_path):
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(
+        json.dumps({
+            "general.restore_tabs_on_startup": True,
+            "general.restore_tabs_on_startup_explicit": True,
+        }),
+        encoding="utf-8",
+    )
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("general.restore_tabs_on_startup") is True
+
+
 def test_load_invalid_json_resets_to_empty_data(tmp_path):
     config_file = tmp_path / "settings.json"
     config_file.write_text("{not json", encoding="utf-8")

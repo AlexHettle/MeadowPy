@@ -428,9 +428,7 @@ class PreferencesDialog(QDialog):
         self._restore_tabs.setChecked(
             self._settings.get("general.restore_tabs_on_startup")
         )
-        self._restore_tabs.toggled.connect(
-            lambda v: self._stage("general.restore_tabs_on_startup", v)
-        )
+        self._restore_tabs.toggled.connect(self._stage_restore_tabs)
         form.addRow("", self._restore_tabs)
 
         return page
@@ -466,6 +464,11 @@ class PreferencesDialog(QDialog):
     def _stage(self, key: str, value: Any) -> None:
         """Stage a change to be applied later."""
         self._pending_changes[key] = value
+
+    def _stage_restore_tabs(self, enabled: bool) -> None:
+        """Remember that the startup restore preference was chosen by the user."""
+        self._stage("general.restore_tabs_on_startup", enabled)
+        self._stage("general.restore_tabs_on_startup_explicit", True)
 
     def _stage_font_family(self, font: QFont) -> None:
         """Stage the selected font family from the font combo."""
