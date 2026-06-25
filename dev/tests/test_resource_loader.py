@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from meadowpy.resources import resource_loader
+from meadowpy.resources.theme_colors import resolve_accent_shades
 
 
 def test_get_icon_and_font_path_return_existing_assets():
@@ -18,6 +19,27 @@ def test_theme_helpers_and_accent_resolution():
     assert resource_loader.theme_is_high_contrast("default_high_contrast") is True
     assert resource_loader.current_accent_hex("default_high_contrast") == "#FFFFFF"
     assert resource_loader.run_button_accent_hex("default_dark") == "#4CAF50"
+
+
+def test_custom_accent_shades_and_default_fallbacks():
+    shades = resolve_accent_shades("custom", True, "#336699")
+
+    assert shades == {
+        "ACCENT": "#336699",
+        "ACCENT_HOVER": "#24476B",
+        "ACCENT_TINT": "#B9CCDF",
+        "ACCENT_BRIGHT": "#5E94C9",
+        "ACCENT_HOVER_BRIGHT": "#3D7AB8",
+    }
+    assert (
+        resource_loader.current_accent_hex("custom", custom_base="light")
+        == "#2E7D32"
+    )
+    assert (
+        resource_loader.current_accent_hex("custom", custom_base="dark")
+        == "#2F7A44"
+    )
+    assert resource_loader.run_button_accent_hex("custom") == "#4CAF50"
 
 
 def test_color_helpers_return_original_on_invalid_input():
