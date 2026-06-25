@@ -22,7 +22,7 @@ while wrong < max_wrong:
             display += "_ "
     print(f"Word: {display}")
     print(f"Wrong guesses left: {max_wrong - wrong}")
-    print(f"Guessed: {\", \".join(sorted(guessed)) or \"none\"}")
+    print(f"Guessed: {', '.join(sorted(guessed)) or 'none'}")
 
     # Check if the player won
     if all(letter in guessed for letter in secret):

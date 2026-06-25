@@ -26,7 +26,7 @@ with open("savegame.json", "r") as f:
 print(f"\nLoaded save for: {loaded['player']}")
 print(f"Level: {loaded['level']}")
 print(f"Health: {loaded['health']}")
-print(f"Items: {\", \".join(loaded['inventory'])}")
+print(f"Items: {', '.join(loaded['inventory'])}")
 print(f"Position: ({loaded['position']['x']}, {loaded['position']['y']})")
 
 # === Convert to/from JSON strings ===
