@@ -63,6 +63,12 @@ class Settings(QObject):
         if self._data.get("window.state") in LEGACY_DEFAULT_WINDOW_STATES:
             self._data["window.state"] = DEFAULT_WINDOW_STATE
             self._data["window.layout_version"] = DEFAULT_WINDOW_LAYOUT_VERSION
+        if (
+            self._data.get("general.restore_tabs_on_startup") is True
+            and not self._data.get("general.restore_tabs_on_startup_explicit")
+        ):
+            self._data["general.restore_tabs_on_startup"] = False
+            self._data["general.restore_tabs_on_startup_explicit"] = True
 
     def save(self) -> None:
         """Persist current settings to JSON file."""

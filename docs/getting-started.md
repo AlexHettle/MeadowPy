@@ -107,8 +107,7 @@ you can read the error.
 
 ## First Run
 
-When MeadowPy opens, you will either see restored tabs from the previous
-session or the Welcome screen.
+When MeadowPy opens for the first time, you will see the Welcome screen.
 
 To run your first program:
 
@@ -155,8 +154,8 @@ MeadowPy stores user settings in:
 %USERPROFILE%\.meadowpy\settings.json
 ```
 
-By default, MeadowPy restores previously open tabs on startup. You can change
-that in **File > Preferences > General**.
+By default, MeadowPy opens the Welcome screen on startup. You can enable
+previously open tabs in **File > Preferences > General**.
 
 ## Next Steps
 

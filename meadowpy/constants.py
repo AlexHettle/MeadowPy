@@ -62,7 +62,8 @@ DEFAULT_SETTINGS = {
     "run.show_output_panel": True,          # auto-show output panel on run
 
     "general.auto_save_interval": 0,
-    "general.restore_tabs_on_startup": True,
+    "general.restore_tabs_on_startup": False,
+    "general.restore_tabs_on_startup_explicit": False,
     "general.open_files": [],
 
     # Phase 5: File Explorer

@@ -1036,6 +1036,9 @@ def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qap
     assert prefs._accent_hex_label.text() == "#112233"
     prefs._show_lint_style_issues.setChecked(False)
     assert prefs._pending_changes["editor.show_lint_style_issues"] is False
+    prefs._restore_tabs.setChecked(True)
+    assert prefs._pending_changes["general.restore_tabs_on_startup"] is True
+    assert prefs._pending_changes["general.restore_tabs_on_startup_explicit"] is True
 
     from meadowpy.ui.dialogs import accent_color_picker as accent_module
 
@@ -1067,6 +1070,8 @@ def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qap
     assert settings.get("editor.theme") == "custom"
     assert settings.get("editor.custom_theme.accent") == "#445566"
     assert settings.get("editor.show_lint_style_issues") is False
+    assert settings.get("general.restore_tabs_on_startup") is True
+    assert settings.get("general.restore_tabs_on_startup_explicit") is True
     assert prefs._pending_changes == {}
     assert "editor.font_family" in applied_keys[-1]
 
