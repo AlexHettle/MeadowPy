@@ -1,7 +1,6 @@
 """IDE-side debug controller — manages the debug subprocess and TCP protocol."""
 
 import json
-import os
 from enum import Enum, auto
 from pathlib import Path
 

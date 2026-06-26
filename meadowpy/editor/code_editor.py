@@ -526,8 +526,6 @@ class CodeEditor(QsciScintilla):
 
     def contextMenuEvent(self, event) -> None:
         """Add 'What does this mean?' to the right-click context menu."""
-        from PyQt6.QtWidgets import QMenu
-
         menu = self.createStandardContextMenu()
 
         # Get the word under the cursor at the click position

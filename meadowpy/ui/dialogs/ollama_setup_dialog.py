@@ -18,7 +18,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QVBoxLayout,
-    QWidget,
 )
 
 from meadowpy.core.settings import Settings

@@ -3,7 +3,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QVBoxLayout, QLineEdit,
-    QPushButton, QLabel, QWidget, QSizePolicy,
+    QPushButton, QLabel, QWidget,
 )
 
 from meadowpy.editor.code_editor import CodeEditor

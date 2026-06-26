@@ -8,8 +8,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
     QStackedWidget, QDialogButtonBox, QWidget, QFormLayout,
     QSpinBox, QCheckBox, QComboBox, QFontComboBox, QLineEdit,
-    QAbstractItemView, QPushButton, QRadioButton,
-    QButtonGroup, QLabel,
+    QPushButton, QRadioButton, QButtonGroup, QLabel,
 )
 
 from meadowpy.core.settings import Settings

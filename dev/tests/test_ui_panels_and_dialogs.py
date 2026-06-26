@@ -54,7 +54,7 @@ from meadowpy.ui.search_panel import (
     _MAX_FILE_SIZE,
 )
 from meadowpy.ui.symbol_outline import SymbolOutlinePanel
-from meadowpy.ui.tool_bar import ToolBarBuilder, ToolbarGlowPainter
+from meadowpy.ui.tool_bar import ToolBarBuilder
 from meadowpy.ui.welcome_widget import _WelcomeHeroWidget
 
 

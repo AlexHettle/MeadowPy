@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from meadowpy.core.file_types import PYTHON_FILE_SUFFIXES, is_python_file_path
+from meadowpy.core.file_types import is_python_file_path
 
 
 def can_run_editor(editor: Any, expected_type: type | tuple[type, ...] | None = None) -> bool:

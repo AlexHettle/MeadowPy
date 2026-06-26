@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
-    QWidget,
 )
 
 from meadowpy.ui.item_delegates import NoFocusDelegate
