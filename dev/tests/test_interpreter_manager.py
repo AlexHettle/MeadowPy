@@ -19,6 +19,27 @@ def test_get_interpreter_falls_back_to_running_python():
     assert InterpreterManager().get_interpreter(settings) == sys.executable
 
 
+def test_detect_interpreters_without_file_path_returns_system_only(tmp_path, monkeypatch):
+    system_python = tmp_path / "system.exe"
+    monkeypatch.setattr(
+        "meadowpy.core.interpreter_manager.sys.executable",
+        str(system_python),
+    )
+    monkeypatch.setattr(
+        InterpreterManager,
+        "_get_version",
+        staticmethod(lambda path: "3.12.9"),
+    )
+
+    interpreters = InterpreterManager().detect_interpreters()
+
+    assert len(interpreters) == 1
+    assert interpreters[0].path == str(system_python)
+    assert interpreters[0].version == "3.12.9"
+    assert interpreters[0].label == "System Python 3.12.9"
+    assert interpreters[0].is_venv is False
+
+
 def test_venv_python_detects_windows_and_unix_layouts(tmp_path):
     win_venv = tmp_path / "win"
     unix_venv = tmp_path / "unix"
@@ -90,6 +111,19 @@ def test_get_version_returns_unknown_when_subprocess_fails(monkeypatch):
     monkeypatch.setattr("meadowpy.core.interpreter_manager.subprocess.run", raise_timeout)
 
     assert InterpreterManager._get_version("python.exe") == "unknown"
+
+
+def test_get_version_parses_python_version_stdout(monkeypatch):
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="Python 3.12.5\n",
+        )
+
+    monkeypatch.setattr("meadowpy.core.interpreter_manager.subprocess.run", fake_run)
+
+    assert InterpreterManager._get_version("python.exe") == "3.12.5"
 
 
 def test_relative_label_uses_relative_path_when_possible(tmp_path):
