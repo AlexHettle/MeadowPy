@@ -285,7 +285,6 @@ class MeadowPyApp:
         Builds a multi-size QIcon from every available source so Windows can
         pick the best match for the taskbar, alt-tab, and title bar.
         """
-        from pathlib import Path
         from PyQt6.QtGui import QPixmap
 
         icons_dir = Path(__file__).parent / "resources" / "icons"
