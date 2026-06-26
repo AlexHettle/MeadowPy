@@ -107,7 +107,7 @@ class _AboutHeroWidget(QWidget):
         tagline_top = max(title_bottom + 10, min(tagline_top, max_tagline_top))
         tagline_bottom = self._paint_tagline(painter, tagline_top)
         pill_top = max(tagline_bottom + 20, pill_top)
-        pill_bottom = self._paint_version_pill(painter, pill_top)
+        self._paint_version_pill(painter, pill_top)
         self._paint_built_with(painter, built_with_top)
         painter.end()
 
