@@ -138,6 +138,8 @@ def test_read_file_warns_before_loading_large_text_files(tmp_path):
 def test_open_file_tracks_large_file_error(tmp_path):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)
+    recorder = SignalRecorder()
+    manager.file_opened.connect(recorder)
     file_path = tmp_path / "large.log"
     file_path.write_bytes(b"a" * (LARGE_FILE_WARNING_BYTES + 1))
 
@@ -145,12 +147,20 @@ def test_open_file_tracks_large_file_error(tmp_path):
     assert isinstance(manager.last_open_error, LargeFileError)
     assert manager.last_open_error_path == str(file_path)
     recent.add.assert_not_called()
+    assert recorder.calls == []
 
     result = manager.open_file(str(file_path), allow_large=True)
     assert result is not None
-    assert result[0] == str(file_path)
-    assert len(result[1]) == LARGE_FILE_WARNING_BYTES + 1
+    opened_path, opened_content = result
+    assert opened_path == str(file_path)
+    assert len(opened_content) == LARGE_FILE_WARNING_BYTES + 1
+    assert manager.last_open_error is None
+    assert manager.last_open_error_path is None
     recent.add.assert_called_once_with(str(file_path))
+    assert len(recorder.calls) == 1
+    emitted_path, emitted_content = recorder.calls[0]
+    assert emitted_path == str(file_path)
+    assert len(emitted_content) == LARGE_FILE_WARNING_BYTES + 1
 
 
 def test_format_file_size_uses_compact_units():
