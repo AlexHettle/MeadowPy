@@ -114,6 +114,17 @@ def test_load_invalid_json_resets_to_empty_data(tmp_path):
     assert settings.get("editor.theme") == DEFAULT_SETTINGS["editor.theme"]
 
 
+def test_load_ignores_non_object_json_and_uses_defaults(tmp_path):
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(json.dumps(["editor.font_size", 20]), encoding="utf-8")
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("editor.font_size") == DEFAULT_SETTINGS["editor.font_size"]
+    assert settings.get("custom.key") is None
+
+
 def test_load_migrates_only_the_legacy_default_window_state(tmp_path):
     legacy_state = next(iter(LEGACY_DEFAULT_WINDOW_STATES))
     config_file = tmp_path / "settings.json"
