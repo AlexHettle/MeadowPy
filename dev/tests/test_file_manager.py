@@ -105,6 +105,52 @@ def test_save_file_as_uses_dialog_and_returns_path(monkeypatch):
     assert saved == [("picked.py", "content")]
 
 
+def test_save_file_as_returns_none_when_dialog_is_cancelled(monkeypatch):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    saved = []
+    monkeypatch.setattr(
+        "meadowpy.core.file_manager.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: ("", ""),
+    )
+    monkeypatch.setattr(
+        manager,
+        "save_file",
+        lambda file_path, content: saved.append((file_path, content)),
+    )
+
+    assert manager.save_file_as("content") is None
+    assert saved == []
+
+
+def test_save_file_as_returns_none_when_save_fails(monkeypatch):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    saved = []
+    monkeypatch.setattr(
+        "meadowpy.core.file_manager.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: ("picked.py", ""),
+    )
+
+    def fake_save_file(file_path, content):
+        saved.append((file_path, content))
+        return False
+
+    monkeypatch.setattr(manager, "save_file", fake_save_file)
+
+    assert manager.save_file_as("content") is None
+    assert saved == [("picked.py", "content")]
+
+
+def test_read_file_allows_empty_text_files(tmp_path):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    file_path = tmp_path / "empty.txt"
+    file_path.write_bytes(b"")
+
+    assert manager.read_file(str(file_path)) == ""
+
+
 def test_read_file_falls_back_to_latin1(tmp_path):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)
