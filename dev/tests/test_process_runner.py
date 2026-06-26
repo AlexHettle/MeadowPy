@@ -36,13 +36,19 @@ def test_run_code_writes_temp_file_and_starts_process(tmp_path, monkeypatch):
     runner.run_code("print('hello')", "python.exe", str(tmp_path))
 
     assert runner._temp_file is not None
-    assert process_calls[0][0] == "python.exe"
-    assert process_calls[0][1][0] == "-u"
+    temp_file = process_module.Path(runner._temp_file)
+    assert temp_file.parent == process_module._selection_temp_dir()
+    assert temp_file.name.startswith("selection-")
+    assert temp_file.suffix == ".py"
+    assert temp_file.read_text(encoding="utf-8") == "print('hello')"
+    assert process_calls == [
+        ("python.exe", ["-u", str(temp_file)], str(tmp_path)),
+    ]
     assert started_calls == ["Running selection"]
 
-    temp_file = runner._temp_file
     runner._cleanup_temp()
-    assert temp_file is not None
+    assert runner._temp_file is None
+    assert not temp_file.exists()
 
 
 def test_run_code_removes_temp_file_when_start_process_fails(tmp_path, monkeypatch):
