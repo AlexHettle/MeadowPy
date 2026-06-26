@@ -54,6 +54,23 @@ def test_save_file_persists_content_and_emits(tmp_path):
     assert recorder.calls == [(str(file_path),)]
 
 
+def test_save_file_ignores_recent_file_update_errors(tmp_path):
+    recent = Mock()
+    recent.add.side_effect = OSError("recent list is unavailable")
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    recorder = SignalRecorder()
+    manager.file_saved.connect(recorder)
+    file_path = tmp_path / "saved.py"
+
+    assert manager.save_file(str(file_path), "print('saved')") is True
+
+    assert file_path.read_text(encoding="utf-8") == "print('saved')"
+    assert manager.last_save_error is None
+    assert manager.last_save_error_path is None
+    recent.add.assert_called_once_with(str(file_path))
+    assert recorder.calls == [(str(file_path),)]
+
+
 def test_save_file_returns_false_on_oserror(monkeypatch):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)
