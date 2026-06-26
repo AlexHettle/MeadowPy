@@ -213,12 +213,7 @@ class _FilteredFileSystemModel(QSortFilterProxyModel):
         model = self.sourceModel()
         index = model.index(source_row, 0, source_parent)
         name = model.fileName(index)
-        if name in _HIDDEN_NAMES:
-            return False
-        for suffix in _HIDDEN_SUFFIXES:
-            if name.endswith(suffix):
-                return False
-        return True
+        return _name_is_visible_in_explorer(name)
 
 
 class _FileExplorerItemDelegate(NoFocusDelegate):
