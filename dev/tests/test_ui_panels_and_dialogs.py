@@ -6,6 +6,7 @@ from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
 from PyQt6.QtWidgets import (
     QFontComboBox,
+    QDialog,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -17,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
+import meadowpy.ui.dialogs.shortcut_reference_dialog as shortcut_reference_module
 from meadowpy.core.settings import Settings
 from meadowpy.core.shortcuts import get_shortcut, set_shortcut
 from meadowpy.resources.resource_loader import get_stylesheet
@@ -737,6 +739,106 @@ def test_shortcut_reference_dialog_reflects_custom_shortcuts_and_reset(qapp, tmp
 
     assert get_shortcut(settings, "file.save") == "Ctrl+S"
     assert not dialog._reset_btn.isEnabled()
+    dialog.deleteLater()
+
+
+def test_shortcut_reference_dialog_clears_shortcut_from_capture(monkeypatch, qapp, tmp_path):
+    settings = Settings(tmp_path)
+    dialog = ShortcutReferenceDialog(settings=settings)
+    captured = []
+
+    class FakeCaptureDialog:
+        def __init__(self, definition, current_shortcut, parent=None):
+            captured.append((definition.id, current_shortcut, parent))
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def shortcut(self):
+            return ""
+
+    monkeypatch.setattr(
+        shortcut_reference_module,
+        "_ShortcutCaptureDialog",
+        FakeCaptureDialog,
+    )
+
+    dialog._select_shortcut("file.save")
+    dialog._on_change_clicked()
+
+    assert captured == [("file.save", "Ctrl+S", dialog)]
+    assert get_shortcut(settings, "file.save") == ""
+    assert dialog._rows_by_id["file.save"]._shortcut_text == ""
+    assert dialog._reset_btn.isEnabled()
+    assert "customized" in dialog._default_note.text()
+    dialog.deleteLater()
+
+
+def test_shortcut_reference_dialog_handles_conflict_pick_and_use(monkeypatch, qapp, tmp_path):
+    settings = Settings(tmp_path)
+    dialog = ShortcutReferenceDialog(settings=settings)
+    capture_shortcuts = iter(["Ctrl+O", "Ctrl+Alt+S"])
+    conflict_choices = iter(["pick"])
+    captures = []
+    conflicts = []
+
+    class FakeCaptureDialog:
+        def __init__(self, definition, current_shortcut, parent=None):
+            captures.append((definition.id, current_shortcut, parent))
+            self._shortcut = next(capture_shortcuts)
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def shortcut(self):
+            return self._shortcut
+
+    class FakeConflictDialog:
+        def __init__(self, shortcut, target, conflict, parent=None):
+            conflicts.append((shortcut, target.id, conflict.id, parent))
+            self._choice = next(conflict_choices)
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def choice(self):
+            return self._choice
+
+    monkeypatch.setattr(
+        shortcut_reference_module,
+        "_ShortcutCaptureDialog",
+        FakeCaptureDialog,
+    )
+    monkeypatch.setattr(
+        shortcut_reference_module,
+        "_ShortcutConflictDialog",
+        FakeConflictDialog,
+    )
+
+    dialog._select_shortcut("file.save")
+    dialog._on_change_clicked()
+
+    assert captures == [
+        ("file.save", "Ctrl+S", dialog),
+        ("file.save", "Ctrl+S", dialog),
+    ]
+    assert conflicts == [("Ctrl+O", "file.save", "file.open", dialog)]
+    assert get_shortcut(settings, "file.save") == "Ctrl+Alt+S"
+    assert get_shortcut(settings, "file.open") == "Ctrl+O"
+
+    capture_shortcuts = iter(["Ctrl+O"])
+    conflict_choices = iter(["use"])
+    captures.clear()
+    conflicts.clear()
+
+    dialog._select_shortcut("file.save_as")
+    dialog._on_change_clicked()
+
+    assert captures == [("file.save_as", "Ctrl+Shift+S", dialog)]
+    assert conflicts == [("Ctrl+O", "file.save_as", "file.open", dialog)]
+    assert get_shortcut(settings, "file.save_as") == "Ctrl+O"
+    assert get_shortcut(settings, "file.open") == ""
+    assert dialog._rows_by_id["file.save_as"]._shortcut_text == "ctrl+o"
     dialog.deleteLater()
 
 
