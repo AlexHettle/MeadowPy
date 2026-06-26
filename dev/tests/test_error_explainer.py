@@ -20,6 +20,19 @@ def test_explain_error_matches_specific_name_error_pattern():
     assert "Did you mean 'print'?" in explanation
 
 
+def test_explain_error_matches_error_line_inside_traceback():
+    message = (
+        "Traceback (most recent call last):\n"
+        '  File "demo.py", line 1, in <module>\n'
+        "    print(total)\n"
+        "NameError: name 'total' is not defined\n"
+    )
+    explanation = assert_hint(message)
+
+    assert "Python doesn't recognize 'total'." in explanation
+    assert "Check for typos" in explanation
+
+
 def test_explain_error_uses_generic_pattern_when_needed():
     message = "ZeroDivisionError: division by zero"
     explanation = assert_hint(message)
