@@ -1,13 +1,23 @@
 import json
 
 from meadowpy.constants import (
+    CONFIG_DIR_NAME,
     DEFAULT_SETTINGS,
     DEFAULT_WINDOW_LAYOUT_VERSION,
     DEFAULT_WINDOW_STATE,
     LEGACY_DEFAULT_WINDOW_STATES,
+    SETTINGS_FILENAME,
 )
 from meadowpy.core.settings import Settings
 from tests.helpers import SignalRecorder
+
+
+def test_default_config_dir_uses_user_home(monkeypatch, tmp_path):
+    monkeypatch.setattr("meadowpy.core.settings.Path.home", lambda: tmp_path)
+
+    settings = Settings()
+
+    assert settings.config_file_path == tmp_path / CONFIG_DIR_NAME / SETTINGS_FILENAME
 
 
 def test_get_uses_saved_values_then_defaults(tmp_path):
