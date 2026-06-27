@@ -838,6 +838,7 @@ def test_shortcut_reference_dialog_filters_categories_rows_and_empty_state(qapp)
     dialog._on_filter("debug")
     visible_cards = [card for card in dialog._cards if not card.isHidden()]
     assert len(visible_cards) == 1
+    assert dialog._selected_id.startswith("debug.")
     assert dialog._no_results.isHidden()
 
     dialog._on_filter("ctrl+shift+definitely-missing")
@@ -848,6 +849,58 @@ def test_shortcut_reference_dialog_filters_categories_rows_and_empty_state(qapp)
     assert all(not card.isHidden() for card in dialog._cards)
     assert dialog._no_results.isHidden()
     dialog.deleteLater()
+
+
+def test_shortcut_reference_dialog_keyboard_navigation_moves_visible_selection(qapp):
+    dialog = ShortcutReferenceDialog()
+    try:
+        dialog._on_filter("debug")
+        visible_ids = [row.definition.id for row in dialog._visible_rows()]
+        assert len(visible_ids) > 2
+        assert dialog._selected_id == visible_ids[0]
+
+        down = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Down,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        up = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Up,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        page_down = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_PageDown,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        home = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Home,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        end = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_End,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+        assert dialog.eventFilter(dialog._search, down) is True
+        assert dialog._selected_id == visible_ids[1]
+
+        assert dialog.eventFilter(dialog._search, up) is True
+        assert dialog._selected_id == visible_ids[0]
+
+        assert dialog.eventFilter(dialog._search, page_down) is True
+        assert dialog._selected_id in visible_ids[1:]
+
+        assert dialog.eventFilter(dialog._search, home) is False
+        dialog.keyPressEvent(end)
+        assert dialog._selected_id == visible_ids[-1]
+        dialog.keyPressEvent(home)
+        assert dialog._selected_id == visible_ids[0]
+    finally:
+        dialog.deleteLater()
 
 
 def test_shortcut_reference_badge_row_renders_keys_and_empty_state(qapp):
@@ -884,9 +937,64 @@ def test_shortcut_reference_badge_row_renders_keys_and_empty_state(qapp):
         row.deleteLater()
 
 
+def test_shortcut_reset_button_styles_include_hover_and_disabled_states(qapp):
+    default_stylesheet = get_stylesheet("default_dark")
+    high_contrast_stylesheet = get_stylesheet("default_high_contrast")
+
+    assert "#shortcutResetBtn:enabled:hover" in default_stylesheet
+    assert "#shortcutResetBtn:disabled" in default_stylesheet
+    assert "#shortcutResetBtn:enabled:hover" in high_contrast_stylesheet
+    assert "#shortcutResetBtn:disabled" in high_contrast_stylesheet
+
+
+def test_shortcut_capture_dialog_ignores_typing_keys_and_accepts_function_keys(qapp):
+    definition = shortcut_reference_module.ShortcutDefinition(
+        "test.capture",
+        "Test",
+        "Capture Test",
+        "Ctrl+T",
+        "Used by the shortcut capture dialog test.",
+    )
+    dialog = shortcut_reference_module._ShortcutCaptureDialog(definition, "Ctrl+T")
+    try:
+        plain_letter = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_A,
+            Qt.KeyboardModifier.NoModifier,
+            "a",
+        )
+        shifted_letter = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_A,
+            Qt.KeyboardModifier.ShiftModifier,
+            "A",
+        )
+        function_key = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_F5,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+        dialog.keyPressEvent(plain_letter)
+        dialog.keyPressEvent(shifted_letter)
+        assert dialog.shortcut() == ""
+        assert dialog.result() != QDialog.DialogCode.Accepted.value
+
+        dialog.keyPressEvent(function_key)
+        assert dialog.shortcut() == "F5"
+        assert dialog.result() == QDialog.DialogCode.Accepted.value
+    finally:
+        dialog.deleteLater()
+
+
 def test_shortcut_reference_dialog_reflects_custom_shortcuts_and_reset(qapp, tmp_path):
     settings = Settings(tmp_path)
     dialog = ShortcutReferenceDialog(settings=settings)
+
+    dialog._select_shortcut("file.preferences")
+    assert dialog._detail_title.text() == "Preferences"
+    assert dialog._detail_badges._keys == ["Ctrl", ","]
+    assert get_shortcut(settings, "file.preferences") == "Ctrl+,"
 
     dialog._select_shortcut("file.save")
     assert dialog._detail_title.text() == "Save"

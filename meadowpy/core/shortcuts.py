@@ -11,6 +11,19 @@ from PyQt6.QtGui import QKeyEvent, QKeySequence
 
 SHORTCUT_OVERRIDES_KEY = "shortcuts.custom"
 
+_MODIFIER_KEYS = {
+    Qt.Key.Key_Control.value,
+    Qt.Key.Key_Shift.value,
+    Qt.Key.Key_Alt.value,
+    Qt.Key.Key_Meta.value,
+}
+
+_COMMAND_MODIFIERS = (
+    Qt.KeyboardModifier.ControlModifier
+    | Qt.KeyboardModifier.AltModifier
+    | Qt.KeyboardModifier.MetaModifier
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ShortcutDefinition:
@@ -336,24 +349,38 @@ def normalize_shortcut(shortcut: str | None) -> str:
     if sequence.isEmpty():
         return ""
     normalized = sequence.toString(QKeySequence.SequenceFormat.PortableText)
-    # MeadowPy only captures single-step shortcuts. If a multi-step sequence is
-    # typed or pasted into tests, keep the first key stroke for consistency.
-    return normalized.split(",")[0].strip()
+    # MeadowPy only captures single-step shortcuts. Qt separates multi-step
+    # sequences with ", "; keep comma keys like "Ctrl+," intact.
+    return normalized.split(", ", 1)[0].strip()
+
+
+def _shortcut_is_assignable(shortcut: str | None) -> bool:
+    normalized = normalize_shortcut(shortcut)
+    if not normalized:
+        return False
+    parts = [part for part in normalized.split("+") if part]
+    if any(part in {"Ctrl", "Alt", "Meta"} for part in parts):
+        return True
+    key = parts[-1] if parts else normalized
+    if not key.startswith("F") or not key[1:].isdigit():
+        return False
+    return 1 <= int(key[1:]) <= 35
 
 
 def shortcut_from_key_event(event: QKeyEvent) -> str:
     """Convert a key event into portable shortcut text."""
-    if event.key() in {
-        Qt.Key.Key_Control,
-        Qt.Key.Key_Shift,
-        Qt.Key.Key_Alt,
-        Qt.Key.Key_Meta,
-    }:
+    key = event.key()
+    if key in _MODIFIER_KEYS:
+        return ""
+    modifiers = event.modifiers()
+    is_function_key = Qt.Key.Key_F1.value <= key <= Qt.Key.Key_F35.value
+    if not is_function_key and not (modifiers & _COMMAND_MODIFIERS):
         return ""
     sequence = QKeySequence(event.keyCombination())
-    return normalize_shortcut(
+    shortcut = normalize_shortcut(
         sequence.toString(QKeySequence.SequenceFormat.PortableText)
     )
+    return shortcut if _shortcut_is_assignable(shortcut) else ""
 
 
 def event_matches_shortcut(event: QKeyEvent, shortcut: str | None) -> bool:
@@ -374,11 +401,16 @@ def _raw_overrides(settings: Any) -> dict[str, str]:
     data = settings.get(SHORTCUT_OVERRIDES_KEY, {}) if settings is not None else {}
     if not isinstance(data, dict):
         return {}
-    return {
-        str(shortcut_id): normalize_shortcut(value)
-        for shortcut_id, value in data.items()
-        if shortcut_id in SHORTCUTS_BY_ID
-    }
+    overrides = {}
+    for shortcut_id, value in data.items():
+        shortcut_id = str(shortcut_id)
+        if shortcut_id not in SHORTCUTS_BY_ID:
+            continue
+        normalized = normalize_shortcut(value)
+        if normalized and not _shortcut_is_assignable(normalized):
+            continue
+        overrides[shortcut_id] = normalized
+    return overrides
 
 
 def shortcut_overrides(settings: Any) -> dict[str, str]:
@@ -410,6 +442,8 @@ def set_shortcut(settings: Any, shortcut_id: str, shortcut: str | None) -> None:
     if settings is None:
         return
     normalized = normalize_shortcut(shortcut)
+    if normalized and not _shortcut_is_assignable(normalized):
+        normalized = ""
     default = get_default_shortcut(shortcut_id)
     overrides = _raw_overrides(settings)
     if normalized == default:

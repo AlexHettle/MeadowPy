@@ -1654,10 +1654,16 @@ QRadioButton::indicator:checked {
     padding: 7px 14px;
 }
 
-#shortcutResetBtn:hover,
+#shortcutResetBtn:enabled:hover,
 #shortcutConflictSecondary:hover {
     background: #F5F7FA;
     color: #333333;
+}
+
+#shortcutResetBtn:disabled {
+    background: #F1F3F5;
+    color: #A3AAB3;
+    border: 1px solid #E4E8EE;
 }
 
 #shortcutLinkBtn {

@@ -303,7 +303,6 @@ class MainWindow(QMainWindow):
         self._run_action = self._make_action(
             load_themed_icon("run", theme_name),
             "Run File",
-            "F5",
             self.action_run_file,
             shortcut_id="run.file",
             tooltip_template="Run your Python file{shortcut_suffix}",
@@ -311,7 +310,6 @@ class MainWindow(QMainWindow):
         self._stop_action = self._make_action(
             load_themed_icon("stop", theme_name),
             "Stop Process",
-            "Ctrl+F5",
             self.action_stop_process,
             shortcut_id="run.stop",
             tooltip_template="Stop the running program{shortcut_suffix}",
@@ -352,9 +350,9 @@ class MainWindow(QMainWindow):
         self,
         icon_or_path,
         text,
-        shortcut,
         callback,
         *,
+        shortcut: str | None = None,
         shortcut_id: str | None = None,
         tooltip_template: str | None = None,
     ):
@@ -374,8 +372,8 @@ class MainWindow(QMainWindow):
                 tooltip_template or f"{text}" + "{shortcut_suffix}",
             )
         else:
-            action.setShortcut(QKeySequence(shortcut))
-            action.setToolTip(f"{text} ({shortcut})")
+            action.setShortcut(QKeySequence(shortcut) if shortcut else QKeySequence())
+            action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
         return action
 
     def register_shortcut_action(
@@ -471,7 +469,6 @@ class MainWindow(QMainWindow):
         self._debug_action = self._make_action(
             load_themed_icon("debug", theme_name),
             "Start Debugging",
-            "F6",
             self.action_start_debug,
             shortcut_id="debug.start",
             tooltip_template="Run with debugger - pause at breakpoints{shortcut_suffix}",

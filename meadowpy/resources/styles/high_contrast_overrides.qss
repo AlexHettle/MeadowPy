@@ -313,6 +313,15 @@ QPushButton:default:hover {
     color: #FFFFFF;
     border: 2px solid #FFFFFF;
 }
+#shortcutResetBtn:enabled:hover {
+    background: #FFFFFF;
+    color: #000000;
+}
+#shortcutResetBtn:disabled {
+    background: #000000;
+    color: #7F7F7F;
+    border-color: #7F7F7F;
+}
 #shortcutLinkBtn {
     background: transparent;
     color: #FFFFFF;

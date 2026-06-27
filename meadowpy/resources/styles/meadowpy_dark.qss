@@ -1768,10 +1768,16 @@ QDockWidget::title {
     padding: 7px 14px;
 }
 
-#shortcutResetBtn:hover,
+#shortcutResetBtn:enabled:hover,
 #shortcutConflictSecondary:hover {
     background: #2A2D2E;
     color: #DDDDDD;
+}
+
+#shortcutResetBtn:disabled {
+    background: #242526;
+    color: #686868;
+    border: 1px solid #343638;
 }
 
 #shortcutLinkBtn {

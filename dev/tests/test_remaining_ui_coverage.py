@@ -132,7 +132,7 @@ def test_menu_and_toolbar_save_actions_route_to_action_save(qapp):
             pass
 
         def action_preferences(self):
-            pass
+            menu_calls.append("preferences")
 
     menu_window = FakeMenuWindow()
     menu_bar = QMenuBar(menu_window)
@@ -142,10 +142,16 @@ def test_menu_and_toolbar_save_actions_route_to_action_save(qapp):
         action for action in file_menu.actions()
         if action.text() == "&Save"
     )
+    preferences_menu_action = next(
+        action for action in file_menu.actions()
+        if action.text() == "&Preferences..."
+    )
 
     assert save_menu_action.shortcut() == QKeySequence("Ctrl+S")
+    assert preferences_menu_action.shortcut() == QKeySequence("Ctrl+,")
     save_menu_action.trigger()
-    assert menu_calls == ["save"]
+    preferences_menu_action.trigger()
+    assert menu_calls == ["save", "preferences"]
 
     toolbar.deleteLater()
     toolbar_window.deleteLater()

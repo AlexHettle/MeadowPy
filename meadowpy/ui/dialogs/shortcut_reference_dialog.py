@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from PyQt6.QtCore import QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QKeyEvent, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QApplication,
@@ -487,6 +487,7 @@ class ShortcutReferenceDialog(QDialog):
         self._cards: list[_ShortcutListSection] = []
         self._rows_by_id: dict[str, _ShortcutRow] = {}
         self._selected_id = ""
+        self._scroll: QScrollArea | None = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -512,13 +513,18 @@ class ShortcutReferenceDialog(QDialog):
         self._search.setPlaceholderText("Search shortcuts...")
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._on_filter)
+        self._search.installEventFilter(self)
         sidebar_layout.addWidget(self._search)
 
         scroll = QScrollArea()
         scroll.setObjectName("shortcutScroll")
+        scroll.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.installEventFilter(self)
+        scroll.viewport().installEventFilter(self)
+        self._scroll = scroll
 
         container = QWidget()
         container.setObjectName("shortcutContainer")
@@ -662,7 +668,7 @@ class ShortcutReferenceDialog(QDialog):
             any_visible = any_visible or visible
             if visible and not first_visible_id:
                 for row in section._rows:
-                    if row.isVisible():
+                    if not row.isHidden():
                         first_visible_id = row.definition.id
                         break
             if visible and self._selected_id:
@@ -673,6 +679,83 @@ class ShortcutReferenceDialog(QDialog):
         self._no_results.setVisible(not any_visible)
         if first_visible_id and not selected_visible:
             self._select_shortcut(first_visible_id)
+        elif selected_visible:
+            self._scroll_to_selected()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        if (
+            event.type() == QEvent.Type.KeyPress
+            and self._handle_list_key(event, from_search=watched is self._search)
+        ):
+            return True
+        return super().eventFilter(watched, event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if self._handle_list_key(event):
+            return
+        super().keyPressEvent(event)
+
+    def _handle_list_key(self, event: QKeyEvent, *, from_search: bool = False) -> bool:
+        key = event.key()
+        if key == Qt.Key.Key_Down:
+            return self._move_visible_selection(1)
+        if key == Qt.Key.Key_Up:
+            return self._move_visible_selection(-1)
+        if key == Qt.Key.Key_PageDown:
+            return self._move_visible_selection(self._visible_page_step())
+        if key == Qt.Key.Key_PageUp:
+            return self._move_visible_selection(-self._visible_page_step())
+        if not from_search and key == Qt.Key.Key_Home:
+            return self._select_visible_boundary(first=True)
+        if not from_search and key == Qt.Key.Key_End:
+            return self._select_visible_boundary(first=False)
+        return False
+
+    def _move_visible_selection(self, offset: int) -> bool:
+        rows = self._visible_rows()
+        if not rows:
+            return False
+        current_index = self._selected_visible_index(rows)
+        target_index = 0 if current_index < 0 else current_index + offset
+        target_index = max(0, min(target_index, len(rows) - 1))
+        self._select_shortcut(rows[target_index].definition.id)
+        return True
+
+    def _select_visible_boundary(self, *, first: bool) -> bool:
+        rows = self._visible_rows()
+        if not rows:
+            return False
+        row = rows[0] if first else rows[-1]
+        self._select_shortcut(row.definition.id)
+        return True
+
+    def _visible_rows(self) -> list[_ShortcutRow]:
+        rows = []
+        for section in self._cards:
+            if section.isHidden():
+                continue
+            rows.extend(row for row in section._rows if not row.isHidden())
+        return rows
+
+    def _selected_visible_index(self, rows: list[_ShortcutRow]) -> int:
+        for index, row in enumerate(rows):
+            if row.definition.id == self._selected_id:
+                return index
+        return -1
+
+    def _visible_page_step(self) -> int:
+        rows = self._visible_rows()
+        if not rows or self._scroll is None:
+            return 1
+        row_height = max(1, rows[0].sizeHint().height())
+        return max(1, self._scroll.viewport().height() // row_height)
+
+    def _scroll_to_selected(self) -> None:
+        if self._scroll is None:
+            return
+        row = self._rows_by_id.get(self._selected_id)
+        if row is not None and not row.isHidden():
+            self._scroll.ensureWidgetVisible(row, 0, 12)
 
     def _select_shortcut(self, shortcut_id: str) -> None:
         if shortcut_id not in self._rows_by_id:
@@ -681,6 +764,7 @@ class ShortcutReferenceDialog(QDialog):
             row.set_selected(row_id == shortcut_id)
         self._selected_id = shortcut_id
         self._refresh_detail()
+        self._scroll_to_selected()
 
     def _refresh_all(self) -> None:
         for definition, shortcut in all_shortcuts(self._settings):

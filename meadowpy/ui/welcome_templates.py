@@ -7,7 +7,7 @@ TEMPLATES = [
         "icon": "\U0001F44B",
         "code": (
             '# Hello World - Your first Python program!\n'
-            '# Press F5 to run this code.\n'
+            '# Use the Run button to run this code.\n'
             '\n'
             '# print() displays text on screen\n'
             'print("Hello, World!")\n'
