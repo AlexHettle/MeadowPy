@@ -354,14 +354,26 @@ def test_search_worker_reports_real_matches_and_ignores_unsuitable_files(tmp_pat
 
     assert totals == [3]
     assert worker.large_files_skipped == 1
-    assert [m.line_num for m in matches] == [1, 2, 1]
-    assert all(".git" not in m.file_path for m in matches)
+    assert sorted(
+        (m.file_path, m.line_num, m.column, m.line_text)
+        for m in matches
+    ) == sorted([
+        (str(tmp_path / "main.py"), 1, 0, "Alpha"),
+        (str(tmp_path / "main.py"), 2, 5, "beta alpha"),
+        (str(tmp_path / "notes.txt"), 1, 0, "ALPHA"),
+    ])
 
+    case_matches = []
     case_totals = []
     case_worker = SearchWorker(str(tmp_path), "alpha", True, False)
+    case_worker.match_found.connect(case_matches.append)
     case_worker.finished.connect(case_totals.append)
     case_worker.run()
     assert case_totals == [1]
+    assert [
+        (m.file_path, m.line_num, m.column, m.line_text)
+        for m in case_matches
+    ] == [(str(tmp_path / "main.py"), 2, 5, "beta alpha")]
 
     bad_regex_totals = []
     bad_regex_worker = SearchWorker(str(tmp_path), "[", False, True)
