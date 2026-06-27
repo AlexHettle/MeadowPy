@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from meadowpy.resources import resource_loader
+from meadowpy.resources import resource_icons, resource_loader
 from meadowpy.resources.theme_colors import resolve_accent_shades
 
 
@@ -154,6 +154,25 @@ def test_get_stylesheet_applies_high_contrast_overrides():
     assert "#FFFFFF" in stylesheet
 
 
+def test_high_contrast_stylesheet_allows_missing_optional_overrides(monkeypatch, tmp_path):
+    styles_dir = tmp_path / "styles"
+    styles_dir.mkdir()
+    (styles_dir / "meadowpy_dark.qss").write_text(
+        "QWidget { background: #252526; color: {{ACCENT}}; "
+        "image: url({{ICONS_DIR}}/run.svg); }",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(resource_loader, "_RESOURCES_DIR", tmp_path)
+
+    stylesheet = resource_loader.get_stylesheet("default_high_contrast")
+
+    assert "QWidget" in stylesheet
+    assert "{{" not in stylesheet
+    assert "#000000" in stylesheet
+    assert "#FFFFFF" in stylesheet
+    assert "High Contrast accessibility overrides" not in stylesheet
+
+
 def test_get_stylesheet_returns_empty_when_template_is_missing(monkeypatch, tmp_path):
     monkeypatch.setattr(resource_loader, "_RESOURCES_DIR", tmp_path)
 
@@ -173,6 +192,23 @@ def test_load_themed_icon_falls_back_to_plain_icon_for_standard_theme(qapp):
 
 
 def test_load_themed_icon_renders_high_contrast_variant(qapp):
+    icon = resource_loader.load_themed_icon("run", theme_name="default_high_contrast")
+
+    assert icon.isNull() is False
+
+
+def test_load_themed_icon_falls_back_when_high_contrast_rendering_fails(
+    monkeypatch, qapp
+):
+    class UnreadablePath:
+        def __init__(self, path):
+            self.path = path
+
+        def read_text(self, encoding):
+            raise OSError("cannot recolor svg")
+
+    monkeypatch.setattr(resource_icons, "Path", UnreadablePath)
+
     icon = resource_loader.load_themed_icon("run", theme_name="default_high_contrast")
 
     assert icon.isNull() is False
