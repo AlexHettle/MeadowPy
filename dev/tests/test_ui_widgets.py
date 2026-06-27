@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QPoint, Qt
-from PyQt6.QtGui import QKeyEvent, QTextCursor
+from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
+from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextCursor
 from PyQt6.QtWidgets import QMenu, QStatusBar
 
 import meadowpy.ui.ai_chat_widgets as ai_chat_widgets_module
@@ -142,6 +142,56 @@ def test_status_bar_manager_renders_editor_debug_and_ai_state(qapp):
     settings.values["editor.theme"] = "default_high_contrast"
     manager.refresh_lint_colors()
     assert "#000000" in manager._lint_label.text()
+    status_bar.deleteLater()
+
+
+def test_status_bar_manager_handles_empty_lint_ai_and_clickable_states(qapp):
+    status_bar = QStatusBar()
+    settings = FakeSettings(
+        {
+            "editor.use_spaces": False,
+            "editor.tab_width": 4,
+            "editor.theme": "default_dark",
+        }
+    )
+    manager = StatusBarManager(status_bar, settings)
+    clicked = Recorder()
+    manager.ollama_label.clicked.connect(clicked)
+
+    assert manager._indent_label.text() == "Tab Size: 4"
+
+    manager.update_lint_counts(0, 0)
+    assert manager._lint_label.text() == "\u2713 No issues"
+
+    manager.update_lint_counts(1, 0)
+    assert "1" in manager._lint_label.text()
+    assert "\u26A0" not in manager._lint_label.text()
+
+    manager.update_lint_counts(0, 2)
+    assert "\u26A0" in manager._lint_label.text()
+
+    settings.values["editor.theme"] = "default_high_contrast"
+    manager.refresh_lint_colors()
+    assert "#000000" in manager._lint_label.text()
+    assert "\u25B2" in manager._lint_label.text()
+
+    manager.update_ollama_status(False, "qwen3")
+    assert manager.ollama_label.text() == "AI: Offline"
+    manager.update_ollama_status(True, "")
+    assert manager.ollama_label.text() == "AI: Select model..."
+
+    click = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        QPointF(1, 1),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    manager.ollama_label.mousePressEvent(click)
+    assert clicked.calls == [()]
+
+    manager.show_message("File saved", 10)
+    assert status_bar.currentMessage() == "File saved"
     status_bar.deleteLater()
 
 
