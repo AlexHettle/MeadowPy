@@ -558,6 +558,11 @@ def test_symbol_outline_parses_symbols_preserves_tree_on_syntax_error_and_emits_
     assert panel._tree.topLevelItemCount() == 2
 
     panel.apply_icon_theme("#FF00AA", is_dark=True)
+    panel.resize(260, 180)
+    panel.show()
+    qapp.processEvents()
+    assert panel._tree.viewport().grab().isNull() is False
+
     panel.clear_symbols()
     assert panel._tree.topLevelItemCount() == 0
     panel.deleteLater()
@@ -717,6 +722,40 @@ def test_shortcut_reference_dialog_filters_categories_rows_and_empty_state(qapp)
     assert all(not card.isHidden() for card in dialog._cards)
     assert dialog._no_results.isHidden()
     dialog.deleteLater()
+
+
+def test_shortcut_reference_badge_row_renders_keys_and_empty_state(qapp):
+    previous_stylesheet = qapp.styleSheet()
+    row = shortcut_reference_module._ShortcutBadgeRow("Ctrl + Alt + S")
+    try:
+        qapp.setStyleSheet(
+            """
+            #shortcutKeyBadge { background: #112233; color: #AABBCC; }
+            #shortcutEmptyBadge { color: #445566; }
+            """
+        )
+
+        assert row._keys == ["Ctrl", "Alt", "S"]
+        fill, text = row._badge_colors()
+        assert fill.name().upper() == "#112233"
+        assert text.name().upper() == "#AABBCC"
+        assert (
+            shortcut_reference_module._stylesheet_color("#missing", "color")
+            is None
+        )
+
+        row.resize(row.sizeHint())
+        assert row.grab().isNull() is False
+
+        row.set_shortcut("")
+
+        assert row._keys == []
+        assert row.sizeHint().height() == 24
+        assert row._empty_color().name().upper() == "#445566"
+        assert row.grab().isNull() is False
+    finally:
+        qapp.setStyleSheet(previous_stylesheet)
+        row.deleteLater()
 
 
 def test_shortcut_reference_dialog_reflects_custom_shortcuts_and_reset(qapp, tmp_path):
