@@ -19,9 +19,11 @@ from PyQt6.QtWidgets import (
 
 import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
 import meadowpy.ui.dialogs.shortcut_reference_dialog as shortcut_reference_module
+import meadowpy.ui.search_panel as search_panel_module
 from meadowpy.core.settings import Settings
 from meadowpy.core.shortcuts import get_shortcut, set_shortcut
 from meadowpy.resources.resource_loader import get_stylesheet
+from tests.helpers import DummySignal
 from meadowpy.ui.ai_chat_panel import AIChatPanel
 from meadowpy.ui.dialogs.about_dialog import AboutDialog
 from meadowpy.ui.dialogs.accent_color_picker import (
@@ -449,6 +451,118 @@ def test_search_panel_scope_empty_root_and_broad_root_cancel(qapp, tmp_path):
 
     assert confirmations == [str(project)]
     assert panel._status_label.text() == "Search cancelled."
+    panel.deleteLater()
+
+
+def test_search_panel_starts_confirmed_broad_search_and_cancels_previous(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    class FakeThread:
+        instances = []
+
+        def __init__(self):
+            self.started = DummySignal()
+            self.finished = DummySignal()
+            self.running = False
+            self.start_calls = 0
+            self.quit_calls = 0
+            self.wait_calls = []
+            self.terminate_calls = 0
+            self.__class__.instances.append(self)
+
+        def start(self):
+            self.start_calls += 1
+            self.running = True
+
+        def isRunning(self):
+            return self.running
+
+        def quit(self):
+            self.quit_calls += 1
+            self.running = False
+
+        def wait(self, timeout=None):
+            self.wait_calls.append(timeout)
+            self.running = False
+            return True
+
+        def terminate(self):
+            self.terminate_calls += 1
+            self.running = False
+
+    class FakeWorker:
+        instances = []
+
+        def __init__(self, root_path, pattern, case_sensitive, use_regex):
+            self.args = (root_path, pattern, case_sensitive, use_regex)
+            self.match_found = DummySignal()
+            self.finished = DummySignal()
+            self.large_files_skipped = 0
+            self.cancelled = False
+            self.thread = None
+            self.__class__.instances.append(self)
+
+        def moveToThread(self, thread):
+            self.thread = thread
+
+        def run(self):
+            pass
+
+        def cancel(self):
+            self.cancelled = True
+
+    monkeypatch.setattr(search_panel_module, "QThread", FakeThread)
+    monkeypatch.setattr(search_panel_module, "SearchWorker", FakeWorker)
+
+    panel = SearchPanel()
+    project = tmp_path / "parent" / "child"
+    project.mkdir(parents=True)
+    confirmations = []
+    panel._is_broad_search_root = lambda root: True
+    panel._confirm_broad_search_root = (
+        lambda root: confirmations.append(root) or True
+    )
+    panel.set_root_path(str(project))
+    panel._search_input.setText("needle")
+    panel._case_cb.setChecked(True)
+    panel._regex_cb.setChecked(True)
+
+    panel._start_search()
+
+    first_thread = FakeThread.instances[0]
+    first_worker = FakeWorker.instances[0]
+    assert confirmations == [str(project)]
+    assert first_worker.args == (str(project), "needle", True, True)
+    assert first_worker.thread is first_thread
+    assert first_thread.start_calls == 1
+    assert panel._status_label.text().startswith("Searching")
+    assert not panel._search_btn.isEnabled()
+
+    panel._search_input.setText("second")
+    panel._start_search()
+
+    second_thread = FakeThread.instances[1]
+    second_worker = FakeWorker.instances[1]
+    assert confirmations == [str(project)]
+    assert first_worker.cancelled is True
+    assert first_thread.quit_calls == 1
+    assert panel._old_threads == [first_thread]
+    assert panel._old_workers == [first_worker]
+    assert second_worker.args == (str(project), "second", True, True)
+    assert panel._thread is second_thread
+    assert panel._worker is second_worker
+
+    panel.stop()
+
+    assert second_worker.cancelled is True
+    assert panel._thread is None
+    assert panel._worker is None
+    assert panel._old_threads == []
+    assert panel._old_workers == []
+    assert first_thread.wait_calls == []
+    assert second_thread.wait_calls == []
     panel.deleteLater()
 
 
