@@ -323,6 +323,26 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     assert runner.stdin == ["hello\n"]
 
 
+def test_process_stderr_output_appends_beginner_hint():
+    output = FakeOutputPanel()
+    window = SimpleNamespace(_output_panel=output)
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=None, file_manager=None, recent_files=None)
+    )
+
+    controller._on_process_output(
+        "NameError: name 'total' is not defined\n",
+        "stderr",
+    )
+
+    assert output.outputs[0] == (
+        "NameError: name 'total' is not defined\n",
+        "stderr",
+    )
+    assert output.outputs[1][1] == "hint"
+    assert "Python doesn't recognize 'total'." in output.outputs[1][0]
+
+
 def test_stop_process_prefers_active_debug_session():
     calls = []
     runner = FakeProcessRunner()
