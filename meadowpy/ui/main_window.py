@@ -28,6 +28,7 @@ from meadowpy.ui.symbol_outline import SymbolOutlinePanel
 from meadowpy.ui.problems_panel import ProblemsPanel
 from meadowpy.ui.output_panel import OutputPanel
 from meadowpy.ui.search_panel import SearchPanel
+from meadowpy.ui.terminal_panel import TerminalPanel
 from meadowpy.core.interpreter_manager import InterpreterManager
 from meadowpy.ui.variable_inspector import VariableInspectorPanel
 from meadowpy.ui.call_stack_panel import CallStackPanel
@@ -88,6 +89,7 @@ class MainWindow(QMainWindow):
         self._create_problems_panel()
         self._create_output_panel()
         self._create_search_panel()
+        self._create_terminal_panel()
         self._create_lint_runner()
         self._create_process_runner()
         self._create_repl_manager()
@@ -296,6 +298,23 @@ class MainWindow(QMainWindow):
             self._on_search_navigate
         )
 
+    def _create_terminal_panel(self) -> None:
+        """Create the shell terminal panel, tabified at the bottom."""
+        self._terminal_panel = TerminalPanel(self, settings=self._settings)
+        self.addDockWidget(
+            Qt.DockWidgetArea.BottomDockWidgetArea, self._terminal_panel
+        )
+        self.tabifyDockWidget(self._search_panel, self._terminal_panel)
+        self._terminal_panel.hide()
+
+        if self._file_explorer.root_path:
+            self._terminal_panel.set_working_directory(
+                self._file_explorer.root_path
+            )
+        self._file_explorer.root_folder_changed.connect(
+            self._terminal_panel.set_working_directory
+        )
+
     def _create_run_actions(self) -> None:
         """Create shared Run/Stop QActions used by menu and toolbar."""
         theme_name = self._settings.get("editor.theme") or ""
@@ -345,6 +364,10 @@ class MainWindow(QMainWindow):
                 btn = getattr(op, attr, None)
                 if btn is not None:
                     btn.setIcon(load_themed_icon(icon_name, theme_name))
+
+        terminal_panel = getattr(self, "_terminal_panel", None)
+        if terminal_panel is not None:
+            terminal_panel.refresh_theme_icons()
 
     def _make_action(
         self,
@@ -642,6 +665,7 @@ class MainWindow(QMainWindow):
         self._stop_shutdown_component("ollama_client", self._ollama_client.stop)
         self._stop_shutdown_component("lint_runner", self._lint_runner.stop)
         self._stop_shutdown_component("search_panel", self._search_panel.stop)
+        self._stop_shutdown_component("terminal_panel", self._terminal_panel.stop)
         self._stop_shutdown_component(
             "debug_manager",
             lambda: (

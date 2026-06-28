@@ -224,6 +224,11 @@ class MenuBarBuilder:
         self._set_shortcut(search, "view.search")
         view_menu.addAction(search)
 
+        terminal = self._window._terminal_panel.toggleViewAction()
+        terminal.setText("&Terminal Panel")
+        self._set_shortcut(terminal, "view.terminal")
+        view_menu.addAction(terminal)
+
         view_menu.addSeparator()
 
         reset_layout = view_menu.addAction("Reset &Layout")

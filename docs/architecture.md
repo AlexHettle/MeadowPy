@@ -63,6 +63,7 @@ Crash and Qt logs are written to:
 - `ProblemsPanel`
 - `OutputPanel`
 - `SearchPanel`
+- `TerminalPanel`
 - `VariableInspectorPanel`
 - `CallStackPanel`
 - `WatchPanel`
@@ -299,6 +300,31 @@ The Output panel has two modes:
 - REPL mode when no script/debug session is running.
 - stdin mode while a script or debug session is running.
 
+## Terminal Flow
+
+The integrated shell terminal is implemented in:
+
+```text
+meadowpy/ui/terminal_panel.py
+```
+
+Flow:
+
+```text
+View > Terminal Panel / Ctrl+Shift+T
+  -> TerminalPanel is shown and focused
+  -> QProcess starts the default operating-system shell
+  -> commands are written to shell stdin
+  -> stdout/stderr stream into the terminal view
+  -> Tab asks the shell completion engine for matches, with a local fallback
+  -> Up/Down browse terminal command history
+  -> Ctrl+C sends interrupt when no text is selected
+```
+
+The terminal starts in the open project folder when one exists. Otherwise it
+uses the user's home folder. It is tabified with the other bottom panels and
+is stopped during main-window shutdown.
+
 ## Debug Flow
 
 Debug behavior is owned by:
@@ -467,6 +493,7 @@ MeadowPy uses background work for:
 - Debug subprocess communication.
 - Python process execution.
 - REPL subprocess execution.
+- Terminal shell subprocess execution.
 
 Important rule:
 
@@ -481,6 +508,7 @@ Shutdown paths should stop:
 - Debug sessions.
 - Running processes.
 - REPL processes.
+- Terminal processes.
 
 `MainWindow._shutdown_background_work()` coordinates shutdown cleanup.
 

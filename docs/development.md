@@ -224,6 +224,7 @@ Common UI owners:
 | Output panel | `meadowpy/ui/output_panel.py` |
 | Problems panel | `meadowpy/ui/problems_panel.py` |
 | Search panel | `meadowpy/ui/search_panel.py` |
+| Terminal panel | `meadowpy/ui/terminal_panel.py` |
 | AI chat | `meadowpy/ui/ai_chat_panel.py`, `meadowpy/ui/ai_chat_widgets.py` |
 | Debug panels | `meadowpy/ui/variable_inspector.py`, `call_stack_panel.py`, `watch_panel.py` |
 

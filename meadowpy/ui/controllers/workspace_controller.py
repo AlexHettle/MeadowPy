@@ -695,11 +695,20 @@ class WorkspaceController(MainWindowController):
             # colors until we replay the history.
             if hasattr(self, "_output_panel"):
                 self._output_panel.recolor_for_theme()
+            if hasattr(self, "_terminal_panel"):
+                self._terminal_panel.refresh_theme_icons()
 
             # Status bar lint counts use inline-HTML colors that don't update
             # on stylesheet change — re-render with the new theme's colors.
             if hasattr(self, "_status_bar_manager"):
                 self._status_bar_manager.refresh_lint_colors()
+
+        if key in {"editor.font_family", "editor.font_size"}:
+            if hasattr(self, "_terminal_panel"):
+                self._terminal_panel.update_font(
+                    self._settings.get("editor.font_family"),
+                    self._settings.get("editor.font_size"),
+                )
 
         if key == "shortcuts.custom":
             refresh_shortcuts = getattr(self.window, "_refresh_shortcut_actions", None)

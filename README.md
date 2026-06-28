@@ -156,6 +156,7 @@ Running your code is one keypress away. When something goes wrong, the debugger 
 
 - **Run** your script with F5, or the dedicated run button
 - **Interactive REPL** with stdin support
+- **Integrated terminal** for project shell commands with PowerShell-style Tab completion
 - **Step-through debugger** — set breakpoints (F9), then step over (F10), step into (F11), or step out (Shift+F11)
 - **Variable inspector** — see all local and global variables update in real time as you step through code
 - **Watch expressions** — monitor custom expressions like `len(my_list)` or `x + y`
@@ -220,9 +221,9 @@ MeadowPy is actively developed. Here's what's coming next:
 | Large-file safeguard                               | ✅ Completed    |
 | Complete high-quality documentation                | ✅ Completed    |
 | Keyboard shortcut editor                           | ✅ Completed    |
+| Integrated terminal panel                          | ✅ Completed    |
 | MacOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
-| Integrated terminal panel                          | 🔄 In progress |
 | Global search and replace                          | 🔄 In progress |
 | Improve linter customization                       | 🔄 In progress |
 | Improved syntax highlighting                       | 📋 Planned     |

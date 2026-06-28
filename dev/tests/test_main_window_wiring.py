@@ -288,6 +288,7 @@ def test_shutdown_background_work_stops_long_running_components():
         _ollama_client=Stopper("ollama"),
         _lint_runner=Stopper("lint"),
         _search_panel=Stopper("search"),
+        _terminal_panel=Stopper("terminal"),
         _debug_manager=FakeDebugManager(),
         _process_runner=FakeProcessRunner(),
         _repl_manager=SimpleNamespace(
@@ -304,7 +305,15 @@ def test_shutdown_background_work_stops_long_running_components():
 
     MainWindow._shutdown_background_work(window)
 
-    assert calls == ["ollama", "lint", "search", "debug", "process", "repl"]
+    assert calls == [
+        "ollama",
+        "lint",
+        "search",
+        "terminal",
+        "debug",
+        "process",
+        "repl",
+    ]
 
 
 def test_stop_shutdown_component_logs_errors_and_continues():

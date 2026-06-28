@@ -140,6 +140,7 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
 #problemsContainer,
 #searchContainer,
 #outputContainer,
+#terminalContainer,
 #aiChatContainer {
     border: 2px solid #FFFFFF;
 }
@@ -158,6 +159,7 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
 #ProblemsPanel,
 #SearchPanel,
 #OutputPanel,
+#TerminalPanel,
 #AIChatPanel {
     background: #000000;
 }
@@ -167,6 +169,7 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
 #problemsTitleBar,
 #searchTitleBar,
 #outputTitleBar,
+#terminalTitleBar,
 #aiChatTitleBar {
     border: 2px solid #FFFFFF;
     border-bottom: none;

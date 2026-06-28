@@ -57,6 +57,7 @@ QMainWindow > QTabBar::tab {
 #problemsTitleBar,
 #searchTitleBar,
 #outputTitleBar,
+#terminalTitleBar,
 #aiChatTitleBar {
     min-height: 36px;
     max-height: 36px;
@@ -1085,6 +1086,50 @@ QRadioButton::indicator:checked {
 
 #outputFixAIBtn:pressed {
     background: {{ACCENT_HOVER}};
+}
+
+/* ===== Terminal Panel ===== */
+
+#TerminalPanel {
+    background: #FFFFFF;
+}
+
+#TerminalPanel QWidget {
+    background: #FFFFFF;
+    color: #1F2937;
+}
+
+#terminalTitleBar {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#terminalTitleLabel {
+    color: #1F2937;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#terminalContainer {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+#terminalText {
+    background: #FFFFFF;
+    border: none;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    color: #1E1E1E;
+    padding: 6px;
+    selection-background-color: {{ACCENT}};
+    selection-color: #FFFFFF;
 }
 
 /* ===== Welcome Screen ===== */

@@ -58,6 +58,7 @@ from meadowpy.ui.search_panel import (
     _MAX_FILE_SIZE,
 )
 from meadowpy.ui.symbol_outline import SymbolOutlinePanel
+from meadowpy.ui.terminal_panel import TerminalPanel
 from meadowpy.ui.tool_bar import ToolBarBuilder
 from meadowpy.ui.welcome_widget import _WelcomeHeroWidget
 
@@ -97,6 +98,10 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
         FileExplorerPanel(),
         ProblemsPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
         OutputPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
+        TerminalPanel(
+            settings=FakeSettings({"editor.theme": "default_dark"}),
+            auto_start_on_show=False,
+        ),
         AIChatPanel(),
         SearchPanel(),
         SymbolOutlinePanel(),
@@ -105,6 +110,7 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
         "explorerTitleLabel",
         "problemsTitleLabel",
         "outputTitleLabel",
+        "terminalTitleLabel",
         "aiChatTitleLabel",
         "searchTitleLabel",
         "outlineTitleLabel",
@@ -128,6 +134,7 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
             panels[0].titleBarWidget(),
             panels[2].titleBarWidget(),
             panels[3].titleBarWidget(),
+            panels[4].titleBarWidget(),
         ]
         explorer_title_buttons = panels[0].titleBarWidget().findChildren(
             QToolButton
@@ -159,7 +166,7 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
             for button in title_push_buttons
         } == {(PANEL_TITLE_CONTENT_HEIGHT, PANEL_TITLE_CONTENT_HEIGHT)}
 
-        ai_title_bar = panels[3].titleBarWidget()
+        ai_title_bar = panels[4].titleBarWidget()
         status_dot_slot = ai_title_bar.findChild(QWidget, "aiChatStatusDotSlot")
         status_dot = ai_title_bar.findChild(QLabel, "aiChatStatusDot")
         model_label = ai_title_bar.findChild(QLabel, "aiChatModelLabel")
@@ -198,7 +205,7 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
         assert model_label.alignment() & Qt.AlignmentFlag.AlignVCenter
         assert status_dot.toolTip() == ""
         assert status_dot_slot.toolTip() == "Ollama is offline"
-        panels[3].set_connected(True)
+        panels[4].set_connected(True)
         assert status_dot.toolTip() == ""
         assert status_dot_slot.toolTip() == "Ollama is connected"
     finally:
@@ -217,7 +224,17 @@ def test_tabified_dock_tabs_match_panel_title_row_height(qapp):
         settings=FakeSettings({"editor.theme": "default_dark"})
     )
     search_panel = SearchPanel()
-    panels = [explorer_panel, problems_panel, output_panel, search_panel]
+    terminal_panel = TerminalPanel(
+        settings=FakeSettings({"editor.theme": "default_dark"}),
+        auto_start_on_show=False,
+    )
+    panels = [
+        explorer_panel,
+        problems_panel,
+        output_panel,
+        search_panel,
+        terminal_panel,
+    ]
     try:
         qapp.setStyleSheet(get_stylesheet("default_dark"))
         window.resize(800, 500)
@@ -235,6 +252,8 @@ def test_tabified_dock_tabs_match_panel_title_row_height(qapp):
         window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, output_panel)
         window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, search_panel)
         window.tabifyDockWidget(output_panel, search_panel)
+        window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, terminal_panel)
+        window.tabifyDockWidget(search_panel, terminal_panel)
         window.show()
         qapp.processEvents()
 

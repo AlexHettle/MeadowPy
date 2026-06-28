@@ -235,6 +235,13 @@ SHORTCUTS: tuple[ShortcutDefinition, ...] = (
         "Shows or hides project search results.",
     ),
     ShortcutDefinition(
+        "view.terminal",
+        "View",
+        "Terminal Panel",
+        "Ctrl+Shift+T",
+        "Shows or hides the integrated shell terminal.",
+    ),
+    ShortcutDefinition(
         "run.file",
         "Run",
         "Run File",

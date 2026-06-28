@@ -16,7 +16,7 @@ MeadowPy is organized around a central tabbed editor with dockable panels:
 
 - **File Explorer** on the left.
 - **Symbol Outline**, **AI Chat**, and debug panels on the right.
-- **Output**, **Problems**, and **Search** along the bottom.
+- **Output**, **Problems**, **Search**, and **Terminal** along the bottom.
 - A toolbar and menu bar at the top.
 - A status bar at the bottom edge.
 
@@ -239,6 +239,35 @@ Console behavior:
 
 When a script or debug session is running, the Output input switches from
 console mode to stdin mode.
+
+## Terminal Panel
+
+Open the Terminal panel with:
+
+```text
+View > Terminal Panel
+```
+
+or:
+
+```text
+Ctrl+Shift+T
+```
+
+The Terminal panel starts an operating-system shell inside MeadowPy. On
+Windows, it uses PowerShell by default. When a project folder is open, new
+terminal sessions start in that folder. Otherwise, they start in your home
+folder.
+
+Terminal behavior:
+
+- Type a command and press Enter to run it.
+- Tab completes commands, parameters, and paths. Press Tab again to cycle
+  forward, or Shift+Tab to cycle backward.
+- Up and Down browse terminal command history.
+- Ctrl+C copies selected text, or sends an interrupt when no text is selected.
+- The title bar can clear the visible terminal output.
+- Terminal output understands common ANSI color sequences.
 
 ## Debugging
 

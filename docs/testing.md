@@ -181,6 +181,7 @@ The suite includes coverage for:
 - AI assistant controller.
 - Ollama client and setup dialog.
 - Output panel.
+- Terminal panel.
 - Search panel lifecycle.
 - UI panels and dialogs.
 - Resource loading.
@@ -275,10 +276,11 @@ For UI changes, run a short manual smoke test after automated tests:
 2. Open or create a Python file.
 3. Run it with `F5`.
 4. Try `input()` through the Output panel.
-5. Toggle a breakpoint and start debug with `F6`.
-6. Open Preferences if settings changed.
-7. Open AI setup if AI behavior changed.
-8. Close MeadowPy and confirm shutdown is clean.
+5. Open the Terminal panel and run a simple command such as `dir`.
+6. Toggle a breakpoint and start debug with `F6`.
+7. Open Preferences if settings changed.
+8. Open AI setup if AI behavior changed.
+9. Close MeadowPy and confirm shutdown is clean.
 
 Use the runtime log if startup or shutdown behaves strangely:
 

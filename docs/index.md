@@ -7,8 +7,8 @@ Start here:
 - [Getting Started](getting-started.md): install MeadowPy, run setup, launch
   the app, and run a first Python file.
 - [User Guide](user-guide.md): learn the editor, file explorer, run/debug
-  tools, Output panel, Problems panel, search, examples, preferences, and AI
-  features.
+  tools, Output panel, Terminal panel, Problems panel, search, examples,
+  preferences, and AI features.
 - [AI Setup](ai-setup.md): configure Ollama, choose a model, understand local
   AI behavior, and troubleshoot AI setup.
 - [Troubleshooting](troubleshooting.md): solve common setup, launch, editor,

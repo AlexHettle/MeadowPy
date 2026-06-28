@@ -68,6 +68,7 @@ selected, it comments or uncomments the current line.
 | Problems Panel | `Ctrl+Shift+M` |
 | Output Panel | `` Ctrl+` `` |
 | Search Panel | `Ctrl+Shift+J` |
+| Terminal Panel | `Ctrl+Shift+T` |
 
 ## Run
 
@@ -141,6 +142,19 @@ These shortcuts apply inside the Output panel input line:
 
 Up and Down browse command history only while the Output panel is in REPL
 mode. During a running script, the input line sends stdin to the script.
+
+## Terminal Panel
+
+These shortcuts apply inside the Terminal panel:
+
+| Action | Shortcut |
+| --- | --- |
+| Send command | `Enter` |
+| Complete command, parameter, or path | `Tab` |
+| Previous completion match | `Shift+Tab` |
+| Previous terminal command | `Up` |
+| Next terminal command | `Down` |
+| Copy selected text, or interrupt with no selection | `Ctrl+C` |
 
 ## AI Chat Input
 

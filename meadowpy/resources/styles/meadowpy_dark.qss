@@ -63,6 +63,7 @@ QMainWindow > QTabBar::tab {
 #problemsTitleBar,
 #searchTitleBar,
 #outputTitleBar,
+#terminalTitleBar,
 #aiChatTitleBar {
     min-height: 36px;
     max-height: 36px;
@@ -1365,6 +1366,50 @@ QDockWidget::title {
 
 #outputFixAIBtn:pressed {
     background: {{ACCENT_HOVER}};
+}
+
+/* ===== Terminal Panel ===== */
+
+#TerminalPanel {
+    background: #1E1E1E;
+}
+
+#TerminalPanel QWidget {
+    background: #1E1E1E;
+    color: #CCCCCC;
+}
+
+#terminalTitleBar {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#terminalTitleLabel {
+    color: #CCCCCC;
+    font-size: 13px;
+    font-weight: bold;
+    background: transparent;
+}
+
+#terminalContainer {
+    background: #1E1E1E;
+    border: 1px solid #3C3C3C;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+#terminalText {
+    background: #1E1E1E;
+    border: none;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    color: #CCCCCC;
+    padding: 6px;
+    selection-background-color: {{ACCENT}};
+    selection-color: #FFFFFF;
 }
 
 /* ===== Welcome Screen ===== */
