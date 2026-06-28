@@ -192,6 +192,15 @@ def test_review_file_uses_text_prompt_for_saved_non_python_editor():
     assert "```python" not in prompt
 
 
+def test_review_file_skips_empty_editor_content():
+    editor = FakeEditor("  \n\t", file_path="empty.py", display_name="empty.py")
+    controller, window = make_controller(editor)
+
+    controller.action_ai_review_file()
+
+    assert window._ai_chat_panel.prompts == []
+
+
 def test_selected_text_explain_and_improve_handle_non_python_editor():
     editor = FakeEditor("hello\n", file_path="notes.txt", display_name="notes.txt")
     controller, window = make_controller(editor)
