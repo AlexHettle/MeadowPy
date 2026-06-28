@@ -323,6 +323,30 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     assert runner.stdin == ["hello\n"]
 
 
+def test_stop_process_prefers_active_debug_session():
+    calls = []
+    runner = FakeProcessRunner()
+    debug_running = {"value": True}
+    debug_manager = SimpleNamespace(
+        is_running=lambda: debug_running["value"],
+        stop_debug=lambda: calls.append("debug_stop"),
+    )
+    window = SimpleNamespace(
+        _debug_manager=debug_manager,
+        _process_runner=runner,
+    )
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=None, file_manager=None, recent_files=None)
+    )
+
+    controller.action_stop_process()
+    debug_running["value"] = False
+    controller.action_stop_process()
+
+    assert calls == ["debug_stop"]
+    assert runner.stopped == 1
+
+
 def test_repl_restart_stops_running_work_and_preserves_history_navigation():
     calls = []
     output = FakeOutputPanel()
