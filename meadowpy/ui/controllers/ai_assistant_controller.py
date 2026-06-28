@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from meadowpy.core.file_types import is_python_file_path
 from meadowpy.core.ollama_client import OllamaClient
 from meadowpy.ui.dialogs.ollama_setup_dialog import OllamaSetupDialog
 from meadowpy.ui.model_selector import ModelSelectorPopup
 from meadowpy.ui.controllers.window_context import MainWindowController
+
+if TYPE_CHECKING:
+    from meadowpy.editor.code_editor import CodeEditor
 
 
 class AIAssistantController(MainWindowController):
