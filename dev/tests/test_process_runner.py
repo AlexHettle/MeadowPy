@@ -211,16 +211,23 @@ def test_sweep_selection_temp_files_noops_for_missing_directory(
 
 def test_sweep_selection_temp_files_ignores_filesystem_errors(monkeypatch):
     class BrokenTempDir:
+        def __init__(self):
+            self.inspections = 0
+
         def is_dir(self):
+            self.inspections += 1
             raise OSError("cannot inspect")
 
+    broken_temp_dir = BrokenTempDir()
     monkeypatch.setattr(
         process_module,
         "_selection_temp_dir",
-        lambda: BrokenTempDir(),
+        lambda: broken_temp_dir,
     )
 
     sweep_selection_temp_files()
+
+    assert broken_temp_dir.inspections == 1
 
 
 def test_stop_waits_for_process_and_removes_temp_file(tmp_path):
