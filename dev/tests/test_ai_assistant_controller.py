@@ -261,9 +261,11 @@ def test_ollama_status_model_selection_and_chat_forwarding():
     controller._on_ollama_status_clicked()
     controller._on_chat_requested([{"role": "user", "content": "hi"}])
 
-    assert window._status_bar_manager.ollama_updates[:2] == [
+    assert window._status_bar_manager.ollama_updates == [
         (True, "llama3"),
         (False, ""),
+        (True, "llama3"),
+        (True, "qwen3"),
     ]
     assert window._model_selector.connected == [True, False]
     assert window._model_selector.models == [["llama3", "qwen3"]]
