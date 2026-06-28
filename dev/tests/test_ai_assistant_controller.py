@@ -9,12 +9,16 @@ class FakeChatPanel:
     def __init__(self):
         self.prompts = []
         self.context = None
+        self.model_names = []
 
     def send_message_programmatic(self, prompt):
         self.prompts.append(prompt)
 
     def update_editor_context(self, **kwargs):
         self.context = kwargs
+
+    def set_model_name(self, model):
+        self.model_names.append(model)
 
 
 class FakeEditor:
@@ -294,6 +298,9 @@ def test_ollama_setup_dialog_opens_and_rechecks(monkeypatch):
     assert dialogs[0].settings is window._settings
     assert dialogs[0].parent is window
     assert window._ollama_client.connection_checks == 1
+    assert window._model_selector.current == ["llama3"]
+    assert window._ai_chat_panel.model_names == ["llama3"]
+    assert window._status_bar_manager.ollama_updates == [(True, "llama3")]
 
 
 def test_ai_improve_docstring_runtime_and_lint_prompts_include_context():
