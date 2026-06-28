@@ -258,6 +258,24 @@ def test_large_file_review_is_blocked_with_status_message():
     ]
 
 
+def test_large_file_review_supports_status_message_without_timeout():
+    editor = FakeEditor("print('huge')\n")
+    editor.large_file_mode = True
+    controller, window = make_rich_controller(editor)
+    messages = []
+    window._status_bar_manager = SimpleNamespace(
+        show_message=lambda message: messages.append(message),
+    )
+
+    controller.action_ai_review_file()
+
+    assert window._ai_chat_panel.prompts == []
+    assert messages == [
+        "Full-file AI review is disabled for large files. "
+        "Select a smaller section instead."
+    ]
+
+
 def test_ollama_status_model_selection_and_chat_forwarding():
     controller, window = make_rich_controller()
 
