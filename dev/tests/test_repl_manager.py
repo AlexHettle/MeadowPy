@@ -34,6 +34,27 @@ def test_start_configures_interactive_process_and_emits_started(monkeypatch):
     assert started.calls == [()]
 
 
+def test_start_noops_when_repl_is_already_running(monkeypatch):
+    created = []
+
+    class ProcessFactory(FakeQProcess):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            created.append(self)
+
+    monkeypatch.setattr(repl_module, "QProcess", ProcessFactory)
+    manager = ReplManager()
+    started = SignalRecorder()
+    manager.repl_started.connect(started)
+
+    manager.start("python.exe", "C:/one")
+    manager.start("python.exe", "C:/two")
+
+    assert len(created) == 1
+    assert created[0].working_directory == "C:/one"
+    assert started.calls == [()]
+
+
 def test_restart_stops_existing_repl_and_starts_new_one(monkeypatch):
     created = []
 
@@ -66,6 +87,18 @@ def test_history_deduplicates_consecutive_entries_and_limits_size():
     assert manager._history_index == 2
 
 
+def test_blank_history_entries_and_empty_navigation_are_noops():
+    manager = ReplManager()
+
+    manager.add_to_history("  \n\t")
+    manager.reset_history_cursor()
+
+    assert manager._history == []
+    assert manager._history_index == 0
+    assert manager.history_up() is None
+    assert manager.history_down() is None
+
+
 def test_history_navigation_moves_up_and_down():
     manager = ReplManager()
     manager.add_to_history("first")
@@ -94,6 +127,17 @@ def test_send_input_noops_when_repl_is_not_running():
     manager.send_input("print('ignored')")
 
     assert manager._process is None
+
+
+def test_stop_noops_when_repl_is_not_running():
+    manager = ReplManager()
+    stopped = SignalRecorder()
+    manager.repl_stopped.connect(stopped)
+
+    manager.stop()
+
+    assert manager._process is None
+    assert stopped.calls == []
 
 
 def test_process_stderr_buffer_emits_banner_prompt_and_errors():
