@@ -282,9 +282,11 @@ def test_run_selection_falls_back_to_current_line_when_selection_is_empty():
 
 def test_process_lifecycle_updates_controls_and_routes_stdin():
     output = FakeOutputPanel()
+    debug_running = {"value": False}
+    debug_stdin = []
     debug_manager = SimpleNamespace(
-        is_running=lambda: False,
-        send_stdin=lambda text: None,
+        is_running=lambda: debug_running["value"],
+        send_stdin=lambda text: debug_stdin.append(text),
     )
     runner = FakeProcessRunner()
     status = SimpleNamespace(messages=[], show_message=lambda msg: status.messages.append(msg))
@@ -305,9 +307,15 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     )
 
     controller._on_process_started("Running: demo.py")
+    assert output.running is True
+    assert window._run_action.enabled is False
     assert window._run_selection_action.enabled is False
+    assert window._debug_action.enabled is False
+    assert window._stop_action.enabled is True
     controller._on_process_finished(0, "Process finished successfully")
     controller._on_stdin_submitted("hello\n")
+    debug_running["value"] = True
+    controller._on_stdin_submitted("debug input\n")
 
     assert output.outputs == [
         (">>> Running: demo.py\n", "system"),
@@ -321,6 +329,7 @@ def test_process_lifecycle_updates_controls_and_routes_stdin():
     assert refreshes == ["refresh"]
     assert status.messages == ["Running: demo.py", "Process finished successfully"]
     assert runner.stdin == ["hello\n"]
+    assert debug_stdin == ["debug input\n"]
 
 
 def test_process_stderr_output_appends_beginner_hint():
