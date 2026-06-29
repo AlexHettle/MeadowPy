@@ -91,16 +91,23 @@ def test_shortcut_from_key_event_ignores_typing_keys_without_command_modifier(qa
         Qt.Key.Key_F5,
         Qt.KeyboardModifier.ShiftModifier,
     )
+    unknown_command_key = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_unknown,
+        Qt.KeyboardModifier.ControlModifier,
+    )
 
     assert shortcut_from_key_event(plain_letter) == ""
     assert shortcut_from_key_event(shifted_letter) == ""
     assert shortcut_from_key_event(function_key) == "F5"
     assert shortcut_from_key_event(shifted_function_key) == "Shift+F5"
+    assert shortcut_from_key_event(unknown_command_key) == ""
 
 
 def test_normalize_shortcut_handles_empty_invalid_and_multi_step_text():
     assert normalize_shortcut(None) == ""
     assert normalize_shortcut("   ") == ""
+    assert normalize_shortcut("\0") == ""
     assert normalize_shortcut("not a shortcut") == ""
     assert normalize_shortcut("Ctrl+,") == "Ctrl+,"
     assert normalize_shortcut("Ctrl+S, Ctrl+O") == "Ctrl+S"
