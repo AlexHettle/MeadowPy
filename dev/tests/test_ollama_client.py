@@ -49,6 +49,16 @@ def test_health_check_success(monkeypatch):
     assert worker._do_health_check() == (True, "Connected")
 
 
+def test_health_check_uses_default_message_for_empty_body(monkeypatch):
+    worker = OllamaWorker("http://localhost:11434")
+    monkeypatch.setattr(
+        "meadowpy.core.ollama_client.urllib.request.urlopen",
+        lambda request, timeout=5: FakeResponse(body=b" \n"),
+    )
+
+    assert worker._do_health_check() == (True, "Connected")
+
+
 def test_health_check_returns_url_error(monkeypatch):
     worker = OllamaWorker("http://localhost:11434")
     monkeypatch.setattr(
@@ -59,6 +69,16 @@ def test_health_check_returns_url_error(monkeypatch):
     ok, message = worker._do_health_check()
     assert ok is False
     assert "offline" in message
+
+
+def test_health_check_returns_unexpected_exception_message(monkeypatch):
+    worker = OllamaWorker("http://localhost:11434")
+    monkeypatch.setattr(
+        "meadowpy.core.ollama_client.urllib.request.urlopen",
+        lambda request, timeout=5: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    assert worker._do_health_check() == (False, "boom")
 
 
 def test_fetch_models_returns_only_named_entries(monkeypatch):
@@ -93,6 +113,28 @@ def test_chat_worker_streams_tokens_and_finishes(monkeypatch):
     assert finished.calls == [()]
 
 
+def test_chat_worker_skips_blank_lines_and_empty_tokens(monkeypatch):
+    worker = ChatWorker("http://localhost:11434", "llama3", [])
+    tokens = SignalRecorder()
+    finished = SignalRecorder()
+    worker.chat_token.connect(tokens)
+    worker.finished.connect(finished)
+    lines = [
+        b"\n",
+        b'{"message": {"content": ""}}\n',
+        b'{"done": true}\n',
+    ]
+    monkeypatch.setattr(
+        "meadowpy.core.ollama_client.urllib.request.urlopen",
+        lambda request, timeout=120: FakeResponse(lines=lines),
+    )
+
+    worker.run()
+
+    assert tokens.calls == []
+    assert finished.calls == [()]
+
+
 def test_chat_worker_ignores_invalid_json_and_cancel_closes_response(monkeypatch):
     worker = ChatWorker("http://localhost:11434", "llama3", [])
     tokens = SignalRecorder()
@@ -111,6 +153,31 @@ def test_chat_worker_ignores_invalid_json_and_cancel_closes_response(monkeypatch
     worker.cancel()
 
     assert tokens.calls == [("ok",)]
+    assert response.closed is True
+
+
+def test_chat_worker_stops_without_error_when_cancelled_read_raises(monkeypatch):
+    worker = ChatWorker("http://localhost:11434", "llama3", [])
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    worker.chat_error.connect(errors)
+    worker.finished.connect(finished)
+
+    class CancellingResponse(FakeResponse):
+        def readline(self):
+            worker._cancelled = True
+            raise OSError("socket closed")
+
+    response = CancellingResponse()
+    monkeypatch.setattr(
+        "meadowpy.core.ollama_client.urllib.request.urlopen",
+        lambda request, timeout=120: response,
+    )
+
+    worker.run()
+
+    assert errors.calls == []
+    assert finished.calls == [()]
     assert response.closed is True
 
 
@@ -148,6 +215,42 @@ def test_chat_worker_cancel_shuts_down_underlying_socket():
     assert worker._response is None
 
 
+def test_chat_worker_cancel_ignores_cleanup_errors():
+    class FailingSocket:
+        def shutdown(self, mode):
+            raise OSError("shutdown failed")
+
+        def close(self):
+            raise OSError("close failed")
+
+    class Raw:
+        def __init__(self, sock):
+            self._sock = sock
+
+    class Fp:
+        def __init__(self, sock):
+            self.raw = Raw(sock)
+
+    class FailingResponse(FakeResponse):
+        def __init__(self):
+            super().__init__()
+            self.close_attempted = False
+
+        def close(self):
+            self.close_attempted = True
+            raise OSError("response close failed")
+
+    worker = ChatWorker("http://localhost:11434", "llama3", [])
+    response = FailingResponse()
+    response.fp = Fp(FailingSocket())
+    worker._response = response
+
+    worker.cancel()
+
+    assert response.close_attempted is True
+    assert worker._response is None
+
+
 def test_chat_worker_reports_http_error_details(monkeypatch):
     worker = ChatWorker("http://localhost:11434", "llama3", [])
     errors = SignalRecorder()
@@ -169,6 +272,31 @@ def test_chat_worker_reports_http_error_details(monkeypatch):
     assert errors.calls == [("Ollama error (500): model missing",)]
 
 
+def test_chat_worker_suppresses_http_error_after_cancel(monkeypatch):
+    worker = ChatWorker("http://localhost:11434", "llama3", [])
+    worker._cancelled = True
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    worker.chat_error.connect(errors)
+    worker.finished.connect(finished)
+    http_error = urllib.error.HTTPError(
+        url="http://localhost:11434/api/chat",
+        code=500,
+        msg="Boom",
+        hdrs=None,
+        fp=io.BytesIO(b'{"error": "late"}'),
+    )
+    monkeypatch.setattr(
+        "meadowpy.core.ollama_client.urllib.request.urlopen",
+        lambda request, timeout=120: (_ for _ in ()).throw(http_error),
+    )
+
+    worker.run()
+
+    assert errors.calls == []
+    assert finished.calls == [()]
+
+
 def test_chat_worker_reports_http_error_without_detail(monkeypatch):
     worker = ChatWorker("http://localhost:11434", "llama3", [])
     errors = SignalRecorder()
@@ -188,6 +316,27 @@ def test_chat_worker_reports_http_error_without_detail(monkeypatch):
     worker.run()
 
     assert errors.calls == [("Ollama error (404): Not Found",)]
+
+
+def test_chat_worker_reports_malformed_http_error_without_detail(monkeypatch):
+    worker = ChatWorker("http://localhost:11434", "llama3", [])
+    errors = SignalRecorder()
+    worker.chat_error.connect(errors)
+    http_error = urllib.error.HTTPError(
+        url="http://localhost:11434/api/chat",
+        code=400,
+        msg="Bad Request",
+        hdrs=None,
+        fp=io.BytesIO(b"{not json"),
+    )
+    monkeypatch.setattr(
+        "meadowpy.core.ollama_client.urllib.request.urlopen",
+        lambda request, timeout=120: (_ for _ in ()).throw(http_error),
+    )
+
+    worker.run()
+
+    assert errors.calls == [("Ollama error (400): Bad Request",)]
 
 
 def test_chat_worker_reports_connection_errors(monkeypatch):
@@ -220,6 +369,26 @@ def test_ollama_worker_run_emits_health_and_models(monkeypatch):
     assert health.calls == [(True, "ok")]
     assert models.calls == [(["llama3"],)]
     assert finished.calls == [()]
+
+
+def test_ollama_worker_run_emits_empty_models_when_unhealthy(monkeypatch):
+    worker = OllamaWorker("http://localhost:11434")
+    health = SignalRecorder()
+    models = SignalRecorder()
+    finished = SignalRecorder()
+    fetch_calls = []
+    worker.health_checked.connect(health)
+    worker.models_fetched.connect(models)
+    worker.finished.connect(finished)
+    monkeypatch.setattr(worker, "_do_health_check", lambda: (False, "offline"))
+    monkeypatch.setattr(worker, "_do_fetch_models", lambda: fetch_calls.append("fetch"))
+
+    worker.run()
+
+    assert health.calls == [(False, "offline")]
+    assert models.calls == [([],)]
+    assert finished.calls == [()]
+    assert fetch_calls == []
 
 
 def test_fetch_models_returns_empty_list_on_error(monkeypatch):
