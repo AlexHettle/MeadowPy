@@ -66,9 +66,12 @@ def test_remove_and_clear_update_settings(tmp_path):
 
 def test_get_files_returns_copy(tmp_path):
     settings, manager = make_manager(tmp_path)
-    settings.set("window.recent_files", [str(Path(tmp_path / "alpha.py"))])
+    stored_files = [str(Path(tmp_path / "alpha.py"))]
+    settings.set("window.recent_files", stored_files)
 
     files = manager.get_files()
     files.append("mutated")
 
-    assert manager.get_files() != files
+    assert files == [stored_files[0], "mutated"]
+    assert manager.get_files() == stored_files
+    assert settings.get("window.recent_files") == stored_files
