@@ -27,7 +27,7 @@ from meadowpy.ui.file_explorer import (
 )
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
-from meadowpy.ui.tool_bar import ToolBarBuilder
+from meadowpy.ui.tool_bar import RunFileButton, ToolBarBuilder
 
 
 class Recorder:
@@ -92,6 +92,60 @@ def test_toolbar_glow_painter_renders_hover_and_disabled_states(qapp):
 
     toolbar.deleteLater()
     window.deleteLater()
+
+
+def test_run_file_button_labels_elide_and_follow_action_state(qapp):
+    action = QAction("Run")
+    action.setToolTip("Run current file (F5)")
+    button = RunFileButton(action)
+
+    assert button.text() == "Run File"
+    assert button.accessibleName() == "Run File"
+    assert button.toolTip() == "Run current file (F5)"
+
+    target_name = "weekly_report_generation_script_with_long_filename.py"
+    button.set_target_name(f"  {target_name}  ")
+    full_label = f"Run {target_name}"
+    displayed = button.displayed_text()
+
+    assert button.text() == full_label
+    assert button.accessibleName() == full_label
+    assert displayed.startswith("Run ")
+    assert displayed.endswith("...")
+    assert len(displayed) < len(full_label)
+
+    action.setToolTip("Continue debugging (F6)")
+    action.setEnabled(False)
+    qapp.processEvents()
+
+    assert button.text() == "Continue"
+    assert button.displayed_text() == "Continue"
+    assert button.toolTip() == "Continue debugging (F6)"
+    assert button.isEnabled() is False
+
+    button.deleteLater()
+
+
+def test_run_file_button_sanitizes_target_and_accent_color(qapp):
+    action = QAction("Run")
+    button = RunFileButton(action)
+    original_accent = button._accent.name()
+
+    button.set_target_name(None)
+    assert button.text() == "Run File"
+
+    button.set_target_name("   ")
+    assert button.text() == "Run File"
+
+    button.set_accent_color("not-a-color")
+    assert button._accent.name() == original_accent
+
+    button.set_accent_color("#ABCDEF")
+    assert button._accent.name() == "#abcdef"
+
+    assert button._elide_text("Long label", 1) == "..."
+
+    button.deleteLater()
 
 
 def test_menu_and_toolbar_save_actions_route_to_action_save(qapp):
