@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from meadowpy.constants import APP_NAME, DEFAULT_SETTINGS, DEFAULT_WINDOW_STATE
 from meadowpy.editor import completion
@@ -99,6 +100,17 @@ def test_python_completions_are_cached_and_include_keywords(monkeypatch):
     assert first is second
     assert "print" in first
     assert "for" in first
+
+
+def test_python_completions_fall_back_without_stdlib_module_names(monkeypatch):
+    monkeypatch.setattr(completion, "_CACHED_COMPLETIONS", None)
+    monkeypatch.setattr(completion, "sys", SimpleNamespace())
+
+    completions = completion.get_python_completions()
+
+    assert "for" in completions
+    assert "print" in completions
+    assert "asyncio" not in completions
 
 
 def test_create_apis_populates_and_prepares(monkeypatch):
