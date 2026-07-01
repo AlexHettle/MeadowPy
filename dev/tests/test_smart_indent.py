@@ -59,6 +59,22 @@ def test_handle_return_dedents_after_return_keyword(tmp_path):
     assert editor.getCursorPosition() == (1, 0)
 
 
+def test_handle_return_dedents_unindented_keyword_to_empty_indent(tmp_path):
+    editor, handler = make_handler(tmp_path, text="return value", cursor=(0, 12))
+
+    assert handler.handle_return() is True
+    assert editor.all_text() == "return value\n"
+    assert editor.getCursorPosition() == (1, 0)
+
+
+def test_handle_return_ignores_incomplete_python_tokenization(tmp_path):
+    text = 'value = """unfinished'
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(text)))
+
+    assert handler.handle_return() is False
+    assert editor.all_text() == text
+
+
 def test_handle_return_uses_tabs_when_configured(tmp_path):
     editor, handler = make_handler(
         tmp_path,
