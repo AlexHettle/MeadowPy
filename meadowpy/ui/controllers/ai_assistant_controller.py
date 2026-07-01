@@ -287,7 +287,7 @@ class AIAssistantController(MainWindowController):
                     body_indent = " " * (def_indent + 4)
                     # Strip existing indentation and re-indent
                     lines = docstring.split("\n")
-                    stripped = [l.lstrip() for l in lines]
+                    stripped = [line_text.lstrip() for line_text in lines]
                     code = "\n".join(
                         body_indent + s if s else "" for s in stripped
                     ).rstrip() + "\n"
