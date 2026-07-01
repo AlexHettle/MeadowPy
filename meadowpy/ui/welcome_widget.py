@@ -136,9 +136,8 @@ class WelcomeWidget(QWidget):
         COLS = 3
         H_GAP = 14   # horizontal gap between cards in a row
         V_GAP = 22   # vertical gap between rows — tuned so it visually
-                     # matches the horizontal gap (Qt's addSpacing is exact
-                     # pixels; HBox setSpacing renders slightly larger due
-                     # to card borders/radius)
+        # matches the horizontal gap (Qt's addSpacing is exact pixels;
+        # HBox setSpacing renders slightly larger due to card borders/radius)
         current_row = None
         for idx, tmpl in enumerate(TEMPLATES):
             if idx % COLS == 0:

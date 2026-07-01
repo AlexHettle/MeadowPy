@@ -222,6 +222,7 @@ class ToolbarGlowPainter(HeaderGlowPainter):
     PRESS_RADIUS = 20
     PRESS_ALPHA = 90
 
+
 class ToolBarBuilder:
     """Builds the main toolbar with icon buttons."""
 
