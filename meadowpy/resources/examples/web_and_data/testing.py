@@ -8,6 +8,7 @@ def calculate_average(numbers):
         raise ValueError("Cannot average an empty list")
     return sum(numbers) / len(numbers)
 
+
 def is_palindrome(text):
     """Check if text reads the same forwards and backwards."""
     cleaned = text.lower().replace(" ", "")
@@ -25,6 +26,7 @@ print("All assert tests passed!")
 # === Using unittest — the standard library approach ===
 import unittest
 
+
 class TestAverage(unittest.TestCase):
     def test_basic(self):
         self.assertEqual(calculate_average([10, 20, 30]), 20.0)
@@ -39,6 +41,7 @@ class TestAverage(unittest.TestCase):
     def test_empty_list_raises_error(self):
         with self.assertRaises(ValueError):
             calculate_average([])
+
 
 class TestPalindrome(unittest.TestCase):
     def test_palindrome(self):
