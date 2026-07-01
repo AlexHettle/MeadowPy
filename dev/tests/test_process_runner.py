@@ -262,7 +262,17 @@ def test_stdout_and_stderr_are_forwarded():
     assert output.calls == [("alpha", "stdout"), ("beta", "stderr")]
 
 
-def test_finished_signal_uses_exit_status_and_cleans_temp(tmp_path):
+@pytest.mark.parametrize(
+    ("exit_code", "exit_status", "description"),
+    [
+        (0, QProcess.ExitStatus.NormalExit, "Process finished successfully"),
+        (3, QProcess.ExitStatus.NormalExit, "Process exited with code 3"),
+        (1, QProcess.ExitStatus.CrashExit, "Process was terminated"),
+    ],
+)
+def test_finished_signal_uses_exit_status_and_cleans_temp(
+    tmp_path, exit_code, exit_status, description
+):
     runner = ProcessRunner()
     finished = SignalRecorder()
     runner.process_finished.connect(finished)
@@ -270,16 +280,11 @@ def test_finished_signal_uses_exit_status_and_cleans_temp(tmp_path):
     temp_file.write_text("print('x')", encoding="utf-8")
     runner._temp_file = str(temp_file)
 
-    runner._on_finished(0, QProcess.ExitStatus.NormalExit)
-    runner._on_finished(3, QProcess.ExitStatus.NormalExit)
-    runner._on_finished(1, QProcess.ExitStatus.CrashExit)
+    runner._on_finished(exit_code, exit_status)
 
-    assert finished.calls == [
-        (0, "Process finished successfully"),
-        (3, "Process exited with code 3"),
-        (1, "Process was terminated"),
-    ]
+    assert finished.calls == [(exit_code, description)]
     assert runner._temp_file is None
+    assert not temp_file.exists()
 
 
 def test_finished_ignores_signal_from_stale_process(tmp_path):
