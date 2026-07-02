@@ -310,17 +310,27 @@ def test_finished_ignores_signal_from_stale_process(tmp_path):
     assert temp_file.exists()
 
 
-def test_on_error_maps_known_process_errors():
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (
+            QProcess.ProcessError.FailedToStart,
+            "Failed to start \u2014 check interpreter path",
+        ),
+        (QProcess.ProcessError.Crashed, "Process crashed"),
+        (QProcess.ProcessError.Timedout, "Process timed out"),
+        (QProcess.ProcessError.WriteError, "Write error"),
+        (QProcess.ProcessError.ReadError, "Read error"),
+    ],
+)
+def test_on_error_maps_known_process_errors(error, message):
     runner = ProcessRunner()
     output = SignalRecorder()
     runner.output_received.connect(output)
 
-    runner._on_error(QProcess.ProcessError.FailedToStart)
-    runner._on_error(QProcess.ProcessError.ReadError)
+    runner._on_error(error)
 
-    assert output.calls[0][1] == "system"
-    assert "Failed to start" in output.calls[0][0]
-    assert output.calls[1] == ("Read error", "system")
+    assert output.calls == [(message, "system")]
 
 
 def test_on_error_handles_unknown_process_error():
