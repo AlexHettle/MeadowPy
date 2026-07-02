@@ -3,10 +3,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QFileInfo, QPointF, Qt
-from PyQt6.QtGui import QAction, QIcon, QKeyEvent, QKeySequence, QMouseEvent
+from PyQt6.QtGui import QAction, QColor, QIcon, QKeyEvent, QKeySequence, QMouseEvent
 from PyQt6.QtWidgets import (
     QFileIconProvider,
     QMenuBar,
+    QPushButton,
     QWidget,
 )
 
@@ -18,6 +19,7 @@ from meadowpy.ui.file_explorer import (
     _FilteredFileSystemModel,
     _MAX_PREFETCH_SUBDIRS,
 )
+from meadowpy.ui.glow_painter import HeaderGlowPainter
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
 from meadowpy.ui.tool_bar import RunFileButton, ToolBarBuilder
@@ -64,6 +66,62 @@ class FakeToolbarWindow(QWidget):
 
     def addToolBar(self, toolbar):
         self.toolbars.append(toolbar)
+
+
+class TrackingSurface(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.update_count = 0
+
+    def update(self):
+        self.update_count += 1
+        super().update()
+
+
+class HoverButton(QPushButton):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self._under_mouse = False
+
+    def underMouse(self):
+        return self._under_mouse
+
+
+def test_header_glow_painter_tracks_button_states_and_renders(qapp):
+    surface = TrackingSurface()
+    surface.resize(96, 48)
+    button = HoverButton("Run", surface)
+    button.setGeometry(12, 8, 40, 28)
+    painter = HeaderGlowPainter(surface)
+    painter.add_button(button, QColor("#33AA55"))
+    entry = painter._entries[0]
+
+    assert painter.eventFilter(button, QEvent(QEvent.Type.HoverEnter)) is False
+    assert entry["state"] == "hover"
+    assert surface.update_count == 1
+
+    assert painter.eventFilter(button, QEvent(QEvent.Type.HoverLeave)) is False
+    assert entry["state"] == "idle"
+
+    assert painter.eventFilter(button, QEvent(QEvent.Type.MouseButtonPress)) is False
+    assert entry["state"] == "press"
+
+    button._under_mouse = True
+    assert painter.eventFilter(button, QEvent(QEvent.Type.MouseButtonRelease)) is False
+    assert entry["state"] == "hover"
+
+    painter.set_button_color(button, QColor("#445566"))
+    assert entry["color"].name().upper() == "#445566"
+
+    pixmap = surface.grab()
+    assert pixmap.isNull() is False
+
+    button.setEnabled(False)
+    pixmap = surface.grab()
+    assert pixmap.isNull() is False
+    assert entry["state"] == "idle"
+
+    surface.deleteLater()
 
 
 def test_toolbar_compact_stop_debug_buttons_follow_actions(qapp):
