@@ -619,6 +619,42 @@ def test_select_interpreter_and_create_venv_dialog(monkeypatch):
     assert dialogs[-1] == "exec"
 
 
+def test_select_interpreter_cancel_keeps_existing_choice(monkeypatch):
+    selected = []
+    detected_paths = []
+    dialog_items = []
+    interpreters = [
+        SimpleNamespace(label="Python A", path="a.exe"),
+        SimpleNamespace(label="Python B", path="b.exe"),
+    ]
+    settings = FakeSettings({"run.python_interpreter": "existing.exe"})
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=SimpleNamespace(current_editor=lambda: FakeEditor("demo.py")),
+        _interpreter_manager=SimpleNamespace(
+            detect_interpreters=lambda file_path: detected_paths.append(file_path) or interpreters
+        ),
+        _update_interpreter_label=lambda: selected.append("updated"),
+    )
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+    controller._update_interpreter_label = lambda: selected.append("updated")
+
+    def cancel_dialog(parent, title, label, items, current, editable):
+        dialog_items.extend(items)
+        return "", False
+
+    monkeypatch.setattr(execution_module.QInputDialog, "getItem", cancel_dialog)
+
+    controller.action_select_interpreter()
+
+    assert detected_paths == ["demo.py"]
+    assert dialog_items == ["Python A  (a.exe)", "Python B  (b.exe)"]
+    assert settings.values["run.python_interpreter"] == "existing.exe"
+    assert selected == []
+
+
 def test_repl_working_dir_start_output_and_restart_debug_branch(tmp_path):
     project = tmp_path / "project"
     project.mkdir()
