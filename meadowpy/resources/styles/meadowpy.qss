@@ -141,15 +141,40 @@ QToolBar QToolButton:pressed {
     background: #DEE2E6;
 }
 
-/* Run / Stop / Debug — disable default hover/press so only the glow shows */
+/* Run uses custom painting; keep base toolbar hover from drawing over it. */
 QToolBar QToolButton#runButton:hover,
-QToolBar QToolButton#runButton:pressed,
-QToolBar QToolButton#stopButton:hover,
-QToolBar QToolButton#stopButton:pressed,
-QToolBar QToolButton#debugButton:hover,
-QToolBar QToolButton#debugButton:pressed {
+QToolBar QToolButton#runButton:pressed {
     background: transparent;
     border-color: transparent;
+}
+
+QToolBar QToolButton#stopButton,
+QToolBar QToolButton#debugButton {
+    background: #5C636A;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 8px 0 6px;
+}
+
+QToolBar QToolButton#stopButton:hover,
+QToolBar QToolButton#debugButton:hover {
+    background: #687079;
+    border-color: #7A838C;
+}
+
+QToolBar QToolButton#stopButton:pressed,
+QToolBar QToolButton#debugButton:pressed {
+    background: #4E555C;
+    border-color: #687079;
+}
+
+QToolBar QToolButton#stopButton:disabled,
+QToolBar QToolButton#debugButton:disabled {
+    background: #E2E6EA;
+    color: #6C757D;
 }
 
 /* Status Bar */

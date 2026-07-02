@@ -1577,7 +1577,7 @@ class FakeToolbarWindow(QWidget):
         self.toolbars.append(toolbar)
 
 
-def test_toolbar_builder_creates_shared_actions_editor_calls_and_glow_state(qapp):
+def test_toolbar_builder_creates_shared_actions_editor_calls_and_run_controls(qapp):
     window = FakeToolbarWindow()
     builder = ToolBarBuilder(window)
     toolbar = builder.build()
@@ -1593,8 +1593,25 @@ def test_toolbar_builder_creates_shared_actions_editor_calls_and_glow_state(qapp
     builder._run_btn.setFont(oversized_font)
     assert builder._run_btn._label_font.pixelSize() == 13
     assert builder._run_btn.text() == "Run World_Counter.py"
-    assert toolbar.widgetForAction(window._stop_action).objectName() == "stopButton"
-    assert toolbar.widgetForAction(window._debug_action).objectName() == "debugButton"
+    stop_button = builder._stop_btn
+    debug_button = builder._debug_btn
+    assert stop_button.objectName() == "stopButton"
+    assert stop_button.text() == "Stop"
+    assert stop_button.displayed_text() == "Stop"
+    assert stop_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert stop_button._label_font.bold()
+    assert stop_button._label_font.pixelSize() == builder._run_btn._label_font.pixelSize()
+    assert stop_button.size().height() == builder._run_btn.height()
+    assert stop_button.size().height() == builder._COMPACT_CONTROL_HEIGHT
+    assert stop_button.size().width() >= builder._STOP_CONTROL_WIDTH
+    assert stop_button.symbol_color().name().upper() == "#E51400"
+    assert debug_button.objectName() == "debugButton"
+    assert debug_button.text() == "Debug"
+    assert debug_button.displayed_text() == "Debug"
+    assert debug_button._label_font.bold()
+    assert debug_button._label_font.pixelSize() == builder._run_btn._label_font.pixelSize()
+    assert debug_button.size().width() >= builder._DEBUG_CONTROL_WIDTH
+    assert debug_button.symbol_color().name().upper() == "#FF9800"
     assert window.toolbars == [toolbar]
     assert window._step_over_action.text() == "Step Over"
     assert not window._step_over_action.isVisible()
@@ -1613,21 +1630,10 @@ def test_toolbar_builder_creates_shared_actions_editor_calls_and_glow_state(qapp
     builder.update_accent_color("#112233")
     assert builder._run_btn._accent.name().upper() == "#112233"
 
-    stop_button = toolbar.widgetForAction(window._stop_action)
-    stop_entry = [
-        entry for entry in builder._glow._entries
-        if entry["btn"] is stop_button
-    ][0]
-
-    hover = QEvent(QEvent.Type.HoverEnter)
-    press = QEvent(QEvent.Type.MouseButtonPress)
-    leave = QEvent(QEvent.Type.HoverLeave)
-    assert builder._glow.eventFilter(stop_button, hover) is False
-    assert stop_entry["state"] == "hover"
-    assert builder._glow.eventFilter(stop_button, press) is False
-    assert stop_entry["state"] == "press"
-    assert builder._glow.eventFilter(stop_button, leave) is False
-    assert stop_entry["state"] == "idle"
+    window._debug_action.setToolTip("Run with debugger (F6)")
+    qapp.processEvents()
+    assert debug_button.text() == "Debug"
+    assert debug_button.toolTip() == "Run with debugger (F6)"
 
     toolbar.deleteLater()
     window.deleteLater()

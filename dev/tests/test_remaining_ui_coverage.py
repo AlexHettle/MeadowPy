@@ -3,14 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QFileInfo, QPointF, Qt
-from PyQt6.QtGui import (
-    QAction,
-    QColor,
-    QIcon,
-    QKeyEvent,
-    QKeySequence,
-    QMouseEvent,
-)
+from PyQt6.QtGui import QAction, QIcon, QKeyEvent, QKeySequence, QMouseEvent
 from PyQt6.QtWidgets import (
     QFileIconProvider,
     QMenuBar,
@@ -73,22 +66,53 @@ class FakeToolbarWindow(QWidget):
         self.toolbars.append(toolbar)
 
 
-def test_toolbar_glow_painter_renders_hover_and_disabled_states(qapp):
+def test_toolbar_compact_stop_debug_buttons_follow_actions(qapp):
     window = FakeToolbarWindow()
     builder = ToolBarBuilder(window)
     toolbar = builder.build()
     toolbar.resize(360, 42)
 
-    stop_button = toolbar.widgetForAction(window._stop_action)
-    builder._glow.set_button_color(stop_button, QColor("#ABCDEF"))
+    stop_button = builder._stop_btn
+    debug_button = builder._debug_btn
 
-    assert builder._glow.eventFilter(stop_button, QEvent(QEvent.Type.HoverEnter)) is False
-    assert toolbar.grab().isNull() is False
+    assert stop_button.text() == "Stop"
+    assert stop_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert stop_button._label_font.bold()
+    assert stop_button._label_font.pixelSize() == builder._run_btn._label_font.pixelSize()
+    assert debug_button._label_font.bold()
+    assert debug_button._label_font.pixelSize() == builder._run_btn._label_font.pixelSize()
+    assert stop_button.iconSize().width() == builder._COMPACT_CONTROL_ICON_SIZE
+    assert stop_button.size().height() == builder._run_btn.height()
+    assert stop_button.size().height() == builder._COMPACT_CONTROL_HEIGHT
+    assert stop_button.size().width() >= builder._STOP_CONTROL_WIDTH
+    assert stop_button.displayed_text() == "Stop"
+    assert stop_button.symbol_color().name().upper() == "#E51400"
+    assert debug_button.text() == "Debug"
+    assert debug_button.size().width() >= builder._DEBUG_CONTROL_WIDTH
+    assert debug_button.displayed_text() == "Debug"
+    assert debug_button.symbol_color().name().upper() == "#FF9800"
 
+    window._settings.values["editor.theme"] = "default_high_contrast"
+    builder.update_accent_color("#FFFFFF")
+    assert stop_button.symbol_color().name().upper() == "#FFFFFF"
+    assert debug_button.symbol_color().name().upper() == "#FFFFFF"
+    window._settings.values["editor.theme"] = "default_dark"
+    builder.update_accent_color("#4CAF50")
+
+    triggered = []
+    window._debug_action.triggered.connect(lambda: triggered.append("debug"))
+    debug_button.click()
+    assert triggered == ["debug"]
+
+    window._stop_action.setToolTip("Stop the running program (Ctrl+F5)")
     window._stop_action.setEnabled(False)
-    assert builder._glow.eventFilter(toolbar, QEvent(QEvent.Type.Paint)) is True
-    stop_entry = next(entry for entry in builder._glow._entries if entry["btn"] is stop_button)
-    assert stop_entry["state"] == "idle"
+    qapp.processEvents()
+
+    assert stop_button.text() == "Stop"
+    assert stop_button.displayed_text() == "Stop"
+    assert stop_button.toolTip() == "Stop the running program (Ctrl+F5)"
+    assert stop_button.isEnabled() is False
+    assert toolbar.grab().isNull() is False
 
     toolbar.deleteLater()
     window.deleteLater()

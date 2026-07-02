@@ -1,6 +1,6 @@
 """Toolbar construction."""
 
-from PyQt6.QtCore import QEvent, QSize, Qt
+from PyQt6.QtCore import QEvent, QRectF, QSize, Qt
 from PyQt6.QtGui import (
     QColor,
     QFontMetrics,
@@ -13,9 +13,9 @@ from PyQt6.QtWidgets import QToolBar, QToolButton, QWidget
 from meadowpy.core.shortcuts import get_default_shortcut, get_shortcut
 from meadowpy.resources.resource_loader import (
     load_themed_icon,
+    theme_is_dark,
     theme_is_high_contrast,
 )
-from meadowpy.ui.glow_painter import HeaderGlowPainter
 
 
 class RunFileButton(QToolButton):
@@ -23,6 +23,7 @@ class RunFileButton(QToolButton):
 
     _WIDTH = 190
     _HEIGHT = 32
+    _LABEL_PIXEL_SIZE = 13
     _HORIZONTAL_PAD = 12
     _RIGHT_PAD = 8
     _ICON_SIZE = 12
@@ -46,7 +47,7 @@ class RunFileButton(QToolButton):
 
     def _apply_label_font(self) -> None:
         self._label_font = self.font()
-        self._label_font.setPixelSize(13)
+        self._label_font.setPixelSize(self._LABEL_PIXEL_SIZE)
         self._label_font.setBold(True)
 
     def set_target_name(self, name: str | None) -> None:
@@ -214,21 +215,213 @@ class RunFileButton(QToolButton):
         painter.end()
 
 
-class ToolbarGlowPainter(HeaderGlowPainter):
-    """Paints toolbar-sized radial glow effects behind registered buttons."""
+class CompactRunControlButton(QToolButton):
+    """Compact text+symbol toolbar button with deterministic label painting."""
 
-    HOVER_RADIUS = 16
-    HOVER_ALPHA = 55
-    PRESS_RADIUS = 20
-    PRESS_ALPHA = 90
+    _HEIGHT = RunFileButton._HEIGHT
+    _ICON_SIZE = 12
+    _ICON_GAP = 7
+    _HORIZONTAL_PAD = 8
+    _WIDTH_SLACK = 4
+    _STOP_COLOR = QColor("#E51400")
+    _DEBUG_COLOR = QColor("#FF9800")
+
+    def __init__(self, action, label: str, symbol: str, width: int, parent=None):
+        super().__init__(parent)
+        self.setDefaultAction(action)
+        self._base_width = width
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.setIconSize(QSize(self._ICON_SIZE, self._ICON_SIZE))
+        self.setAutoRaise(False)
+        self._label = label
+        self._symbol = symbol
+        self._is_dark = True
+        self._is_high_contrast = False
+        self._label_font = self.font()
+        self._apply_label_font()
+        self._refresh_fixed_size()
+        action.changed.connect(self._sync_from_action)
+        self._sync_from_action()
+
+    def _apply_label_font(self) -> None:
+        self._label_font = self.font()
+        self._label_font.setPixelSize(RunFileButton._LABEL_PIXEL_SIZE)
+        self._label_font.setBold(True)
+
+    def apply_theme(self, theme_name: str, custom_base: str = "dark") -> None:
+        self._is_high_contrast = theme_is_high_contrast(theme_name)
+        self._is_dark = theme_is_dark(theme_name, custom_base)
+        self.update()
+
+    def displayed_text(self) -> str:
+        metrics = QFontMetrics(self._label_font)
+        if metrics.horizontalAdvance(self._label) <= self._available_text_width():
+            return self._label
+        return metrics.elidedText(
+            self._label,
+            Qt.TextElideMode.ElideRight,
+            self._available_text_width(),
+        )
+
+    def event(self, event) -> bool:
+        result = super().event(event)
+        if event.type() in {
+            QEvent.Type.StyleChange,
+            QEvent.Type.ApplicationFontChange,
+            QEvent.Type.FontChange,
+        }:
+            self._apply_label_font()
+            self._refresh_fixed_size()
+            self.update()
+        return result
+
+    def _content_width(self) -> int:
+        return (
+            QFontMetrics(self._label_font).horizontalAdvance(self._label)
+            + (self._HORIZONTAL_PAD * 2)
+            + self._ICON_SIZE
+            + self._ICON_GAP
+            + self._WIDTH_SLACK
+        )
+
+    def _refresh_fixed_size(self) -> None:
+        self.setFixedSize(max(self._base_width, self._content_width()), self._HEIGHT)
+
+    def _available_text_width(self) -> int:
+        return (
+            self.width()
+            - (self._HORIZONTAL_PAD * 2)
+            - self._ICON_SIZE
+            - self._ICON_GAP
+        )
+
+    def _sync_from_action(self) -> None:
+        action = self.defaultAction()
+        if action is None:
+            return
+        self.setText(self._label)
+        self.setAccessibleName(self._label)
+        self.setToolTip(action.toolTip())
+        self.setEnabled(action.isEnabled())
+        self.update()
+
+    def _colors(self) -> tuple[QColor, QColor, QColor | None]:
+        if self._is_high_contrast:
+            fg = QColor("#FFFFFF") if self.isEnabled() else QColor("#7F7F7F")
+            border = (
+                QColor("#FFFFFF")
+                if self.isEnabled()
+                and (self.underMouse() or self.isDown() or self.hasFocus())
+                else None
+            )
+            return QColor("#000000"), fg, border
+
+        if self._is_dark:
+            bg = QColor("#4A4E52")
+            hover_bg = QColor("#565B60")
+            press_bg = QColor("#3F4347")
+            disabled_bg = QColor("#3A3D40")
+            disabled_fg = QColor("#B8BEC4")
+            border_hover = QColor("#6A7076")
+        else:
+            bg = QColor("#5C636A")
+            hover_bg = QColor("#687079")
+            press_bg = QColor("#4E555C")
+            disabled_bg = QColor("#E2E6EA")
+            disabled_fg = QColor("#495057")
+            border_hover = QColor("#7A838C")
+
+        if not self.isEnabled():
+            return disabled_bg, disabled_fg, None
+        if self.isDown():
+            return press_bg, QColor("#FFFFFF"), border_hover
+        if self.underMouse():
+            return hover_bg, QColor("#FFFFFF"), border_hover
+        return bg, QColor("#FFFFFF"), None
+
+    def symbol_color(self) -> QColor:
+        """Return the semantic glyph color for the current theme/state."""
+        if self._is_high_contrast:
+            return QColor("#FFFFFF") if self.isEnabled() else QColor("#7F7F7F")
+        if self._symbol == "debug":
+            return QColor(self._DEBUG_COLOR)
+        return QColor(self._STOP_COLOR)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        _ = event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setFont(self._label_font)
+
+        bg, fg, border = self._colors()
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        painter.setBrush(bg)
+        if border is None:
+            painter.setPen(Qt.PenStyle.NoPen)
+        else:
+            painter.setPen(border)
+        painter.drawRoundedRect(rect, 5, 5)
+
+        label = self.displayed_text()
+        label_width = QFontMetrics(self._label_font).horizontalAdvance(label)
+        content_width = self._ICON_SIZE + self._ICON_GAP + label_width
+        content_left = int((self.width() - content_width) / 2)
+        center_y = self.rect().center().y()
+        icon_top = center_y - (self._ICON_SIZE / 2) + 0.5
+        icon_rect = QRectF(
+            content_left,
+            icon_top,
+            self._ICON_SIZE,
+            self._ICON_SIZE,
+        )
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self.symbol_color())
+        if self._symbol == "debug":
+            self._paint_debug_diamond(painter, icon_rect)
+        else:
+            painter.drawRoundedRect(icon_rect.adjusted(1, 1, -1, -1), 2, 2)
+
+        text_rect = QRectF(
+            content_left + self._ICON_SIZE + self._ICON_GAP,
+            0,
+            label_width,
+            self.height(),
+        )
+        painter.setPen(fg)
+        painter.drawText(
+            text_rect,
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+            label,
+        )
+        painter.end()
+
+    def _paint_debug_diamond(self, painter: QPainter, rect: QRectF) -> None:
+        cx = rect.center().x()
+        cy = rect.center().y()
+        half = rect.width() / 2
+        diamond = QPainterPath()
+        diamond.moveTo(cx, cy - half)
+        diamond.lineTo(cx + half, cy)
+        diamond.lineTo(cx, cy + half)
+        diamond.lineTo(cx - half, cy)
+        diamond.closeSubpath()
+        painter.drawPath(diamond)
 
 
 class ToolBarBuilder:
     """Builds the main toolbar with icon buttons."""
 
+    _COMPACT_CONTROL_HEIGHT = CompactRunControlButton._HEIGHT
+    _COMPACT_CONTROL_ICON_SIZE = CompactRunControlButton._ICON_SIZE
+    _STOP_CONTROL_WIDTH = 82
+    _DEBUG_CONTROL_WIDTH = 94
+
     def __init__(self, main_window):
         self._window = main_window
         self._tooltip_actions = []
+        self._compact_controls = []
 
     def build(self) -> QToolBar:
         """Build and return the main toolbar."""
@@ -291,14 +484,22 @@ class ToolBarBuilder:
         toolbar.addWidget(run_left_margin)
         run_btn = RunFileButton(self._window._run_action, toolbar)
         toolbar.addWidget(run_btn)
-        toolbar.addAction(self._window._stop_action)
-        toolbar.addAction(self._window._debug_action)
-
-        # Set object names so QSS can apply per-button colored tint
-        stop_btn = toolbar.widgetForAction(self._window._stop_action)
-        debug_btn = toolbar.widgetForAction(self._window._debug_action)
-        stop_btn.setObjectName("stopButton")
-        debug_btn.setObjectName("debugButton")
+        self._stop_btn = self._add_compact_control(
+            toolbar,
+            self._window._stop_action,
+            object_name="stopButton",
+            label="Stop",
+            symbol="stop",
+            width=self._STOP_CONTROL_WIDTH,
+        )
+        self._debug_btn = self._add_compact_control(
+            toolbar,
+            self._window._debug_action,
+            object_name="debugButton",
+            label="Debug",
+            symbol="debug",
+            width=self._DEBUG_CONTROL_WIDTH,
+        )
 
         # Debug step actions — hidden until a debug session starts
         toolbar.addSeparator()
@@ -335,15 +536,6 @@ class ToolBarBuilder:
         )
         self._window._step_out_action.setVisible(False)
 
-        # Glow painter — draws radial gradients behind the icon-only controls.
-        # In HC mode collapse glows onto pure white so the toolbar is fully
-        # monochromatic (no chroma anywhere).
-        is_hc = theme_is_high_contrast(self._window._settings.get("editor.theme"))
-        stop_glow = QColor("#FFFFFF") if is_hc else QColor("#E51400")
-        debug_glow = QColor("#FFFFFF") if is_hc else QColor("#FF9800")
-        self._glow = ToolbarGlowPainter(toolbar, toolbar)
-        self._glow.add_button(stop_btn, stop_glow)
-        self._glow.add_button(debug_btn, debug_glow)
         # Remember the run button so its fill can be re-tinted when the user
         # switches to a custom theme with a different accent colour.
         self._run_btn = run_btn
@@ -357,6 +549,7 @@ class ToolBarBuilder:
         """Refresh the Run button fill color (called on theme change)."""
         if getattr(self, "_run_btn", None):
             self._run_btn.set_accent_color(hex_color)
+        self._apply_compact_control_theme()
 
     def update_run_file_label(self, editor=None) -> None:
         """Update the fixed Run button label from the active editor."""
@@ -384,6 +577,30 @@ class ToolBarBuilder:
             action.setToolTip(tooltip)
         else:
             self._track_tooltip(action, tooltip, shortcut_id)
+
+    def _add_compact_control(
+        self,
+        toolbar: QToolBar,
+        action,
+        *,
+        object_name: str,
+        label: str,
+        symbol: str,
+        width: int,
+    ) -> CompactRunControlButton:
+        button = CompactRunControlButton(action, label, symbol, width, toolbar)
+        button.setObjectName(object_name)
+        button.setProperty("compactRunControl", True)
+        toolbar.addWidget(button)
+        self._compact_controls.append(button)
+        self._apply_compact_control_theme()
+        return button
+
+    def _apply_compact_control_theme(self) -> None:
+        theme_name = self._window._settings.get("editor.theme") or ""
+        custom_base = self._window._settings.get("editor.custom_theme.base") or "dark"
+        for button in self._compact_controls:
+            button.apply_theme(theme_name, custom_base)
 
     def _track_tooltip(self, action, text: str, shortcut_id: str) -> None:
         self._tooltip_actions.append((action, text, shortcut_id))
