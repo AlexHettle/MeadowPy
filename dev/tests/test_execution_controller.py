@@ -237,6 +237,47 @@ def test_run_file_aborts_when_save_before_run_fails(tmp_path):
     assert runner.file_calls == []
 
 
+def test_run_file_saves_untitled_editor_before_running(tmp_path):
+    script = tmp_path / "new_script.py"
+    settings = FakeSettings({
+        "run.working_directory": "file",
+        "run.save_before_run": False,
+        "run.clear_output_before_run": True,
+        "run.show_output_panel": True,
+    })
+    runner = FakeProcessRunner()
+    editor = FakeEditor(None)
+    output = FakeOutputPanel()
+    save_as_calls = []
+    window = SimpleNamespace(
+        _settings=settings,
+        _process_runner=runner,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _interpreter_manager=SimpleNamespace(
+            get_interpreter=lambda settings, file_path: "python.exe"
+        ),
+        _output_panel=output,
+    )
+    controller = ExecutionController(
+        MainWindowContext(window=window, settings=settings, file_manager=None, recent_files=None)
+    )
+
+    def save_as():
+        save_as_calls.append("save_as")
+        editor.file_path = str(script)
+        return True
+
+    controller.action_save_as = save_as
+
+    controller.action_run_file()
+
+    assert save_as_calls == ["save_as"]
+    assert output.cleared == 1
+    assert output.shown == 1
+    assert output.raised == 1
+    assert runner.file_calls == [(str(script), "python.exe", str(tmp_path))]
+
+
 def test_run_file_ignores_saved_non_python_file(tmp_path):
     notes = tmp_path / "notes.txt"
     notes.write_text("not python", encoding="utf-8")
@@ -502,7 +543,7 @@ def test_run_file_handles_running_process_prompt_save_as_and_cancel(monkeypatch,
     runner.running = True
     editor.file_path = None
     save_as_calls = []
-    controller.action_save_as = lambda: save_as_calls.append("save_as")
+    controller.action_save_as = lambda: save_as_calls.append("save_as") or False
     controller.action_run_file()
     assert runner.stopped == 1
     assert save_as_calls == ["save_as"]
