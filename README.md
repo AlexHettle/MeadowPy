@@ -230,7 +230,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Plot / output preview                              | 📋 Planned     |
 | Git basics panel                                   | 📋 Planned     |
 | Implement Github actions                           | 📋 Planned     |
-| Claude API integration                             | 📋 Planned     |
 | Enhanced AI features/capabilities                  | 📋 Planned     |
 | Internationalization and localization (Spanish, German, etc..)             | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
@@ -240,7 +239,6 @@ MeadowPy is actively developed. Here's what's coming next:
 | Quick-fix lightbulb (auto-import, unused var, …)   | 📋 Planned     |
 | Breadcrumb navigation bar (file › class › method)  | 📋 Planned     |
 | Inline rename refactoring                          | 📋 Planned     |
-| Inline debug variable values                       | 📋 Planned     |
 | Panel jump shortcuts (Ctrl+1/2/3 …)                | 📋 Planned     |
 
 
