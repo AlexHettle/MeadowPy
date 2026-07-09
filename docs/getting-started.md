@@ -154,8 +154,9 @@ MeadowPy stores user settings in:
 %USERPROFILE%\.meadowpy\settings.json
 ```
 
-By default, MeadowPy opens the Welcome screen on startup. You can enable
-previously open tabs in **File > Preferences > General**.
+By default, MeadowPy restores editor tabs from the previous session. On the
+first launch, or when there are no restorable files, it opens the Welcome
+screen. You can disable tab restoration in **File > Preferences > General**.
 
 ## Next Steps
 

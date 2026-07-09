@@ -6,6 +6,7 @@ from meadowpy.constants import (
     DEFAULT_WINDOW_LAYOUT_VERSION,
     DEFAULT_WINDOW_STATE,
     LEGACY_DEFAULT_WINDOW_STATES,
+    RESTORE_TABS_MIGRATION_VERSION,
     SETTINGS_FILENAME,
 )
 from meadowpy.core.settings import Settings
@@ -72,18 +73,21 @@ def test_lint_style_issues_default_on_and_persists(tmp_path):
     assert reloaded.get("editor.show_lint_style_issues") is False
 
 
-def test_restore_tabs_defaults_to_welcome_first(tmp_path):
+def test_restore_tabs_defaults_to_previous_session(tmp_path):
     settings = Settings(tmp_path)
 
-    assert settings.get("general.restore_tabs_on_startup") is False
+    assert settings.get("general.restore_tabs_on_startup") is True
     assert settings.get("general.restore_tabs_on_startup_explicit") is False
+    migration = settings.get("general.restore_tabs_migration_version")
+    assert migration == RESTORE_TABS_MIGRATION_VERSION
 
 
-def test_load_migrates_legacy_restore_tabs_default_to_welcome_first(tmp_path):
+def test_load_repairs_welcome_first_restore_tabs_migration(tmp_path):
     config_file = tmp_path / "settings.json"
     config_file.write_text(
         json.dumps({
-            "general.restore_tabs_on_startup": True,
+            "general.restore_tabs_on_startup": False,
+            "general.restore_tabs_on_startup_explicit": True,
             "general.open_files": ["Calculator.py"],
         }),
         encoding="utf-8",
@@ -92,8 +96,10 @@ def test_load_migrates_legacy_restore_tabs_default_to_welcome_first(tmp_path):
     settings = Settings(tmp_path)
     settings.load()
 
-    assert settings.get("general.restore_tabs_on_startup") is False
+    assert settings.get("general.restore_tabs_on_startup") is True
     assert settings.get("general.restore_tabs_on_startup_explicit") is True
+    migration = settings.get("general.restore_tabs_migration_version")
+    assert migration == RESTORE_TABS_MIGRATION_VERSION
     assert settings.get("general.open_files") == ["Calculator.py"]
 
 
@@ -111,6 +117,25 @@ def test_load_preserves_explicit_restore_tabs_choice(tmp_path):
     settings.load()
 
     assert settings.get("general.restore_tabs_on_startup") is True
+
+
+def test_load_preserves_disabled_restore_choice_after_migration(tmp_path):
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(
+        json.dumps({
+            "general.restore_tabs_on_startup": False,
+            "general.restore_tabs_on_startup_explicit": True,
+            "general.restore_tabs_migration_version": (
+                RESTORE_TABS_MIGRATION_VERSION
+            ),
+        }),
+        encoding="utf-8",
+    )
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("general.restore_tabs_on_startup") is False
 
 
 def test_load_invalid_json_resets_to_empty_data(tmp_path):

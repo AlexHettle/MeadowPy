@@ -421,3 +421,32 @@ def test_restore_state_reopens_existing_files_without_welcome(tmp_path):
     assert ("read", str(script)) in calls
     assert ("open", str(script), "content") in calls
     assert ("welcome",) not in calls
+
+
+def test_restore_state_reopens_files_with_default_settings(tmp_path):
+    script = tmp_path / "remembered.py"
+    script.write_text("print('remember me')", encoding="utf-8")
+    settings = Settings(tmp_path)
+    settings.set("general.open_files", [str(script)])
+    opened = []
+    calls = []
+
+    window = SimpleNamespace(
+        restoreState=lambda payload: calls.append(("state", bytes(payload))),
+        _settings=settings,
+        _file_manager=SimpleNamespace(
+            read_file=lambda path: script.read_text(encoding="utf-8")
+        ),
+        _tab_manager=SimpleNamespace(
+            open_file_in_tab=lambda path, content, large_file_mode=False: (
+                opened.append((path, content))
+            ),
+            count=lambda: len(opened),
+        ),
+        _show_welcome=lambda: calls.append(("welcome",)),
+    )
+
+    MainWindow._restore_state(window)
+
+    assert opened == [(str(script), "print('remember me')")]
+    assert ("welcome",) not in calls

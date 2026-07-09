@@ -12,6 +12,7 @@ from meadowpy.constants import (
     DEFAULT_WINDOW_LAYOUT_VERSION,
     DEFAULT_WINDOW_STATE,
     LEGACY_DEFAULT_WINDOW_STATES,
+    RESTORE_TABS_MIGRATION_VERSION,
     SETTINGS_FILENAME,
 )
 
@@ -63,12 +64,20 @@ class Settings(QObject):
         if self._data.get("window.state") in LEGACY_DEFAULT_WINDOW_STATES:
             self._data["window.state"] = DEFAULT_WINDOW_STATE
             self._data["window.layout_version"] = DEFAULT_WINDOW_LAYOUT_VERSION
-        if (
-            self._data.get("general.restore_tabs_on_startup") is True
-            and not self._data.get("general.restore_tabs_on_startup_explicit")
-        ):
-            self._data["general.restore_tabs_on_startup"] = False
-            self._data["general.restore_tabs_on_startup_explicit"] = True
+        restore_migration = self._data.get(
+            "general.restore_tabs_migration_version", 0
+        )
+        restore_version = RESTORE_TABS_MIGRATION_VERSION
+        valid_restore_version = isinstance(restore_migration, int)
+        if not valid_restore_version or restore_migration < restore_version:
+            # The welcome-first migration in v1.2 disabled session restore and
+            # marked the generated value as an explicit user choice. Re-enable
+            # restore once for existing installations; choices made after this
+            # migration are preserved by the version marker.
+            self._data["general.restore_tabs_on_startup"] = True
+            self._data[
+                "general.restore_tabs_migration_version"
+            ] = restore_version
 
     def save(self) -> None:
         """Persist current settings to JSON file."""

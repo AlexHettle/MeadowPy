@@ -1430,6 +1430,9 @@ def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qap
     assert prefs._accent_hex_label.text() == "#112233"
     prefs._show_lint_style_issues.setChecked(False)
     assert prefs._pending_changes["editor.show_lint_style_issues"] is False
+    assert prefs._restore_tabs.isChecked() is True
+    prefs._restore_tabs.setChecked(False)
+    assert prefs._pending_changes["general.restore_tabs_on_startup"] is False
     prefs._restore_tabs.setChecked(True)
     assert prefs._pending_changes["general.restore_tabs_on_startup"] is True
     assert prefs._pending_changes["general.restore_tabs_on_startup_explicit"] is True

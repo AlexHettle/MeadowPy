@@ -24,8 +24,9 @@ Dock panels can be shown, hidden, moved, and reset with **View > Reset Layout**.
 
 ## Welcome Screen
 
-By default, MeadowPy opens to the Welcome screen. If you enable startup tab
-restore in Preferences, restored editor tabs open instead.
+By default, MeadowPy restores editor tabs from the previous session. On the
+first launch, or when there are no restorable files, the Welcome screen opens
+instead. You can disable startup tab restore in Preferences.
 The Welcome screen lets you:
 
 - Create a blank file.
