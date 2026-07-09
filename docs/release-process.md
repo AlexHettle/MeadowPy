@@ -7,7 +7,6 @@ Related docs:
 - [Development Guide](development.md)
 - [Testing](testing.md)
 - [Architecture](architecture.md)
-- [Changelog](../CHANGELOG.md)
 
 ## Release Goals
 
@@ -16,7 +15,7 @@ A MeadowPy release should be:
 - Installable from a clean checkout or downloaded folder.
 - Runnable through the normal launcher flow.
 - Covered by the full test suite.
-- Documented in the changelog.
+- Accompanied by clear release notes.
 - Clear about user-visible changes.
 
 ## Pre-Release Checklist
@@ -84,27 +83,19 @@ Suggested meaning:
 - **MINOR**: new user-facing features.
 - **PATCH**: bug fixes, polish, documentation, or maintenance.
 
-## Update The Changelog
+## Prepare Release Notes
 
-Before release, update:
+Summarize meaningful user-visible changes for the release.
 
-```text
-CHANGELOG.md
-```
-
-Move meaningful items from **Unreleased** into a new version section.
-
-Use categories:
+Useful categories include:
 
 - Added
 - Changed
 - Fixed
 - Removed
 - Documentation
-- Internal
 
-Keep entries user-facing when possible. Internal entries are useful when they
-explain maintainability, tests, or architecture changes.
+Keep the summary concise and include setup or migration notes when needed.
 
 ## Verify Setup From A Clean State
 
@@ -180,8 +171,7 @@ Before release, verify the docs still match the app:
 
 ## Manual Release Notes Pass
 
-Before tagging or distributing, write a short release summary from the
-changelog:
+Before tagging or distributing, write a short release summary:
 
 - What is new?
 - What changed?
@@ -211,7 +201,7 @@ git diff
 3. Commit release changes:
 
 ```bat
-git add meadowpy\constants.py CHANGELOG.md CONTRIBUTING.md SECURITY.md docs .github
+git add meadowpy\constants.py CONTRIBUTING.md SECURITY.md docs .github
 git commit -m "Release vX.Y.Z"
 ```
 
@@ -236,8 +226,7 @@ After release:
 
 1. Confirm the release can be downloaded or checked out.
 2. Run a quick setup and launch check from the released source.
-3. Open a new **Unreleased** section in `CHANGELOG.md` for future changes.
-4. Record any release follow-up tasks as issues or notes.
+3. Record any release follow-up tasks as issues or notes.
 
 ## Rollback Notes
 
@@ -246,6 +235,6 @@ If a release has a serious problem:
 1. Mark the release as problematic wherever it was announced.
 2. Identify whether the issue is setup, runtime, data loss, security, or docs.
 3. Prepare a patch release.
-4. Add a changelog entry explaining the fix.
+4. Explain the fix in the patch release notes.
 5. Keep the previous tag intact unless your hosting workflow explicitly
    requires removing it.

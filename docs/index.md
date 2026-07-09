@@ -31,7 +31,6 @@ Maintainer docs:
 Root project docs:
 
 - [Contributing](../CONTRIBUTING.md)
-- [Changelog](../CHANGELOG.md)
 - [Security Policy](../SECURITY.md)
 - [License](../LICENSE)
 
@@ -51,7 +50,7 @@ Repository workflow templates:
 | Stuck or seeing an error | [Troubleshooting](troubleshooting.md) |
 | Looking for a key command | [Shortcuts](shortcuts.md) |
 | Contributing code | [Development Guide](development.md), [Testing](testing.md), [Architecture](architecture.md) |
-| Preparing a release | [Release Process](release-process.md), [Changelog](../CHANGELOG.md) |
+| Preparing a release | [Release Process](release-process.md) |
 | Reporting a security issue | [Security Policy](../SECURITY.md) |
 | Checking project license terms | [License](../LICENSE) |
 

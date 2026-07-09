@@ -28,7 +28,6 @@ Manual checks:
 
 - [ ] Updated user-facing docs
 - [ ] Updated developer/architecture/testing docs
-- [ ] Updated changelog
 - [ ] Documentation not needed
 
 ## Checklist
