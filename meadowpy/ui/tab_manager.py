@@ -302,6 +302,7 @@ class TabManager(QTabWidget):
             return True
         if editor.file_path:
             if self._file_manager.save_file(editor.file_path, editor.text()):
+                editor.setModified(False)
                 return True
             show_save_failed(self, self._file_manager, editor.file_path)
             return False
@@ -309,6 +310,7 @@ class TabManager(QTabWidget):
         path = self._file_manager.save_file_as(editor.text(), parent=self)
         if path:
             editor.file_path = path
+            editor.setModified(False)
             return True
         if getattr(self._file_manager, "last_save_error", None):
             show_save_failed(

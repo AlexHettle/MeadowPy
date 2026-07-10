@@ -217,6 +217,40 @@ def test_prompt_save_all_respects_cancel_and_save(monkeypatch, qapp, tmp_path):
     )
     assert tabs.prompt_save_all() is True
     assert fake_fm.saved == 1
+    assert editor.is_modified is False
+
+    tabs.deleteLater()
+    parent.deleteLater()
+
+
+def test_prompt_save_all_clears_saved_tab_when_later_prompt_is_cancelled(
+    monkeypatch, qapp, tmp_path
+):
+    monkeypatch.setattr(tab_module, "CodeEditor", FakeTabEditor)
+    settings = make_settings(tmp_path)
+    parent = ParentWindow()
+    fake_fm = FakeFileManager()
+    tabs = TabManager(settings, fake_fm, parent)
+    first = tabs.new_tab(content="print('first')\n")
+    second = tabs.new_tab(str(tmp_path / "second.py"), "print('second')\n")
+    first.setModified(True)
+    second.setModified(True)
+    responses = iter(
+        [QMessageBox.StandardButton.Save, QMessageBox.StandardButton.Cancel]
+    )
+    monkeypatch.setattr(
+        tab_module.QMessageBox,
+        "question",
+        lambda *args, **kwargs: next(responses),
+    )
+
+    assert tabs.prompt_save_all() is False
+
+    assert fake_fm.saved_as == 1
+    assert first.file_path == "/fake/saved.py"
+    assert first.is_modified is False
+    assert second.is_modified is True
+    assert tabs.count() == 2
 
     tabs.deleteLater()
     parent.deleteLater()
