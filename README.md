@@ -142,7 +142,10 @@ MeadowPy is designed from the ground up for people learning to code.
 ### Code Editor
 MeadowPy's editor is built to feel familiar from day one — tabbed files, colour-coded syntax, and smart helpers that reduce the small frustrations that slow beginners down.
 
-- Tabbed editing with Python syntax highlighting
+- Theme-aware syntax highlighting for Python, Markdown (`.md` and `.markdown`),
+  JSON, YAML, and properties-style configuration files (`.ini`, `.cfg`, and
+  `.properties`)
+- Plain-text editing for readable `.txt`, `.toml`, `.csv`, and `.log` files
 - Auto-completion for Python keywords and built-ins
 - Smart indentation and auto-closing brackets
 - Code folding for functions, classes, and blocks
@@ -153,6 +156,10 @@ MeadowPy's editor is built to feel familiar from day one — tabbed files, colou
 
 ### Run & Debug
 Running your code is one keypress away. When something goes wrong, the debugger lets you slow everything down and watch your program think — line by line, variable by variable.
+
+Run and Debug are Python-only: they are available for `.py` and `.pyw` files,
+plus untitled tabs that MeadowPy treats as Python until they are saved with a
+different extension.
 
 - **Run** your script with F5, or the dedicated run button
 - **Interactive REPL** with stdin support

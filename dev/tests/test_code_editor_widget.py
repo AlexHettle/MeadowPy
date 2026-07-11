@@ -4,14 +4,24 @@ from types import SimpleNamespace
 
 import meadowpy.editor.code_editor as code_editor_module
 import meadowpy.editor.editor_fonts as editor_fonts
+import pytest
 from helpers import DummySignal
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor, QKeyEvent, QWheelEvent
-from PyQt6.Qsci import QsciLexerPython, QsciScintilla
+from PyQt6.Qsci import (
+    QsciLexerJSON,
+    QsciLexerMarkdown,
+    QsciLexerProperties,
+    QsciLexerPython,
+    QsciLexerYAML,
+    QsciScintilla,
+)
 
+from meadowpy.core.file_types import syntax_language_for_path
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
+from meadowpy.editor.lexer_profiles import get_lexer_profile
 from meadowpy.editor.themes import get_theme
 from meadowpy.resources.resource_loader import get_stylesheet
 
@@ -355,6 +365,209 @@ def test_python_plain_python_transition_clears_and_restores_token_styles(
     _colorise(editor)
     assert isinstance(editor.lexer(), QsciLexerPython)
     assert _style_at(editor, source, "for") == QsciLexerPython.Keyword
+    editor.deleteLater()
+
+
+@pytest.mark.parametrize(
+    ("suffix", "lexer_type"),
+    [
+        (".json", QsciLexerJSON),
+        (".md", QsciLexerMarkdown),
+        (".markdown", QsciLexerMarkdown),
+        (".yaml", QsciLexerYAML),
+        (".yml", QsciLexerYAML),
+        (".ini", QsciLexerProperties),
+        (".cfg", QsciLexerProperties),
+        (".properties", QsciLexerProperties),
+    ],
+)
+def test_non_python_formats_use_native_lexers_without_python_tools(
+    qapp,
+    tmp_path,
+    suffix,
+    lexer_type,
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", True)
+    editor = CodeEditor(settings)
+    assert hasattr(editor, "_completion_apis")
+
+    editor.file_path = str(tmp_path / f"document{suffix}")
+
+    assert isinstance(editor.lexer(), lexer_type)
+    assert (
+        editor.autoCompletionSource()
+        == QsciScintilla.AutoCompletionSource.AcsNone
+    )
+    assert not hasattr(editor, "_completion_apis")
+    assert not hasattr(editor, "_completion_lexer")
+
+    editor.setText("value = 1\n")
+    editor.toggle_breakpoint(0)
+    assert editor.get_breakpoints() == set()
+    editor.deleteLater()
+
+
+@pytest.mark.parametrize("suffix", [".toml", ".csv", ".log", ".txt"])
+def test_supported_plain_text_formats_stay_unlexed_and_non_python(
+    qapp,
+    tmp_path,
+    suffix,
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", True)
+    editor = CodeEditor(settings)
+
+    editor.file_path = str(tmp_path / f"document{suffix}")
+
+    assert editor.lexer() is None
+    assert (
+        editor.autoCompletionSource()
+        == QsciScintilla.AutoCompletionSource.AcsNone
+    )
+    assert not hasattr(editor, "_completion_apis")
+    editor.toggle_breakpoint(0)
+    assert editor.get_breakpoints() == set()
+    editor.deleteLater()
+
+
+def test_switching_between_syntax_languages_replaces_stale_lexers(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    transitions = [
+        ("document.json", QsciLexerJSON),
+        ("document.md", QsciLexerMarkdown),
+        ("document.yaml", QsciLexerYAML),
+        ("document.ini", QsciLexerProperties),
+    ]
+
+    for file_name, lexer_type in transitions:
+        previous = editor.lexer()
+        editor.file_path = str(tmp_path / file_name)
+        assert isinstance(editor.lexer(), lexer_type)
+        assert editor.lexer() is not previous
+
+    editor.file_path = str(tmp_path / "document.toml")
+    assert editor.lexer() is None
+
+    editor.file_path = str(tmp_path / "document.py")
+    assert isinstance(editor.lexer(), QsciLexerPython)
+    editor.deleteLater()
+
+
+@pytest.mark.parametrize(
+    ("suffix", "source", "expected_styles"),
+    [
+        (
+            ".json",
+            '{"count": 3, "ready": true}\n',
+            {
+                "count": QsciLexerJSON.Property,
+                "3": QsciLexerJSON.Number,
+                "true": QsciLexerJSON.Keyword,
+            },
+        ),
+        (
+            ".md",
+            "# Heading\n**bold** and *emphasis* and `code`\n",
+            {
+                "#": QsciLexerMarkdown.Header1,
+                "bold": QsciLexerMarkdown.StrongEmphasisAsterisks,
+                "emphasis": QsciLexerMarkdown.EmphasisAsterisks,
+                "code": QsciLexerMarkdown.CodeBackticks,
+            },
+        ),
+        (
+            ".yaml",
+            "name: meadow\ncount: 3\n# note\nenabled: true\n",
+            {
+                "name": QsciLexerYAML.Identifier,
+                "3": QsciLexerYAML.Number,
+                "note": QsciLexerYAML.Comment,
+                "true": QsciLexerYAML.Keyword,
+            },
+        ),
+        (
+            ".ini",
+            "[section]\nkey=value\n",
+            {
+                "section": QsciLexerProperties.Section,
+                "key": QsciLexerProperties.Key,
+                "=": QsciLexerProperties.Assignment,
+            },
+        ),
+    ],
+)
+def test_non_python_lexers_classify_representative_tokens(
+    qapp,
+    tmp_path,
+    suffix,
+    source,
+    expected_styles,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.file_path = str(tmp_path / f"document{suffix}")
+    editor.setText(source)
+    _colorise(editor)
+
+    observed_styles = {
+        token: _style_at(editor, source, token)
+        for token in expected_styles
+    }
+    assert observed_styles == expected_styles
+
+    editor.deleteLater()
+
+
+def test_non_python_profiles_follow_theme_and_preserve_font_traits(
+    qapp,
+    tmp_path,
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", False)
+    settings.set("editor.theme", "default_high_contrast")
+    editor = CodeEditor(settings)
+    editor.file_path = str(tmp_path / "document.md")
+
+    lexer = editor.lexer()
+    assert isinstance(lexer, QsciLexerMarkdown)
+    profile = get_lexer_profile(
+        syntax_language_for_path(editor.file_path)
+    )
+    assert profile is not None
+    for style_id in profile.style_roles:
+        assert lexer.color(style_id).name() == "#ffffff"
+        assert lexer.paper(style_id).name() == "#000000"
+
+    assert lexer.font(QsciLexerMarkdown.Header1).bold()
+    assert lexer.font(QsciLexerMarkdown.EmphasisAsterisks).italic()
+    assert lexer.font(QsciLexerMarkdown.Link).underline()
+    editor.deleteLater()
+
+
+def test_reapplying_settings_reuses_lexer_and_completion_objects(
+    qapp,
+    tmp_path,
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", True)
+    editor = CodeEditor(settings)
+    python_lexer = editor.lexer()
+    completion_apis = editor._completion_apis
+
+    EditorConfigurator.apply(editor, settings)
+
+    assert editor.lexer() is python_lexer
+    assert editor._completion_apis is completion_apis
+
+    editor.file_path = str(tmp_path / "document.json")
+    json_lexer = editor.lexer()
+    EditorConfigurator.apply(editor, settings)
+
+    assert editor.lexer() is json_lexer
+    assert not hasattr(editor, "_completion_apis")
     editor.deleteLater()
 
 

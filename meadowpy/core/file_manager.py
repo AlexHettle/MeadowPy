@@ -9,8 +9,9 @@ from meadowpy.core.settings import Settings
 from meadowpy.core.recent_files import RecentFilesManager
 
 FILE_FILTERS = (
-    "Editable Text Files (*.py *.pyw *.txt *.md *.csv *.json *.toml *.ini "
-    "*.cfg *.yaml *.yml *.log);;Python Files (*.py *.pyw);;All Files (*)"
+    "Editable Text Files (*.py *.pyw *.txt *.md *.markdown *.csv *.json "
+    "*.toml *.ini *.cfg *.properties *.yaml *.yml *.log);;Python Files "
+    "(*.py *.pyw);;All Files (*)"
 )
 TEXT_SNIFF_BYTES = 8192
 LARGE_FILE_WARNING_BYTES = 10 * 1024 * 1024

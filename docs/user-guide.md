@@ -69,7 +69,11 @@ Common actions:
 
 Editor features include:
 
-- Python syntax highlighting.
+- Theme-aware syntax highlighting for Python, Markdown (`.md` and `.markdown`),
+  JSON, YAML, and properties-style configuration files (`.ini`, `.cfg`, and
+  `.properties`).
+- Plain-text editing for formats without syntax highlighting, including
+  `.txt`, `.toml`, `.csv`, and `.log`.
 - Line numbers.
 - Current-line highlighting.
 - Smart indentation.
@@ -87,20 +91,16 @@ Most editor behavior can be changed in **File > Preferences > Editor** and
 
 ## Open Files
 
-MeadowPy can open readable text files, including:
+MeadowPy can open readable text files. Syntax highlighting is available for:
 
-- `.py`
-- `.pyw`
-- `.txt`
-- `.md`
-- `.csv`
-- `.json`
-- `.toml`
-- `.ini`
-- `.cfg`
-- `.yaml`
-- `.yml`
-- `.log`
+- Python: `.py` and `.pyw`
+- Markdown: `.md` and `.markdown`
+- JSON: `.json`
+- YAML: `.yaml` and `.yml`
+- Properties-style configuration: `.ini`, `.cfg`, and `.properties`
+
+Other readable formats remain fully editable as plain text. This includes
+`.txt`, `.toml`, `.csv`, and `.log` files.
 
 It blocks common binary or office document types from opening in the text
 editor, such as `.exe`, `.dll`, `.png`, `.jpg`, `.pdf`, `.docx`, `.xlsx`,
@@ -193,6 +193,11 @@ Ctrl+Shift+O
 
 Run the current file with `F5` or the toolbar Run button.
 
+Run is available only for `.py` and `.pyw` files and for untitled tabs, which
+MeadowPy treats as Python until they are saved with a different extension.
+Highlighted non-Python files such as Markdown, JSON, YAML, `.ini`, and `.cfg`
+cannot be run.
+
 When you run a file, MeadowPy:
 
 1. Checks that the current tab can be run as Python.
@@ -273,6 +278,10 @@ Terminal behavior:
 ## Debugging
 
 Start debugging with `F6`.
+
+Debugging follows the same Python-only rule as Run: it is available for `.py`,
+`.pyw`, and untitled Python tabs, but not for other highlighted or plain-text
+file types.
 
 Basic debug workflow:
 

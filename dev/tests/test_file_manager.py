@@ -10,7 +10,65 @@ from meadowpy.core.file_manager import (
     format_file_size,
     is_known_unsupported_editor_file,
 )
+from meadowpy.core.file_types import (
+    SyntaxLanguage,
+    is_python_file_path,
+    syntax_language_for_path,
+)
 from tests.helpers import SignalRecorder
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected_language"),
+    [
+        (None, SyntaxLanguage.PYTHON),
+        ("example.py", SyntaxLanguage.PYTHON),
+        ("example.pyw", SyntaxLanguage.PYTHON),
+        ("example.json", SyntaxLanguage.JSON),
+        ("example.md", SyntaxLanguage.MARKDOWN),
+        ("example.markdown", SyntaxLanguage.MARKDOWN),
+        ("example.yaml", SyntaxLanguage.YAML),
+        ("example.yml", SyntaxLanguage.YAML),
+        ("example.ini", SyntaxLanguage.PROPERTIES),
+        ("example.cfg", SyntaxLanguage.PROPERTIES),
+        ("example.properties", SyntaxLanguage.PROPERTIES),
+        ("example.toml", SyntaxLanguage.PLAIN),
+        ("example.csv", SyntaxLanguage.PLAIN),
+        ("example.log", SyntaxLanguage.PLAIN),
+        ("example.txt", SyntaxLanguage.PLAIN),
+        ("example.unknown", SyntaxLanguage.PLAIN),
+    ],
+)
+def test_syntax_language_mapping_is_case_insensitive(
+    file_path,
+    expected_language,
+):
+    assert syntax_language_for_path(file_path) == expected_language
+    if file_path is not None:
+        assert syntax_language_for_path(file_path.upper()) == expected_language
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        ".json",
+        ".md",
+        ".markdown",
+        ".yaml",
+        ".yml",
+        ".ini",
+        ".cfg",
+        ".properties",
+        ".toml",
+        ".csv",
+        ".log",
+        ".txt",
+        ".unknown",
+    ],
+)
+def test_non_python_syntax_extensions_do_not_enable_python_mode(suffix):
+    assert is_python_file_path(f"example{suffix}") is False
+    assert is_python_file_path(f"EXAMPLE{suffix.upper()}") is False
 
 
 def test_open_file_with_explicit_path_reads_and_emits(tmp_path):

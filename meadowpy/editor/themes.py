@@ -1,6 +1,21 @@
 """Editor color themes for syntax highlighting."""
 
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class TokenColorRole(str, Enum):
+    """Language-neutral syntax color roles used by lexer profiles."""
+
+    DEFAULT = "default"
+    COMMENT = "comment"
+    NUMBER = "number"
+    STRING = "string"
+    KEYWORD = "keyword"
+    NAME = "name"
+    OPERATOR = "operator"
+    SPECIAL = "special"
+    ERROR = "error"
 
 
 @dataclass
@@ -15,6 +30,16 @@ class EditorTheme:
     fold_margin_background: str
     foreground_colors: dict[int, str] = field(default_factory=dict)
     background_colors: dict[int, str] = field(default_factory=dict)
+
+    def token_color(self, role: TokenColorRole) -> str:
+        """Return the theme color for a language-neutral token role.
+
+        The semantic bridge deliberately derives from the established Python
+        palette.  Existing Python highlighting therefore remains unchanged,
+        while other lexer profiles can share the same accessible colors.
+        """
+        style_id = _TOKEN_ROLE_PYTHON_STYLE[role]
+        return self.foreground_colors.get(style_id, self.editor_foreground)
 
 
 # QsciLexerPython style IDs, kept local so theme data does not import PyQt.
@@ -38,6 +63,19 @@ PY_STYLE_DOUBLE_QUOTED_FSTRING = 16
 PY_STYLE_SINGLE_QUOTED_FSTRING = 17
 PY_STYLE_TRIPLE_SINGLE_QUOTED_FSTRING = 18
 PY_STYLE_TRIPLE_DOUBLE_QUOTED_FSTRING = 19
+
+
+_TOKEN_ROLE_PYTHON_STYLE: dict[TokenColorRole, int] = {
+    TokenColorRole.DEFAULT: PY_STYLE_DEFAULT,
+    TokenColorRole.COMMENT: PY_STYLE_COMMENT,
+    TokenColorRole.NUMBER: PY_STYLE_NUMBER,
+    TokenColorRole.STRING: PY_STYLE_DOUBLE_QUOTED_STRING,
+    TokenColorRole.KEYWORD: PY_STYLE_KEYWORD,
+    TokenColorRole.NAME: PY_STYLE_CLASS_NAME,
+    TokenColorRole.OPERATOR: PY_STYLE_OPERATOR,
+    TokenColorRole.SPECIAL: PY_STYLE_DECORATOR,
+    TokenColorRole.ERROR: PY_STYLE_UNCLOSED_STRING,
+}
 
 DEFAULT_LIGHT = EditorTheme(
     name="default_light",

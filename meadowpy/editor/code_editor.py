@@ -17,7 +17,10 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import QToolTip, QWidget
 from PyQt6.Qsci import QsciScintilla
 
-from meadowpy.core.file_types import is_python_file_path
+from meadowpy.core.file_types import (
+    is_python_file_path,
+    syntax_language_for_path,
+)
 from meadowpy.core.settings import Settings
 from meadowpy.core.shortcuts import event_matches_shortcut, get_shortcut
 from meadowpy.editor.editor_config import EditorConfigurator
@@ -124,9 +127,16 @@ class CodeEditor(QsciScintilla):
 
     @file_path.setter
     def file_path(self, path: str | None) -> None:
-        old_uses_python_mode = is_python_file_path(self._file_path)
+        old_editor_mode = (
+            syntax_language_for_path(self._file_path),
+            is_python_file_path(self._file_path),
+        )
         self._file_path = path
-        if old_uses_python_mode != is_python_file_path(path):
+        new_editor_mode = (
+            syntax_language_for_path(path),
+            is_python_file_path(path),
+        )
+        if old_editor_mode != new_editor_mode:
             EditorConfigurator.apply(self, self._settings)
             overlay = getattr(self, "_indent_guide_overlay", None)
             if overlay is not None:

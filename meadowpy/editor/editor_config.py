@@ -4,11 +4,20 @@ import builtins
 import keyword
 
 from PyQt6.QtGui import QColor, QFont
-from PyQt6.Qsci import QsciScintilla, QsciLexerPython
+from PyQt6.Qsci import QsciLexer, QsciLexerPython, QsciScintilla
 
-from meadowpy.core.file_types import is_python_file_path
+from meadowpy.core.file_types import (
+    SyntaxLanguage,
+    is_python_file_path,
+    syntax_language_for_path,
+)
 from meadowpy.core.settings import Settings
 from meadowpy.editor.editor_fonts import editor_font_family
+from meadowpy.editor.lexer_profiles import (
+    apply_lexer_theme,
+    create_lexer,
+    get_lexer_profile,
+)
 from meadowpy.editor.themes import get_theme
 from meadowpy.resources.resource_loader import current_accent_hex, theme_is_dark
 
@@ -161,51 +170,89 @@ class EditorConfigurator:
             custom_base=settings.get("editor.custom_theme.base"),
         )
 
-        if not EditorConfigurator._editor_uses_python_mode(editor):
-            editor.setLexer(None)
+        language = syntax_language_for_path(
+            getattr(editor, "file_path", None)
+        )
+        if language == SyntaxLanguage.PLAIN:
+            EditorConfigurator._install_lexer(
+                editor,
+                None,
+                SyntaxLanguage.PLAIN,
+            )
             EditorConfigurator._apply_plain_text_style(editor, settings)
             return
 
-        lexer = QsciLexerPython(editor)
+        if language != SyntaxLanguage.PYTHON:
+            profile = get_lexer_profile(language)
+            if profile is None:
+                EditorConfigurator._install_lexer(
+                    editor,
+                    None,
+                    SyntaxLanguage.PLAIN,
+                )
+                EditorConfigurator._apply_plain_text_style(editor, settings)
+                return
+
+            lexer = editor.lexer()
+            if not (
+                getattr(editor, "_syntax_language", None) == language
+                and isinstance(lexer, profile.lexer_type)
+            ):
+                lexer = create_lexer(language, editor)
+                EditorConfigurator._install_lexer(
+                    editor,
+                    lexer,
+                    language,
+                )
+
+            if lexer is not None:
+                apply_lexer_theme(
+                    lexer,
+                    language,
+                    theme,
+                    editor.font(),
+                )
+                EditorConfigurator._colorise(editor)
+            return
+
+        lexer = editor.lexer()
+        if not (
+            getattr(editor, "_syntax_language", None)
+            == SyntaxLanguage.PYTHON
+            and isinstance(lexer, QsciLexerPython)
+        ):
+            lexer = QsciLexerPython(editor)
+            EditorConfigurator._install_lexer(
+                editor,
+                lexer,
+                SyntaxLanguage.PYTHON,
+            )
+
+        if not isinstance(lexer, QsciLexerPython):
+            return
         lexer.setDefaultFont(editor.font())
         # Keyword set 2 is also used for Python built-ins.  Do not highlight
         # matching attribute names (for example ``path.open``) as though they
         # referred to the global built-in.
         lexer.setHighlightSubidentifiers(False)
 
-        # Apply theme colors
+        # Reset every slot before applying the palette. This prevents colors
+        # from a previous theme surviving on less-common Python styles.
+        font = editor.font()
+        foreground = QColor(theme.editor_foreground)
+        background = QColor(theme.editor_background)
+        lexer.setDefaultColor(foreground)
+        lexer.setDefaultPaper(background)
+        for style_id in range(128):
+            lexer.setColor(foreground, style_id)
+            lexer.setPaper(background, style_id)
+            lexer.setFont(font, style_id)
+
         for style_id, color in theme.foreground_colors.items():
             lexer.setColor(QColor(color), style_id)
 
         for style_id, color in theme.background_colors.items():
             lexer.setPaper(QColor(color), style_id)
-
-        # Set default background for all styles
-        lexer.setDefaultPaper(QColor(theme.editor_background))
-        lexer.setDefaultColor(QColor(theme.editor_foreground))
-
-        # Set paper for all defined styles to match editor background
-        for style_id in theme.foreground_colors:
-            lexer.setPaper(QColor(theme.editor_background), style_id)
-
-        # In HC mode the entire editor must be monochrome — but QsciLexerPython
-        # has style IDs beyond what theme.foreground_colors covers (e.g. f-string
-        # styles 16-19), and those keep their default purple/orange tints unless
-        # we force-paint every slot. So in HC, override all 128 possible styles
-        # to the theme's foreground/background.
-        if settings.get("editor.theme") == "default_high_contrast":
-            fg = QColor(theme.editor_foreground)
-            bg = QColor(theme.editor_background)
-            for style_id in range(128):
-                lexer.setColor(fg, style_id)
-                lexer.setPaper(bg, style_id)
-
-        editor.setLexer(lexer)
-
-        # Force the same font on ALL styles (setLexer resets per-style fonts)
-        font = editor.font()
-        for style_id in range(128):
-            lexer.setFont(font, style_id)
 
         # QScintilla 2.14.1 ships a Python-2-era primary keyword list.  Replace
         # it with the hard keywords from the running Python so modern syntax
@@ -222,6 +269,30 @@ class EditorConfigurator:
             name for name in dir(builtins) if not keyword.iskeyword(name)
         )
         editor.SendScintilla(editor.SCI_SETKEYWORDS, 1, builtin_names.encode())
+        EditorConfigurator._colorise(editor)
+
+    @staticmethod
+    def _install_lexer(
+        editor: QsciScintilla,
+        lexer: QsciLexer | None,
+        language: SyntaxLanguage,
+    ) -> None:
+        """Install ``lexer`` and release the previous editor-owned lexer."""
+        previous = editor.lexer()
+        if previous is lexer:
+            editor._syntax_language = language
+            return
+
+        owns_previous = (
+            previous is not None and previous.parent() is editor
+        )
+        editor.setLexer(lexer)
+        editor._syntax_language = language
+        if owns_previous:
+            previous.deleteLater()
+
+    @staticmethod
+    def _colorise(editor: QsciScintilla) -> None:
         try:
             editor.SendScintilla(QsciScintilla.SCI_COLOURISE, 0, -1)
         except (AttributeError, TypeError, RuntimeError):
@@ -234,8 +305,7 @@ class EditorConfigurator:
             editor.setAutoCompletionSource(
                 QsciScintilla.AutoCompletionSource.AcsNone
             )
-            if hasattr(editor, "_completion_apis"):
-                delattr(editor, "_completion_apis")
+            EditorConfigurator._clear_completion_apis(editor)
         elif settings.get("editor.auto_complete"):
             from meadowpy.editor.completion import create_apis
 
@@ -252,14 +322,32 @@ class EditorConfigurator:
             )
             # Create APIs object attached to the lexer
             lexer = editor.lexer()
-            if lexer:
+            if lexer and not (
+                getattr(editor, "_completion_lexer", None) is lexer
+                and hasattr(editor, "_completion_apis")
+            ):
+                EditorConfigurator._clear_completion_apis(editor)
                 apis = create_apis(lexer)
                 # Store reference to prevent garbage collection
                 editor._completion_apis = apis
+                editor._completion_lexer = lexer
         else:
             editor.setAutoCompletionSource(
                 QsciScintilla.AutoCompletionSource.AcsNone
             )
+            EditorConfigurator._clear_completion_apis(editor)
+
+    @staticmethod
+    def _clear_completion_apis(editor: QsciScintilla) -> None:
+        apis = getattr(editor, "_completion_apis", None)
+        if apis is not None:
+            try:
+                apis.deleteLater()
+            except (AttributeError, RuntimeError):
+                pass
+        for attribute in ("_completion_apis", "_completion_lexer"):
+            if hasattr(editor, attribute):
+                delattr(editor, attribute)
 
     @staticmethod
     def _editor_uses_python_mode(editor: QsciScintilla) -> bool:

@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import meadowpy.ui.controllers.workspace_controller as workspace_module
+import pytest
 from PyQt6.Qsci import QsciScintilla
 from meadowpy.constants import DEFAULT_WINDOW_LAYOUT_VERSION, DEFAULT_WINDOW_STATE
 from meadowpy.core.file_manager import LargeFileError
@@ -622,6 +623,56 @@ def test_run_action_follows_active_editor_file_type(monkeypatch, tmp_path):
         debug_action.enabled,
         ai_review_action.enabled,
     ) == (False, False, False, False)
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        ".json",
+        ".md",
+        ".markdown",
+        ".yaml",
+        ".yml",
+        ".ini",
+        ".cfg",
+        ".properties",
+        ".toml",
+        ".csv",
+        ".log",
+        ".txt",
+    ],
+)
+def test_run_actions_stay_disabled_for_supported_non_python_files(
+    monkeypatch,
+    tmp_path,
+    suffix,
+):
+    monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
+    editor = WorkspaceEditor(str(tmp_path / f"notes{suffix}"))
+    tabs = WorkspaceTabs([editor])
+    run_action = FakeAction()
+    run_selection_action = FakeAction()
+    debug_action = FakeAction()
+    ai_review_action = FakeAction()
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _run_action=run_action,
+        _run_selection_action=run_selection_action,
+        _debug_action=debug_action,
+        _ai_review_file_action=ai_review_action,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), None, None)
+    )
+
+    controller._update_run_file_button(editor)
+
+    assert (
+        run_action.enabled,
+        run_selection_action.enabled,
+        debug_action.enabled,
+        ai_review_action.enabled,
+    ) == (False, False, False, True)
 
 
 def test_goto_zoom_and_word_wrap_actions_update_current_editor(monkeypatch):
