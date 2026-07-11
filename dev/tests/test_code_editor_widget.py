@@ -7,11 +7,12 @@ import meadowpy.editor.editor_fonts as editor_fonts
 from helpers import DummySignal
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor, QKeyEvent, QWheelEvent
-from PyQt6.Qsci import QsciScintilla
+from PyQt6.Qsci import QsciLexerPython, QsciScintilla
 
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
+from meadowpy.editor.themes import get_theme
 from meadowpy.resources.resource_loader import get_stylesheet
 
 
@@ -20,6 +21,24 @@ def make_editor(qapp, tmp_path) -> CodeEditor:
     settings.set("editor.auto_complete", False)
     editor = CodeEditor(settings)
     return editor
+
+
+def _colorise(editor: CodeEditor) -> None:
+    editor.SendScintilla(QsciScintilla.SCI_COLOURISE, 0, -1)
+
+
+def _style_at(
+    editor: CodeEditor,
+    source: str,
+    token: str,
+    start: int = 0,
+) -> int:
+    """Return the lexer style at the token's first byte after ``start``."""
+    character_position = source.index(token, start)
+    byte_position = len(source[:character_position].encode("utf-8"))
+    return int(
+        editor.SendScintilla(QsciScintilla.SCI_GETSTYLEAT, byte_position)
+    )
 
 
 def test_toggle_comment_comments_and_uncomments_selected_block(qapp, tmp_path):
@@ -212,6 +231,130 @@ def test_non_python_file_path_blocks_breakpoints(qapp, tmp_path):
     editor.file_path = str(tmp_path / "restored.py")
     assert editor.lexer() is not None
 
+    editor.deleteLater()
+
+
+def test_python_lexer_classifies_current_keywords_and_builtins(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.file_path = str(tmp_path / "modern_python.py")
+    source = (
+        "async def fetch():\n"
+        "    await work()\n"
+        "    nonlocal state\n"
+        "    return False, True\n"
+        "\n"
+        "print(exec)\n"
+        "open('standalone')\n"
+        "obj.open()\n"
+    )
+    editor.setText(source)
+    _colorise(editor)
+
+    for keyword in ("async", "await", "nonlocal", "False", "True"):
+        assert _style_at(editor, source, keyword) == QsciLexerPython.Keyword
+
+    for builtin_name in ("print", "exec"):
+        observed_style = _style_at(editor, source, builtin_name)
+        assert observed_style == QsciLexerPython.HighlightedIdentifier
+
+    standalone_open = source.index("open('standalone')")
+    attribute_open = source.index("obj.open") + len("obj.")
+    standalone_style = _style_at(editor, source, "open", standalone_open)
+    attribute_style = _style_at(editor, source, "open", attribute_open)
+    assert standalone_style == QsciLexerPython.HighlightedIdentifier
+    assert attribute_style == QsciLexerPython.Identifier
+    editor.deleteLater()
+
+
+def test_python_fstring_styles_follow_each_editor_theme(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", False)
+    editor = CodeEditor(settings)
+    editor.file_path = str(tmp_path / "fstrings.py")
+    source = (
+        'double = f"double_marker {value}"\n'
+        "single = f'single_marker {value}'\n"
+        'triple_double = f"""triple_double_marker {value}"""\n'
+        "triple_single = f'''triple_single_marker {value}'''\n"
+    )
+    expected_styles = {
+        "double_marker": (
+            QsciLexerPython.DoubleQuotedFString,
+            QsciLexerPython.DoubleQuotedString,
+        ),
+        "single_marker": (
+            QsciLexerPython.SingleQuotedFString,
+            QsciLexerPython.SingleQuotedString,
+        ),
+        "triple_double_marker": (
+            QsciLexerPython.TripleDoubleQuotedFString,
+            QsciLexerPython.TripleDoubleQuotedString,
+        ),
+        "triple_single_marker": (
+            QsciLexerPython.TripleSingleQuotedFString,
+            QsciLexerPython.TripleSingleQuotedString,
+        ),
+    }
+
+    for theme_name in ("default_light", "default_dark"):
+        settings.set("editor.theme", theme_name)
+        EditorConfigurator.apply(editor, settings)
+        editor.setText(source)
+        _colorise(editor)
+
+        lexer = editor.lexer()
+        assert isinstance(lexer, QsciLexerPython)
+        theme = get_theme(theme_name)
+        for marker, styles in expected_styles.items():
+            fstring_style, ordinary_string_style = styles
+            assert _style_at(editor, source, marker) == fstring_style
+            assert lexer.color(fstring_style).name() == QColor(
+                theme.foreground_colors[ordinary_string_style]
+            ).name()
+
+    editor.deleteLater()
+
+
+def test_high_contrast_lexer_keeps_every_python_style_monochrome(
+    qapp,
+    tmp_path,
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", False)
+    settings.set("editor.theme", "default_high_contrast")
+    editor = CodeEditor(settings)
+
+    lexer = editor.lexer()
+    assert isinstance(lexer, QsciLexerPython)
+    for style in range(
+        QsciLexerPython.Default,
+        QsciLexerPython.TripleDoubleQuotedFString + 1,
+    ):
+        assert lexer.color(style).name() == "#ffffff"
+        assert lexer.paper(style).name() == "#000000"
+    editor.deleteLater()
+
+
+def test_python_plain_python_transition_clears_and_restores_token_styles(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    source = "for item in items:\n    print(item)\n"
+    editor.setText(source)
+    _colorise(editor)
+
+    assert _style_at(editor, source, "for") == QsciLexerPython.Keyword
+
+    editor.file_path = str(tmp_path / "notes.txt")
+    _colorise(editor)
+    assert editor.lexer() is None
+    assert _style_at(editor, source, "for") == QsciLexerPython.Default
+
+    editor.file_path = str(tmp_path / "restored.py")
+    _colorise(editor)
+    assert isinstance(editor.lexer(), QsciLexerPython)
+    assert _style_at(editor, source, "for") == QsciLexerPython.Keyword
     editor.deleteLater()
 
 

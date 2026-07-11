@@ -1,6 +1,7 @@
 """Applies settings to a CodeEditor instance."""
 
 import builtins
+import keyword
 
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython
@@ -167,6 +168,10 @@ class EditorConfigurator:
 
         lexer = QsciLexerPython(editor)
         lexer.setDefaultFont(editor.font())
+        # Keyword set 2 is also used for Python built-ins.  Do not highlight
+        # matching attribute names (for example ``path.open``) as though they
+        # referred to the global built-in.
+        lexer.setHighlightSubidentifiers(False)
 
         # Apply theme colors
         for style_id, color in theme.foreground_colors.items():
@@ -202,8 +207,20 @@ class EditorConfigurator:
         for style_id in range(128):
             lexer.setFont(font, style_id)
 
-        # Add Python built-in names as keyword set 2 for HighlightedIdentifier
-        builtin_names = " ".join(dir(builtins))
+        # QScintilla 2.14.1 ships a Python-2-era primary keyword list.  Replace
+        # it with the hard keywords from the running Python so modern syntax
+        # such as ``async``, ``await`` and ``nonlocal`` is styled correctly.
+        # Contextual soft keywords stay excluded because this word-list lexer
+        # cannot distinguish their valid identifier uses.
+        keyword_names = " ".join(keyword.kwlist)
+        editor.SendScintilla(editor.SCI_SETKEYWORDS, 0, keyword_names.encode())
+
+        # Add Python built-in names as keyword set 2 for HighlightedIdentifier.
+        # Hard keywords such as False, None and True belong exclusively to set
+        # 1 so their classification cannot depend on keyword-list precedence.
+        builtin_names = " ".join(
+            name for name in dir(builtins) if not keyword.iskeyword(name)
+        )
         editor.SendScintilla(editor.SCI_SETKEYWORDS, 1, builtin_names.encode())
         try:
             editor.SendScintilla(QsciScintilla.SCI_COLOURISE, 0, -1)

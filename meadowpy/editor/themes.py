@@ -17,11 +17,27 @@ class EditorTheme:
     background_colors: dict[int, str] = field(default_factory=dict)
 
 
-# QsciLexerPython style constants (numeric values for portability)
-# 0=Default, 1=Comment, 2=Number, 3=DoubleQuotedString, 4=SingleQuotedString,
-# 5=Keyword, 6=TripleSingleQuotedString, 7=TripleDoubleQuotedString,
-# 8=ClassName, 9=FunctionMethodName, 10=Operator, 11=Identifier,
-# 12=CommentBlock, 13=UnclosedString, 14=HighlightedIdentifier, 15=Decorator
+# QsciLexerPython style IDs, kept local so theme data does not import PyQt.
+PY_STYLE_DEFAULT = 0
+PY_STYLE_COMMENT = 1
+PY_STYLE_NUMBER = 2
+PY_STYLE_DOUBLE_QUOTED_STRING = 3
+PY_STYLE_SINGLE_QUOTED_STRING = 4
+PY_STYLE_KEYWORD = 5
+PY_STYLE_TRIPLE_SINGLE_QUOTED_STRING = 6
+PY_STYLE_TRIPLE_DOUBLE_QUOTED_STRING = 7
+PY_STYLE_CLASS_NAME = 8
+PY_STYLE_FUNCTION_METHOD_NAME = 9
+PY_STYLE_OPERATOR = 10
+PY_STYLE_IDENTIFIER = 11
+PY_STYLE_COMMENT_BLOCK = 12
+PY_STYLE_UNCLOSED_STRING = 13
+PY_STYLE_HIGHLIGHTED_IDENTIFIER = 14
+PY_STYLE_DECORATOR = 15
+PY_STYLE_DOUBLE_QUOTED_FSTRING = 16
+PY_STYLE_SINGLE_QUOTED_FSTRING = 17
+PY_STYLE_TRIPLE_SINGLE_QUOTED_FSTRING = 18
+PY_STYLE_TRIPLE_DOUBLE_QUOTED_FSTRING = 19
 
 DEFAULT_LIGHT = EditorTheme(
     name="default_light",
@@ -32,22 +48,26 @@ DEFAULT_LIGHT = EditorTheme(
     margin_foreground="#999999",
     fold_margin_background="#F5F5F5",
     foreground_colors={
-        0: "#333333",      # Default
-        1: "#6A9955",      # Comment - green
-        2: "#098658",      # Number - teal
-        3: "#A31515",      # DoubleQuotedString - red-brown
-        4: "#A31515",      # SingleQuotedString
-        5: "#0000FF",      # Keyword - blue
-        6: "#A31515",      # TripleSingleQuotedString
-        7: "#A31515",      # TripleDoubleQuotedString
-        8: "#267F99",      # ClassName - dark cyan
-        9: "#795E26",      # FunctionMethodName - brown
-        10: "#333333",     # Operator
-        11: "#333333",     # Identifier
-        12: "#6A9955",     # CommentBlock - green
-        13: "#A31515",     # UnclosedString
-        14: "#267F99",     # HighlightedIdentifier (built-ins)
-        15: "#AF00DB",     # Decorator - purple
+        PY_STYLE_DEFAULT: "#333333",
+        PY_STYLE_COMMENT: "#4B763C",
+        PY_STYLE_NUMBER: "#087B50",
+        PY_STYLE_DOUBLE_QUOTED_STRING: "#A31515",
+        PY_STYLE_SINGLE_QUOTED_STRING: "#A31515",
+        PY_STYLE_KEYWORD: "#0000FF",
+        PY_STYLE_TRIPLE_SINGLE_QUOTED_STRING: "#A31515",
+        PY_STYLE_TRIPLE_DOUBLE_QUOTED_STRING: "#A31515",
+        PY_STYLE_CLASS_NAME: "#1F7188",
+        PY_STYLE_FUNCTION_METHOD_NAME: "#795E26",
+        PY_STYLE_OPERATOR: "#333333",
+        PY_STYLE_IDENTIFIER: "#333333",
+        PY_STYLE_COMMENT_BLOCK: "#4B763C",
+        PY_STYLE_UNCLOSED_STRING: "#A31515",
+        PY_STYLE_HIGHLIGHTED_IDENTIFIER: "#1F7188",
+        PY_STYLE_DECORATOR: "#AF00DB",
+        PY_STYLE_DOUBLE_QUOTED_FSTRING: "#A31515",
+        PY_STYLE_SINGLE_QUOTED_FSTRING: "#A31515",
+        PY_STYLE_TRIPLE_SINGLE_QUOTED_FSTRING: "#A31515",
+        PY_STYLE_TRIPLE_DOUBLE_QUOTED_FSTRING: "#A31515",
     },
 )
 
@@ -60,22 +80,26 @@ DEFAULT_DARK = EditorTheme(
     margin_foreground="#858585",
     fold_margin_background="#252526",
     foreground_colors={
-        0: "#D4D4D4",      # Default
-        1: "#6A9955",      # Comment - green
-        2: "#B5CEA8",      # Number - light green
-        3: "#CE9178",      # DoubleQuotedString - orange
-        4: "#CE9178",      # SingleQuotedString
-        5: "#569CD6",      # Keyword - blue
-        6: "#CE9178",      # TripleSingleQuotedString
-        7: "#CE9178",      # TripleDoubleQuotedString
-        8: "#4EC9B0",      # ClassName - cyan
-        9: "#DCDCAA",      # FunctionMethodName - yellow
-        10: "#D4D4D4",     # Operator
-        11: "#D4D4D4",     # Identifier
-        12: "#6A9955",     # CommentBlock - green
-        13: "#CE9178",     # UnclosedString
-        14: "#4EC9B0",     # HighlightedIdentifier (built-ins)
-        15: "#C586C0",     # Decorator - purple
+        PY_STYLE_DEFAULT: "#D4D4D4",
+        PY_STYLE_COMMENT: "#72A463",
+        PY_STYLE_NUMBER: "#B5CEA8",
+        PY_STYLE_DOUBLE_QUOTED_STRING: "#CE9178",
+        PY_STYLE_SINGLE_QUOTED_STRING: "#CE9178",
+        PY_STYLE_KEYWORD: "#569CD6",
+        PY_STYLE_TRIPLE_SINGLE_QUOTED_STRING: "#CE9178",
+        PY_STYLE_TRIPLE_DOUBLE_QUOTED_STRING: "#CE9178",
+        PY_STYLE_CLASS_NAME: "#4EC9B0",
+        PY_STYLE_FUNCTION_METHOD_NAME: "#DCDCAA",
+        PY_STYLE_OPERATOR: "#D4D4D4",
+        PY_STYLE_IDENTIFIER: "#D4D4D4",
+        PY_STYLE_COMMENT_BLOCK: "#72A463",
+        PY_STYLE_UNCLOSED_STRING: "#CE9178",
+        PY_STYLE_HIGHLIGHTED_IDENTIFIER: "#4EC9B0",
+        PY_STYLE_DECORATOR: "#C586C0",
+        PY_STYLE_DOUBLE_QUOTED_FSTRING: "#CE9178",
+        PY_STYLE_SINGLE_QUOTED_FSTRING: "#CE9178",
+        PY_STYLE_TRIPLE_SINGLE_QUOTED_FSTRING: "#CE9178",
+        PY_STYLE_TRIPLE_DOUBLE_QUOTED_FSTRING: "#CE9178",
     },
 )
 
@@ -92,22 +116,26 @@ DEFAULT_HIGH_CONTRAST = EditorTheme(
     margin_foreground="#FFFFFF",
     fold_margin_background="#000000",
     foreground_colors={
-        0: "#FFFFFF",      # Default
-        1: "#FFFFFF",      # Comment
-        2: "#FFFFFF",      # Number
-        3: "#FFFFFF",      # DoubleQuotedString
-        4: "#FFFFFF",      # SingleQuotedString
-        5: "#FFFFFF",      # Keyword
-        6: "#FFFFFF",      # TripleSingleQuotedString
-        7: "#FFFFFF",      # TripleDoubleQuotedString
-        8: "#FFFFFF",      # ClassName
-        9: "#FFFFFF",      # FunctionMethodName
-        10: "#FFFFFF",     # Operator
-        11: "#FFFFFF",     # Identifier
-        12: "#FFFFFF",     # CommentBlock
-        13: "#FFFFFF",     # UnclosedString
-        14: "#FFFFFF",     # HighlightedIdentifier (built-ins)
-        15: "#FFFFFF",     # Decorator
+        PY_STYLE_DEFAULT: "#FFFFFF",
+        PY_STYLE_COMMENT: "#FFFFFF",
+        PY_STYLE_NUMBER: "#FFFFFF",
+        PY_STYLE_DOUBLE_QUOTED_STRING: "#FFFFFF",
+        PY_STYLE_SINGLE_QUOTED_STRING: "#FFFFFF",
+        PY_STYLE_KEYWORD: "#FFFFFF",
+        PY_STYLE_TRIPLE_SINGLE_QUOTED_STRING: "#FFFFFF",
+        PY_STYLE_TRIPLE_DOUBLE_QUOTED_STRING: "#FFFFFF",
+        PY_STYLE_CLASS_NAME: "#FFFFFF",
+        PY_STYLE_FUNCTION_METHOD_NAME: "#FFFFFF",
+        PY_STYLE_OPERATOR: "#FFFFFF",
+        PY_STYLE_IDENTIFIER: "#FFFFFF",
+        PY_STYLE_COMMENT_BLOCK: "#FFFFFF",
+        PY_STYLE_UNCLOSED_STRING: "#FFFFFF",
+        PY_STYLE_HIGHLIGHTED_IDENTIFIER: "#FFFFFF",
+        PY_STYLE_DECORATOR: "#FFFFFF",
+        PY_STYLE_DOUBLE_QUOTED_FSTRING: "#FFFFFF",
+        PY_STYLE_SINGLE_QUOTED_FSTRING: "#FFFFFF",
+        PY_STYLE_TRIPLE_SINGLE_QUOTED_FSTRING: "#FFFFFF",
+        PY_STYLE_TRIPLE_DOUBLE_QUOTED_FSTRING: "#FFFFFF",
     },
 )
 

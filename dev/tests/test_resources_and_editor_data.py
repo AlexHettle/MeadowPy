@@ -2,15 +2,68 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from PyQt6.Qsci import QsciLexerPython
+
 from meadowpy.constants import APP_NAME, DEFAULT_SETTINGS, DEFAULT_WINDOW_STATE
 from meadowpy.editor import completion
-from meadowpy.editor.themes import DEFAULT_DARK, DEFAULT_LIGHT, get_theme
+from meadowpy.editor.themes import (
+    DEFAULT_DARK,
+    DEFAULT_HIGH_CONTRAST,
+    DEFAULT_LIGHT,
+    get_theme,
+)
 from meadowpy.resources import example_library
 from meadowpy.resources.example_library import (
     EXAMPLE_CATEGORIES,
     load_example_categories,
 )
 from meadowpy.resources.keyword_help import KEYWORD_HELP
+
+
+PYTHON_LEXER_STYLES = (
+    QsciLexerPython.Default,
+    QsciLexerPython.Comment,
+    QsciLexerPython.Number,
+    QsciLexerPython.DoubleQuotedString,
+    QsciLexerPython.SingleQuotedString,
+    QsciLexerPython.Keyword,
+    QsciLexerPython.TripleSingleQuotedString,
+    QsciLexerPython.TripleDoubleQuotedString,
+    QsciLexerPython.ClassName,
+    QsciLexerPython.FunctionMethodName,
+    QsciLexerPython.Operator,
+    QsciLexerPython.Identifier,
+    QsciLexerPython.CommentBlock,
+    QsciLexerPython.UnclosedString,
+    QsciLexerPython.HighlightedIdentifier,
+    QsciLexerPython.Decorator,
+    QsciLexerPython.DoubleQuotedFString,
+    QsciLexerPython.SingleQuotedFString,
+    QsciLexerPython.TripleSingleQuotedFString,
+    QsciLexerPython.TripleDoubleQuotedFString,
+)
+
+
+def _relative_luminance(hex_color: str) -> float:
+    channels = [
+        int(hex_color[index:index + 2], 16) / 255
+        for index in (1, 3, 5)
+    ]
+    linear = [
+        channel / 12.92
+        if channel <= 0.04045
+        else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in channels
+    ]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast_ratio(foreground: str, background: str) -> float:
+    foreground_luminance = _relative_luminance(foreground)
+    background_luminance = _relative_luminance(background)
+    lighter = max(foreground_luminance, background_luminance)
+    darker = min(foreground_luminance, background_luminance)
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 class FakeApis:
@@ -89,6 +142,30 @@ def test_theme_lookup_supports_custom_base_and_fallback():
     assert get_theme("custom", custom_base="dark") is DEFAULT_DARK
     assert get_theme("custom", custom_base="light") is DEFAULT_LIGHT
     assert get_theme("missing").name == "default_light"
+
+
+def test_python_themes_define_every_lexer_style():
+    expected_styles = set(PYTHON_LEXER_STYLES)
+
+    for theme in (DEFAULT_LIGHT, DEFAULT_DARK, DEFAULT_HIGH_CONTRAST):
+        assert expected_styles <= set(theme.foreground_colors)
+
+
+def test_python_theme_tokens_meet_normal_text_contrast_on_editor_surfaces():
+    minimum_contrast = 4.5
+
+    for theme in (DEFAULT_LIGHT, DEFAULT_DARK, DEFAULT_HIGH_CONTRAST):
+        for style, foreground in theme.foreground_colors.items():
+            for surface_name, background in (
+                ("editor", theme.editor_background),
+                ("caret line", theme.caret_line_background),
+            ):
+                contrast = _contrast_ratio(foreground, background)
+                assert contrast >= minimum_contrast, (
+                    f"{theme.name} style {style} has "
+                    f"{contrast:.2f}:1 contrast "
+                    f"on the {surface_name} background"
+                )
 
 
 def test_python_completions_are_cached_and_include_keywords(monkeypatch):
