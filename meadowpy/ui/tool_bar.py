@@ -21,6 +21,8 @@ from meadowpy.resources.resource_loader import (
 class RunFileButton(QToolButton):
     """Fixed-size toolbar run button that elides long target names."""
 
+    _DISABLED_BACKGROUND = "#555555"
+    _DISABLED_FOREGROUND = "#888888"
     _WIDTH = 190
     _HEIGHT = 32
     _LABEL_PIXEL_SIZE = 13
@@ -145,8 +147,8 @@ class RunFileButton(QToolButton):
 
         bg = QColor(self._accent)
         if not self.isEnabled():
-            bg = QColor("#555555")
-            fg = QColor("#888888")
+            bg = QColor(self._DISABLED_BACKGROUND)
+            fg = QColor(self._DISABLED_FOREGROUND)
         elif self.isDown():
             bg = bg.darker(125)
             fg = self._foreground_for(bg)
@@ -317,23 +319,24 @@ class CompactRunControlButton(QToolButton):
             )
             return QColor("#000000"), fg, border
 
+        if not self.isEnabled():
+            return (
+                QColor(RunFileButton._DISABLED_BACKGROUND),
+                QColor(RunFileButton._DISABLED_FOREGROUND),
+                None,
+            )
+
         if self._is_dark:
             bg = QColor("#4A4E52")
             hover_bg = QColor("#565B60")
             press_bg = QColor("#3F4347")
-            disabled_bg = QColor("#3A3D40")
-            disabled_fg = QColor("#B8BEC4")
             border_hover = QColor("#6A7076")
         else:
             bg = QColor("#5C636A")
             hover_bg = QColor("#687079")
             press_bg = QColor("#4E555C")
-            disabled_bg = QColor("#E2E6EA")
-            disabled_fg = QColor("#495057")
             border_hover = QColor("#7A838C")
 
-        if not self.isEnabled():
-            return disabled_bg, disabled_fg, None
         if self.isDown():
             return press_bg, QColor("#FFFFFF"), border_hover
         if self.underMouse():
@@ -344,6 +347,8 @@ class CompactRunControlButton(QToolButton):
         """Return the semantic glyph color for the current theme/state."""
         if self._is_high_contrast:
             return QColor("#FFFFFF") if self.isEnabled() else QColor("#7F7F7F")
+        if not self.isEnabled():
+            return QColor(RunFileButton._DISABLED_FOREGROUND)
         if self._symbol == "debug":
             return QColor(self._DEBUG_COLOR)
         return QColor(self._STOP_COLOR)

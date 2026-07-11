@@ -164,13 +164,29 @@ def test_toolbar_compact_stop_debug_buttons_follow_actions(qapp):
 
     window._stop_action.setToolTip("Stop the running program (Ctrl+F5)")
     window._stop_action.setEnabled(False)
+    window._debug_action.setEnabled(False)
     qapp.processEvents()
 
     assert stop_button.text() == "Stop"
     assert stop_button.displayed_text() == "Stop"
     assert stop_button.toolTip() == "Stop the running program (Ctrl+F5)"
     assert stop_button.isEnabled() is False
+    assert debug_button.isEnabled() is False
+
+    for button in (stop_button, debug_button):
+        background, foreground, border = button._colors()
+        assert background.name().upper() == "#555555"
+        assert foreground.name().upper() == "#888888"
+        assert border is None
+        assert button.symbol_color().name().upper() == "#888888"
+
     assert toolbar.grab().isNull() is False
+
+    window._stop_action.setEnabled(True)
+    window._debug_action.setEnabled(True)
+    qapp.processEvents()
+    assert stop_button.symbol_color().name().upper() == "#E51400"
+    assert debug_button.symbol_color().name().upper() == "#FF9800"
 
     toolbar.deleteLater()
     window.deleteLater()
