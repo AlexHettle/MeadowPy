@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
+import weakref
 from pathlib import Path
+
+from PyQt6.QtCore import QTimer
 
 from meadowpy.core.debug_manager import DebugManager, DebugState
 from meadowpy.core.shortcuts import get_default_shortcut
@@ -22,6 +26,22 @@ class DebugController(MainWindowController):
         self._debug_manager.debug_output.connect(self._on_process_output)
         self._debug_manager.debug_started.connect(self._on_debug_started)
         self._debug_manager.debug_finished.connect(self._on_debug_finished)
+        acknowledgement = getattr(
+            self._debug_manager,
+            "breakpoint_update_acknowledged",
+            None,
+        )
+        if acknowledgement is None:
+            # Keep the controller compatible with early implementations that
+            # exposed the helper event name directly as the Qt signal name.
+            acknowledgement = getattr(
+                self._debug_manager,
+                "breakpoints_updated",
+                None,
+            )
+        connect = getattr(acknowledgement, "connect", None)
+        if callable(connect):
+            connect(self._on_breakpoint_update_acknowledged)
 
     def action_toggle_breakpoint(self) -> None:
         """Toggle a breakpoint on the current cursor line (F9)."""
@@ -29,7 +49,12 @@ class DebugController(MainWindowController):
         if can_run_editor(editor, CodeEditor):
             line, _ = editor.getCursorPosition()
             editor.toggle_breakpoint(line)
-            self._update_active_debug_breakpoints()
+            # Normal editors emit ``breakpoints_changed`` from the toggle.
+            # Retain a fallback for lightweight/legacy editor implementations
+            # that do not expose the signal, without double-sending for the
+            # wired path.
+            if not self._editor_breakpoints_are_wired(editor):
+                self._update_active_debug_breakpoints()
 
     # --- Debug actions (Phase 4) ---
 
@@ -53,6 +78,7 @@ class DebugController(MainWindowController):
 
         # Collect breakpoints from ALL open tabs
         breakpoints = self._collect_all_breakpoints()
+        self._mark_breakpoints_pending()
 
         # Clear and show output panel
         if self._settings.get("run.clear_output_before_run"):
@@ -91,10 +117,73 @@ class DebugController(MainWindowController):
 
     def action_clear_all_breakpoints(self) -> None:
         """Clear breakpoints from all open editors."""
-        for i in range(self._tab_manager.count()):
-            editor = self._tab_manager.widget(i)
-            if isinstance(editor, CodeEditor):
-                editor.clear_breakpoints()
+        self._breakpoint_sync_suspended = (
+            self.__dict__.get("_breakpoint_sync_suspended", 0) + 1
+        )
+        try:
+            for i in range(self._tab_manager.count()):
+                editor = self._tab_manager.widget(i)
+                if isinstance(editor, CodeEditor):
+                    editor.clear_breakpoints()
+        finally:
+            self._breakpoint_sync_suspended -= 1
+        self._update_active_debug_breakpoints()
+
+    def _wire_editor_breakpoints(self, editor) -> None:
+        """Connect one editor's breakpoint changes to the live debugger once."""
+        if not isinstance(editor, CodeEditor):
+            return
+
+        signal = getattr(editor, "breakpoints_changed", None)
+        connect = getattr(signal, "connect", None)
+        if not callable(connect) or self._editor_breakpoints_are_wired(editor):
+            return
+
+        editor_ref = weakref.ref(editor)
+
+        def forward_change(*_args) -> None:
+            current_editor = editor_ref()
+            if current_editor is not None:
+                self._on_editor_breakpoints_changed(current_editor)
+
+        connect(forward_change)
+        self._wired_breakpoint_editors().add(editor)
+
+    def _wired_breakpoint_editors(self):
+        """Return the weak set used to prevent duplicate editor connections."""
+        wired = self.__dict__.get("_breakpoint_wired_editors")
+        if wired is None:
+            wired = weakref.WeakSet()
+            self._breakpoint_wired_editors = wired
+        return wired
+
+    def _editor_breakpoints_are_wired(self, editor) -> bool:
+        try:
+            return editor in self._wired_breakpoint_editors()
+        except TypeError:
+            # A custom editor proxy may not support weak references. Such an
+            # object cannot be registered in the normal Qt editor lifecycle,
+            # so the action-level compatibility send remains appropriate.
+            return False
+
+    def _on_editor_breakpoints_changed(self, editor) -> None:
+        """Propagate gutter, keyboard, and edit-relocated breakpoints live."""
+        if self.__dict__.get("_breakpoint_sync_suspended", 0):
+            return
+        self._update_active_debug_breakpoints()
+
+    def _on_editor_closed(self, _editor=None) -> None:
+        """Coalesce tab removals into one live breakpoint synchronization."""
+        manager = getattr(self, "_debug_manager", None)
+        if manager is None or manager.state == DebugState.IDLE:
+            return
+        if self.__dict__.get("_breakpoint_close_sync_pending", False):
+            return
+        self._breakpoint_close_sync_pending = True
+        QTimer.singleShot(0, self._flush_closed_editor_breakpoint_sync)
+
+    def _flush_closed_editor_breakpoint_sync(self) -> None:
+        self._breakpoint_close_sync_pending = False
         self._update_active_debug_breakpoints()
 
     def _collect_all_breakpoints(self) -> dict[str, list[int]]:
@@ -112,11 +201,110 @@ class DebugController(MainWindowController):
         return result
 
     def _update_active_debug_breakpoints(self) -> None:
-        """Send current editor breakpoints to a live debug session."""
+        """Send all current breakpoints to a live debug session."""
         manager = getattr(self, "_debug_manager", None)
         if manager is None or manager.state == DebugState.IDLE:
             return
+        self._mark_breakpoints_pending()
         manager.update_breakpoints(self._collect_all_breakpoints())
+
+    def _mark_breakpoints_pending(self) -> None:
+        """Show current breakpoint markers as pending until helper ack."""
+        for i in range(self._tab_manager.count()):
+            editor = self._tab_manager.widget(i)
+            if not can_run_editor(editor, CodeEditor):
+                continue
+            mark_pending = getattr(editor, "mark_breakpoints_pending", None)
+            if callable(mark_pending):
+                mark_pending(editor.get_breakpoints())
+
+    def _reset_breakpoint_verification(self) -> None:
+        """Restore ordinary breakpoint markers when no debug session is live."""
+        for i in range(self._tab_manager.count()):
+            editor = self._tab_manager.widget(i)
+            if not can_run_editor(editor, CodeEditor):
+                continue
+            set_verification = getattr(
+                editor,
+                "set_breakpoint_verification",
+                None,
+            )
+            if callable(set_verification):
+                set_verification(editor.get_breakpoints(), {})
+
+    @staticmethod
+    def _normalized_debug_path(file_path) -> str:
+        """Return a stable path key for matching helper acknowledgements."""
+        try:
+            resolved = str(Path(file_path).resolve())
+        except (OSError, TypeError, ValueError):
+            resolved = str(file_path)
+        return os.path.normcase(resolved)
+
+    @staticmethod
+    def _protocol_lines_to_editor_lines(lines) -> set[int]:
+        """Convert a helper iterable of 1-based lines to valid 0-based lines."""
+        converted = set()
+        for line in lines or ():
+            try:
+                line_number = int(line)
+            except (TypeError, ValueError):
+                continue
+            if line_number > 0:
+                converted.add(line_number - 1)
+        return converted
+
+    def _on_breakpoint_update_acknowledged(
+        self,
+        accepted: dict,
+        rejected: dict,
+    ) -> None:
+        """Apply debugger accepted/rejected state to each matching editor."""
+        accepted_by_path = {
+            self._normalized_debug_path(path): lines
+            for path, lines in (accepted or {}).items()
+        }
+        rejected_by_path = {
+            self._normalized_debug_path(path): lines
+            for path, lines in (rejected or {}).items()
+        }
+
+        for i in range(self._tab_manager.count()):
+            editor = self._tab_manager.widget(i)
+            if not isinstance(editor, CodeEditor) or not editor.file_path:
+                continue
+
+            path_key = self._normalized_debug_path(editor.file_path)
+            if (
+                path_key not in accepted_by_path
+                and path_key not in rejected_by_path
+            ):
+                # An omitted file may belong to a newer in-flight update; its
+                # markers must remain pending rather than accepting stale data.
+                continue
+
+            accepted_lines = self._protocol_lines_to_editor_lines(
+                accepted_by_path.get(path_key, ())
+            )
+            rejected_payload = rejected_by_path.get(path_key, {})
+            if hasattr(rejected_payload, "items"):
+                rejected_lines = {}
+                for line, reason in rejected_payload.items():
+                    converted = self._protocol_lines_to_editor_lines((line,))
+                    if converted:
+                        rejected_lines[converted.pop()] = str(reason)
+            else:
+                rejected_lines = self._protocol_lines_to_editor_lines(
+                    rejected_payload
+                )
+
+            set_verification = getattr(
+                editor,
+                "set_breakpoint_verification",
+                None,
+            )
+            if callable(set_verification):
+                set_verification(accepted_lines, rejected_lines)
 
     def _set_run_as_continue(self, as_continue: bool) -> None:
         """Swap the Run button between Run and Continue modes."""
@@ -228,16 +416,43 @@ class DebugController(MainWindowController):
             if editor is None:
                 # Open the file in a new tab
                 reader = getattr(self.window, "_read_editor_file", None)
+                large_file_mode = False
                 if callable(reader):
-                    content = reader(str(path))
+                    read_result = reader(str(path))
+                    if read_result is None:
+                        return
+                    if (
+                        isinstance(read_result, tuple)
+                        and len(read_result) == 2
+                    ):
+                        content, large_file_mode = read_result
+                    elif isinstance(read_result, str):
+                        # Compatibility with early/custom window readers that
+                        # returned only the decoded text.
+                        content = read_result
+                    else:
+                        return
                 else:
                     try:
                         content = self._file_manager.read_file(str(path))
                     except OSError:
                         return
-                if content is None:
+                # This method is invoked from a Qt signal.  Never pass an
+                # unexpected reader payload into QScintilla: an uncaught slot
+                # exception makes PyQt abort the whole process.
+                if not isinstance(content, str):
                     return
-                editor = self._tab_manager.open_file_in_tab(str(path), content)
+                if large_file_mode:
+                    editor = self._tab_manager.open_file_in_tab(
+                        str(path),
+                        content,
+                        large_file_mode=True,
+                    )
+                else:
+                    editor = self._tab_manager.open_file_in_tab(
+                        str(path),
+                        content,
+                    )
 
             if editor:
                 self._clear_debug_markers()
@@ -282,6 +497,7 @@ class DebugController(MainWindowController):
 
         # Clear all debug UI
         self._clear_debug_markers()
+        self._reset_breakpoint_verification()
         self._variable_inspector.clear_variables()
         self._call_stack_panel.clear_stack()
         self._watch_panel.clear_values()

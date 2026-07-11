@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import importlib
 import inspect
 import json
 import os
+import socket
+import subprocess
 import sys
+import threading
+
+import pytest
 
 from meadowpy.core import debug_helper
 
@@ -22,12 +28,526 @@ class CapturingSocket:
         return b""
 
 
+def _run_until_two_pauses(
+    script,
+    execution_globals,
+    breakpoints,
+    resume_command,
+):
+    """Run a real debugger session and return its first two pause events."""
+    debugger_socket, ide_socket = socket.socketpair()
+    ide_socket.settimeout(3)
+    debugger = debug_helper.MeadowPyDebugger(debugger_socket)
+    debugger._update_breakpoints(breakpoints)
+    failures = []
+
+    def run_target():
+        try:
+            debugger.run(
+                compile(
+                    script.read_text(encoding="utf-8"),
+                    str(script),
+                    "exec",
+                ),
+                execution_globals,
+            )
+        except Exception as exc:  # pragma: no cover - reported by assertion
+            failures.append(exc)
+
+    target_thread = threading.Thread(target=run_target, daemon=True)
+    target_thread.start()
+    recv_buf = bytearray()
+
+    try:
+        acknowledged_line = debug_helper._recv_line(ide_socket, recv_buf)
+        first_line = debug_helper._recv_line(ide_socket, recv_buf)
+        assert acknowledged_line is not None
+        assert first_line is not None
+
+        ide_socket.sendall((json.dumps({
+            "cmd": resume_command,
+        }) + "\n").encode("utf-8"))
+        second_line = debug_helper._recv_line(ide_socket, recv_buf)
+        assert second_line is not None
+
+        ide_socket.sendall(b'{"cmd":"continue"}\n')
+        target_thread.join(2)
+        assert not target_thread.is_alive()
+        assert failures == []
+
+        return json.loads(first_line), json.loads(second_line)
+    finally:
+        if target_thread.is_alive():
+            try:
+                ide_socket.sendall(b'{"cmd":"disconnect"}\n')
+            except OSError:
+                pass
+            target_thread.join(2)
+        debugger.shutdown_receiver()
+        debugger.clear_all_breaks()
+        ide_socket.close()
+        debugger_socket.close()
+
+
+def _run_helper_subprocess(tmp_path, source):
+    """Run the standalone helper over its real TCP/subprocess boundary."""
+    script = tmp_path / "subprocess_target.py"
+    script.write_text(source, encoding="utf-8")
+    helper = os.path.abspath(debug_helper.__file__)
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.settimeout(5)
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    process = subprocess.Popen(
+        [sys.executable, "-u", helper, str(server.getsockname()[1]), str(script)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    connection = None
+    try:
+        connection, _ = server.accept()
+        connection.settimeout(5)
+        recv_buf = bytearray()
+        connected_line = debug_helper._recv_line(connection, recv_buf)
+        assert connected_line is not None
+        assert json.loads(connected_line) == {"event": "connected"}
+
+        connection.sendall(b'{"cmd":"set_breakpoints","breakpoints":{}}\n')
+        acknowledged_line = debug_helper._recv_line(connection, recv_buf)
+        finished_line = debug_helper._recv_line(connection, recv_buf)
+        assert acknowledged_line is not None
+        assert finished_line is not None
+        acknowledged = json.loads(acknowledged_line)
+        assert acknowledged == {
+            "event": "breakpoints_updated",
+            "accepted": {},
+            "rejected": {},
+        }
+
+        stdout, stderr = process.communicate(timeout=5)
+        assert connection.recv(1) == b""
+        return process.returncode, json.loads(finished_line), stdout, stderr
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        if connection is not None:
+            connection.close()
+        server.close()
+
+
 def test_send_serializes_single_newline_delimited_json_message():
     sock = CapturingSocket()
 
     debug_helper._send(sock, {"event": "paused", "name": "Ada"})
 
     assert sock.sent == [b'{"event": "paused", "name": "Ada"}\n']
+
+
+def test_runtime_internal_source_classification_keeps_packages_user_facing(
+    monkeypatch,
+    tmp_path,
+):
+    stdlib_root = tmp_path / "Lib"
+    package_root = stdlib_root / "site-packages"
+    stdlib_root.mkdir()
+    package_root.mkdir()
+    monkeypatch.setattr(
+        debug_helper,
+        "_STDLIB_ROOTS",
+        (debug_helper._normalise_source_path(str(stdlib_root)),),
+    )
+    monkeypatch.setattr(
+        debug_helper,
+        "_SITE_PACKAGE_ROOTS",
+        (debug_helper._normalise_source_path(str(package_root)),),
+    )
+
+    assert debug_helper._is_runtime_internal_source(
+        "<frozen importlib._bootstrap>"
+    ) is True
+    assert debug_helper._is_runtime_internal_source(
+        str(stdlib_root / "encodings" / "utf_8.py")
+    ) is True
+    assert debug_helper._is_runtime_internal_source(
+        str(package_root / "vendor" / "module.py")
+    ) is False
+    assert debug_helper._is_runtime_internal_source("<string>") is False
+
+
+def test_step_into_skips_stdlib_but_enters_user_and_installed_code(
+    monkeypatch,
+    tmp_path,
+):
+    stdlib_root = tmp_path / "Lib"
+    package_root = stdlib_root / "site-packages"
+    project_root = tmp_path / "project"
+    package_root.mkdir(parents=True)
+    project_root.mkdir()
+    monkeypatch.setattr(
+        debug_helper,
+        "_STDLIB_ROOTS",
+        (debug_helper._normalise_source_path(str(stdlib_root)),),
+    )
+    monkeypatch.setattr(
+        debug_helper,
+        "_SITE_PACKAGE_ROOTS",
+        (debug_helper._normalise_source_path(str(package_root)),),
+    )
+
+    def make_function(path, module_name, function_name):
+        source = (
+            f"def {function_name}():\n"
+            "    value = 42\n"
+            "    return value\n"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        namespace = {"__name__": module_name, "__file__": str(path)}
+        exec(compile(source, str(path), "exec"), namespace)
+        return namespace[function_name]
+
+    runtime_file = stdlib_root / "runtime_helper.py"
+    user_file = project_root / "user_helper.py"
+    package_file = package_root / "vendor" / "package_helper.py"
+    runtime_helper = make_function(
+        runtime_file,
+        "runtime_helper",
+        "runtime_helper",
+    )
+    user_helper = make_function(user_file, "user_helper", "user_helper")
+    package_helper = make_function(
+        package_file,
+        "vendor.package_helper",
+        "package_helper",
+    )
+
+    runtime_target = project_root / "call_runtime.py"
+    runtime_target.write_text(
+        "result = runtime_helper()\nfinished = True\n",
+        encoding="utf-8",
+    )
+    first, second = _run_until_two_pauses(
+        runtime_target,
+        {
+            "__name__": "__main__",
+            "__file__": str(runtime_target),
+            "runtime_helper": runtime_helper,
+        },
+        {str(runtime_target): [1]},
+        "step_into",
+    )
+    assert (first["file"], first["line"], first["reason"]) == (
+        str(runtime_target),
+        1,
+        "breakpoint",
+    )
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(runtime_target),
+        2,
+        "step",
+    )
+
+    user_target = project_root / "call_user.py"
+    user_target.write_text(
+        "result = user_helper()\nfinished = True\n",
+        encoding="utf-8",
+    )
+    _, user_pause = _run_until_two_pauses(
+        user_target,
+        {
+            "__name__": "__main__",
+            "__file__": str(user_target),
+            "user_helper": user_helper,
+        },
+        {str(user_target): [1]},
+        "step_into",
+    )
+    assert (user_pause["file"], user_pause["line"]) == (str(user_file), 2)
+
+    package_target = project_root / "call_package.py"
+    package_target.write_text(
+        "result = package_helper()\nfinished = True\n",
+        encoding="utf-8",
+    )
+    _, package_pause = _run_until_two_pauses(
+        package_target,
+        {
+            "__name__": "__main__",
+            "__file__": str(package_target),
+            "package_helper": package_helper,
+        },
+        {str(package_target): [1]},
+        "step_into",
+    )
+    assert (package_pause["file"], package_pause["line"]) == (
+        str(package_file),
+        2,
+    )
+
+
+def test_step_into_real_importlib_call_returns_to_user_code(tmp_path):
+    target = tmp_path / "call_importlib.py"
+    target.write_text(
+        "module = importlib.import_module('math')\nfinished = True\n",
+        encoding="utf-8",
+    )
+
+    _, second = _run_until_two_pauses(
+        target,
+        {
+            "__name__": "__main__",
+            "__file__": str(target),
+            "importlib": importlib,
+        },
+        {str(target): [1]},
+        "step_into",
+    )
+
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(target),
+        2,
+        "step",
+    )
+
+
+def test_explicit_breakpoint_still_pauses_in_filtered_stdlib(
+    monkeypatch,
+    tmp_path,
+):
+    stdlib_root = tmp_path / "Lib"
+    project_root = tmp_path / "project"
+    stdlib_root.mkdir()
+    project_root.mkdir()
+    monkeypatch.setattr(
+        debug_helper,
+        "_STDLIB_ROOTS",
+        (debug_helper._normalise_source_path(str(stdlib_root)),),
+    )
+    monkeypatch.setattr(debug_helper, "_SITE_PACKAGE_ROOTS", ())
+
+    runtime_file = stdlib_root / "runtime_helper.py"
+    runtime_source = (
+        "def runtime_helper():\n"
+        "    value = 42\n"
+        "    return value\n"
+    )
+    runtime_file.write_text(runtime_source, encoding="utf-8")
+    namespace = {
+        "__name__": "runtime_helper",
+        "__file__": str(runtime_file),
+    }
+    exec(compile(runtime_source, str(runtime_file), "exec"), namespace)
+
+    target = project_root / "call_runtime.py"
+    target.write_text(
+        "result = runtime_helper()\nfinished = True\n",
+        encoding="utf-8",
+    )
+    _, second = _run_until_two_pauses(
+        target,
+        {
+            "__name__": "__main__",
+            "__file__": str(target),
+            "runtime_helper": namespace["runtime_helper"],
+        },
+        {str(target): [1], str(runtime_file): [2]},
+        "continue",
+    )
+
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(runtime_file),
+        2,
+        "breakpoint",
+    )
+
+
+def test_step_over_from_explicit_stdlib_breakpoint_stays_in_frame(
+    monkeypatch,
+    tmp_path,
+):
+    stdlib_root = tmp_path / "Lib"
+    project_root = tmp_path / "project"
+    stdlib_root.mkdir()
+    project_root.mkdir()
+    monkeypatch.setattr(
+        debug_helper,
+        "_STDLIB_ROOTS",
+        (debug_helper._normalise_source_path(str(stdlib_root)),),
+    )
+    monkeypatch.setattr(debug_helper, "_SITE_PACKAGE_ROOTS", ())
+
+    runtime_file = stdlib_root / "runtime_helper.py"
+    runtime_source = (
+        "def runtime_helper():\n"
+        "    value = 1\n"
+        "    value += 1\n"
+        "    return value\n"
+    )
+    runtime_file.write_text(runtime_source, encoding="utf-8")
+    namespace = {"__name__": "runtime_helper", "__file__": str(runtime_file)}
+    exec(compile(runtime_source, str(runtime_file), "exec"), namespace)
+
+    target = project_root / "call_runtime.py"
+    target.write_text(
+        "result = runtime_helper()\nfinished = True\n",
+        encoding="utf-8",
+    )
+    _, second = _run_until_two_pauses(
+        target,
+        {
+            "__name__": "__main__",
+            "__file__": str(target),
+            "runtime_helper": namespace["runtime_helper"],
+        },
+        {str(runtime_file): [2]},
+        "step_over",
+    )
+
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(runtime_file),
+        3,
+        "step",
+    )
+
+
+def test_step_out_from_callback_pauses_in_immediate_stdlib_caller(
+    monkeypatch,
+    tmp_path,
+):
+    stdlib_root = tmp_path / "Lib"
+    project_root = tmp_path / "project"
+    stdlib_root.mkdir()
+    project_root.mkdir()
+    monkeypatch.setattr(
+        debug_helper,
+        "_STDLIB_ROOTS",
+        (debug_helper._normalise_source_path(str(stdlib_root)),),
+    )
+    monkeypatch.setattr(debug_helper, "_SITE_PACKAGE_ROOTS", ())
+
+    callback_file = project_root / "callback.py"
+    callback_source = (
+        "def callback():\n"
+        "    value = 42\n"
+        "    return value\n"
+    )
+    callback_file.write_text(callback_source, encoding="utf-8")
+    callback_namespace = {
+        "__name__": "callback",
+        "__file__": str(callback_file),
+    }
+    exec(
+        compile(callback_source, str(callback_file), "exec"),
+        callback_namespace,
+    )
+
+    runtime_file = stdlib_root / "runtime_wrapper.py"
+    runtime_source = (
+        "def runtime_wrapper(callback):\n"
+        "    result = callback()\n"
+        "    runtime_done = True\n"
+        "    return result\n"
+    )
+    runtime_file.write_text(runtime_source, encoding="utf-8")
+    runtime_namespace = {
+        "__name__": "runtime_wrapper",
+        "__file__": str(runtime_file),
+    }
+    exec(
+        compile(runtime_source, str(runtime_file), "exec"),
+        runtime_namespace,
+    )
+
+    target = project_root / "call_callback.py"
+    target.write_text(
+        "result = runtime_wrapper(callback)\nfinished = True\n",
+        encoding="utf-8",
+    )
+    _, second = _run_until_two_pauses(
+        target,
+        {
+            "__name__": "__main__",
+            "__file__": str(target),
+            "callback": callback_namespace["callback"],
+            "runtime_wrapper": runtime_namespace["runtime_wrapper"],
+        },
+        {str(callback_file): [2]},
+        "step_out",
+    )
+
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(runtime_file),
+        3,
+        "step",
+    )
+
+
+@pytest.mark.parametrize("resume_command", ["step_over", "step_out"])
+def test_generator_completion_step_pauses_in_caller(
+    tmp_path,
+    resume_command,
+):
+    target = tmp_path / "generator_step.py"
+    target.write_text(
+        "def values():\n"
+        "    yield 1\n"
+        "iterator = values()\n"
+        "first = next(iterator)\n"
+        "try:\n"
+        "    second = next(iterator)\n"
+        "except StopIteration:\n"
+        "    handled = True\n"
+        "done = True\n",
+        encoding="utf-8",
+    )
+
+    first, second = _run_until_two_pauses(
+        target,
+        {"__name__": "__main__", "__file__": str(target)},
+        {str(target): [2]},
+        resume_command,
+    )
+
+    assert (first["file"], first["line"], first["reason"]) == (
+        str(target),
+        2,
+        "breakpoint",
+    )
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(target),
+        6,
+        "step",
+    )
+
+
+def test_step_over_handled_exception_pauses_in_handler_not_on_exception(
+    tmp_path,
+):
+    target = tmp_path / "handled_exception.py"
+    target.write_text(
+        "try:\n"
+        "    raise ValueError('expected')\n"
+        "except ValueError:\n"
+        "    handled = True\n"
+        "done = True\n",
+        encoding="utf-8",
+    )
+
+    _, second = _run_until_two_pauses(
+        target,
+        {"__name__": "__main__", "__file__": str(target)},
+        {str(target): [2]},
+        "step_over",
+    )
+
+    assert (second["file"], second["line"], second["reason"]) == (
+        str(target),
+        3,
+        "step",
+    )
 
 
 def test_debugger_updates_breakpoints_and_detects_breakpoint_lines(tmp_path):
@@ -41,6 +561,314 @@ def test_debugger_updates_breakpoints_and_detects_breakpoint_lines(tmp_path):
     assert debugger._has_breakpoint(str(script), 1) is False
 
 
+def test_debugger_acknowledges_accepted_and_rejected_breakpoints(tmp_path):
+    script = tmp_path / "demo.py"
+    script.write_text("print('one')\nprint('two')\n", encoding="utf-8")
+    sock = CapturingSocket()
+    debugger = debug_helper.MeadowPyDebugger(sock)
+
+    accepted, rejected = debugger._update_breakpoints({str(script): [2, 99]})
+
+    assert accepted == {str(script): [2]}
+    assert list(rejected) == [str(script)]
+    assert list(rejected[str(script)]) == [99]
+    assert "does not exist" in rejected[str(script)][99]
+    assert debugger._has_breakpoint(str(script), 2) is True
+    assert debugger._has_breakpoint(str(script), 99) is False
+
+    payload = json.loads(sock.sent[-1].decode("utf-8"))
+    assert payload["event"] == "breakpoints_updated"
+    assert payload["accepted"] == {str(script): [2]}
+    # JSON object keys are strings on the wire.
+    assert "does not exist" in payload["rejected"][str(script)]["99"]
+
+
+def test_debugger_rejects_comment_and_blank_breakpoint_lines(tmp_path):
+    script = tmp_path / "non_executable.py"
+    script.write_text(
+        "# A comment is a physical but non-executable line.\n"
+        "\n"
+        "value = 1\n",
+        encoding="utf-8",
+    )
+    debugger = debug_helper.MeadowPyDebugger(CapturingSocket())
+
+    accepted, rejected = debugger._update_breakpoints({
+        str(script): [1, 2, 3],
+    })
+
+    assert accepted == {str(script): [3]}
+    assert rejected == {
+        str(script): {
+            1: "Line 1 has no executable code",
+            2: "Line 2 has no executable code",
+        },
+    }
+    assert debugger._has_breakpoint(str(script), 1) is False
+    assert debugger._has_breakpoint(str(script), 2) is False
+    assert debugger._has_breakpoint(str(script), 3) is True
+
+
+def test_debugger_accepts_executable_line_in_nested_code_object(tmp_path):
+    script = tmp_path / "nested.py"
+    script.write_text(
+        "def outer():\n"
+        "    def inner():\n"
+        "        return 42\n"
+        "    return inner()\n",
+        encoding="utf-8",
+    )
+    debugger = debug_helper.MeadowPyDebugger(CapturingSocket())
+
+    accepted, rejected = debugger._update_breakpoints({str(script): [3]})
+
+    assert accepted == {str(script): [3]}
+    assert rejected == {}
+    assert debugger._has_breakpoint(str(script), 3) is True
+
+
+def test_debugger_rejects_breakpoints_when_source_cannot_compile(tmp_path):
+    script = tmp_path / "syntax_error.py"
+    script.write_text("if True print('broken')\n", encoding="utf-8")
+    debugger = debug_helper.MeadowPyDebugger(CapturingSocket())
+
+    accepted, rejected = debugger._update_breakpoints({str(script): [1]})
+
+    assert accepted == {str(script): []}
+    reason = rejected[str(script)][1]
+    assert reason.startswith("Cannot verify executable lines:")
+    assert "line 1" in reason
+    assert debugger._has_breakpoint(str(script), 1) is False
+
+
+def test_dispatch_line_consumes_breakpoint_updates_while_running(
+    monkeypatch,
+    tmp_path,
+):
+    script = tmp_path / "demo.py"
+    script.write_text("value = 1\nvalue = 2\n", encoding="utf-8")
+    command = {
+        "cmd": "set_breakpoints",
+        "breakpoints": {str(script): [2]},
+    }
+    sock = CapturingSocket()
+    debugger = debug_helper.MeadowPyDebugger(sock)
+    debugger._command_queue.put(command)
+    observed = []
+
+    monkeypatch.setattr(
+        debug_helper.bdb.Bdb,
+        "dispatch_line",
+        lambda self, frame: observed.append(
+            self._has_breakpoint(str(script), 2)
+        ),
+    )
+
+    debugger.dispatch_line(inspect.currentframe())
+
+    assert observed == [True]
+    payload = json.loads(sock.sent[-1].decode("utf-8"))
+    assert payload == {
+        "event": "breakpoints_updated",
+        "accepted": {str(script): [2]},
+        "rejected": {},
+    }
+
+
+def test_running_debugger_applies_live_breakpoint_and_pauses(tmp_path):
+    script = tmp_path / "live_breakpoint.py"
+    script.write_text(
+        "started.set()\n"
+        "while not stop.is_set():\n"
+        "    value = 1\n"
+        "    value = 2\n",
+        encoding="utf-8",
+    )
+    debugger_socket, ide_socket = socket.socketpair()
+    ide_socket.settimeout(3)
+    debugger = debug_helper.MeadowPyDebugger(debugger_socket)
+    started = threading.Event()
+    stop = threading.Event()
+    failure = []
+
+    def run_target():
+        try:
+            debugger.run(
+                compile(
+                    script.read_text(encoding="utf-8"),
+                    str(script),
+                    "exec",
+                ),
+                {
+                    "__name__": "__main__",
+                    "__file__": str(script),
+                    "started": started,
+                    "stop": stop,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - reported by assertion
+            failure.append(exc)
+
+    target_thread = threading.Thread(target=run_target, daemon=True)
+    target_thread.start()
+
+    try:
+        assert started.wait(2), "target did not begin running"
+        ide_socket.sendall((json.dumps({
+            "cmd": "set_breakpoints",
+            "breakpoints": {str(script): [4]},
+        }) + "\n").encode("utf-8"))
+
+        recv_buf = bytearray()
+        acknowledged_line = debug_helper._recv_line(ide_socket, recv_buf)
+        paused_line = debug_helper._recv_line(ide_socket, recv_buf)
+        assert acknowledged_line is not None
+        assert paused_line is not None
+
+        acknowledged = json.loads(acknowledged_line)
+        paused = json.loads(paused_line)
+        assert acknowledged == {
+            "event": "breakpoints_updated",
+            "accepted": {str(script): [4]},
+            "rejected": {},
+        }
+        assert paused["event"] == "paused"
+        assert paused["reason"] == "breakpoint"
+        assert paused["file"] == str(script)
+        assert paused["line"] == 4
+
+        stop.set()
+        ide_socket.sendall(b'{"cmd":"continue"}\n')
+        target_thread.join(2)
+        assert not target_thread.is_alive()
+        assert failure == []
+        receiver = debugger._receiver_thread
+        assert receiver is not None
+        assert debugger.shutdown_receiver() is True
+        assert not receiver.is_alive()
+    finally:
+        stop.set()
+        if target_thread.is_alive():
+            try:
+                ide_socket.sendall(b'{"cmd":"disconnect"}\n')
+            except OSError:
+                pass
+            target_thread.join(2)
+        debugger.shutdown_receiver()
+        ide_socket.close()
+        debugger_socket.close()
+
+
+def test_paused_command_loop_applies_breakpoint_update(tmp_path):
+    script = tmp_path / "paused_breakpoint.py"
+    script.write_text("value = 1\n", encoding="utf-8")
+    sock = CapturingSocket([
+        (json.dumps({
+            "cmd": "set_breakpoints",
+            "breakpoints": {str(script): [1]},
+        }) + "\n").encode("utf-8"),
+        b'{"cmd":"continue"}\n',
+    ])
+    debugger = debug_helper.MeadowPyDebugger(sock)
+    debugger._set_continue_traced = lambda: None
+
+    debugger._command_loop(inspect.currentframe())
+
+    assert debugger._has_breakpoint(str(script), 1) is True
+    acknowledged = json.loads(sock.sent[-1].decode("utf-8"))
+    assert acknowledged["event"] == "breakpoints_updated"
+    assert acknowledged["accepted"] == {str(script): [1]}
+
+
+def test_paused_command_loop_uses_receiver_queue_as_sole_reader():
+    sock = CapturingSocket([b'{"cmd":"disconnect"}\n'])
+    debugger = debug_helper.MeadowPyDebugger(sock)
+    # A non-None receiver marks the production path.  The command loop must
+    # consume its queue and leave the socket/buffer exclusively to that reader.
+    debugger._receiver_thread = object()
+    debugger._command_queue.put({"cmd": "continue"})
+    continued = []
+    debugger._set_continue_traced = lambda: continued.append(True)
+
+    debugger._command_loop(inspect.currentframe())
+
+    assert continued == [True]
+    assert sock.chunks == [b'{"cmd":"disconnect"}\n']
+
+
+def test_running_socket_eof_detaches_tracing_and_continues(tmp_path):
+    script = tmp_path / "disconnect.py"
+    script.write_text(
+        "started.set()\n"
+        "spins = 0\n"
+        "while sys.gettrace() is not None and not force_stop.is_set():\n"
+        "    spins += 1\n"
+        "result['trace'] = sys.gettrace()\n"
+        "completed.set()\n",
+        encoding="utf-8",
+    )
+    debugger_socket, ide_socket = socket.socketpair()
+    debugger = debug_helper.MeadowPyDebugger(debugger_socket)
+    # Exercise detachment when bdb would ordinarily keep tracing because a
+    # registered breakpoint still exists.
+    debugger._update_breakpoints({str(script): [5]})
+    started = threading.Event()
+    completed = threading.Event()
+    force_stop = threading.Event()
+    result = {}
+    failure = []
+
+    def run_target():
+        try:
+            debugger.run(
+                compile(
+                    script.read_text(encoding="utf-8"),
+                    str(script),
+                    "exec",
+                ),
+                {
+                    "__name__": "__main__",
+                    "__file__": str(script),
+                    "sys": sys,
+                    "started": started,
+                    "completed": completed,
+                    "force_stop": force_stop,
+                    "result": result,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - reported by assertion
+            failure.append(exc)
+
+    target_thread = threading.Thread(target=run_target, daemon=True)
+    target_thread.start()
+
+    try:
+        assert started.wait(2), "target did not begin running"
+        ide_socket.close()
+
+        assert completed.wait(3), "target did not continue after socket EOF"
+        target_thread.join(2)
+        assert not target_thread.is_alive()
+        assert failure == []
+        assert result["trace"] is None
+        assert debugger._breakpoints_map == {}
+        assert debugger.breaks == {}
+        receiver = debugger._receiver_thread
+        assert receiver is not None
+        assert debugger.shutdown_receiver() is True
+        assert not receiver.is_alive()
+    finally:
+        force_stop.set()
+        if target_thread.is_alive():
+            target_thread.join(2)
+        debugger.shutdown_receiver()
+        try:
+            ide_socket.close()
+        except OSError:
+            pass
+        debugger_socket.close()
+
+
 def test_command_loop_handles_evaluate_then_continue():
     sock = CapturingSocket([
         b'{"cmd":"evaluate","expression":"value + 5","frame_index":0}\n',
@@ -48,7 +876,7 @@ def test_command_loop_handles_evaluate_then_continue():
     ])
     debugger = debug_helper.MeadowPyDebugger(sock)
     continued = []
-    debugger.set_continue = lambda: continued.append(True)
+    debugger._set_continue_traced = lambda: continued.append(True)
 
     def sample():
         value = 37
@@ -115,7 +943,9 @@ def test_user_line_initial_continue_skips_until_breakpoint(tmp_path):
     pauses = []
     commands = []
     debugger.botframe = None
-    debugger._send_pause = lambda frame, reason: pauses.append((frame.f_lineno, reason))
+    debugger._send_pause = lambda frame, reason: (
+        pauses.append((frame.f_lineno, reason)) or True
+    )
     debugger._command_loop = lambda frame: commands.append(frame.f_lineno)
 
     def sample():
@@ -131,6 +961,50 @@ def test_user_line_initial_continue_skips_until_breakpoint(tmp_path):
     assert pauses[0][1] == "breakpoint"
     assert commands == [pauses[0][0]]
     assert debugger._initial_continue is False
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_code", "expected_reason", "stderr_text"),
+    [
+        ("value = 42\n", 0, "completed", ""),
+        ("import sys\nsys.exit(7)\n", 7, "system_exit", ""),
+        (
+            "import sys\nsys.exit('requested exit')\n",
+            1,
+            "system_exit",
+            "requested exit",
+        ),
+        (
+            "raise RuntimeError('boom')\n",
+            1,
+            "exception",
+            "RuntimeError: boom",
+        ),
+    ],
+)
+def test_real_helper_subprocess_preserves_target_exit_status(
+    tmp_path,
+    source,
+    expected_code,
+    expected_reason,
+    stderr_text,
+):
+    returncode, finished, stdout, stderr = _run_helper_subprocess(
+        tmp_path,
+        source,
+    )
+
+    assert returncode == expected_code
+    assert finished == {
+        "event": "finished",
+        "reason": expected_reason,
+        "exit_code": expected_code,
+    }
+    assert stdout == ""
+    if stderr_text:
+        assert stderr_text in stderr
+    else:
+        assert stderr == ""
 
 
 def test_main_exits_with_usage_when_arguments_are_missing(monkeypatch, capsys):
@@ -198,6 +1072,10 @@ def test_main_sets_breakpoints_runs_script_and_sends_finished(monkeypatch, tmp_p
                 "value" in code.co_names,
             ))
 
+        def shutdown_receiver(self):
+            debugger_records.append(("shutdown_receiver",))
+            return True
+
     fake_socket = FakeSocket()
     monkeypatch.setattr(
         debug_helper.sys,
@@ -234,8 +1112,9 @@ def test_main_sets_breakpoints_runs_script_and_sends_finished(monkeypatch, tmp_p
     assert debug_helper.sys.argv == [str(script), "arg1"]
     assert sent == [
         {"event": "connected"},
-        {"event": "finished", "reason": "completed"},
+        {"event": "finished", "reason": "completed", "exit_code": 0},
     ]
     assert debugger_records[1] == ("breakpoints", {str(script): [1]})
     assert debugger_records[2] == ("run", "__main__", str(script), True)
+    assert debugger_records[3] == ("shutdown_receiver",)
     assert fake_socket.closed is True

@@ -88,7 +88,9 @@ def test_tab_manager_creates_deduplicates_titles_and_paths(qapp, tmp_path):
     parent = ParentWindow()
     tabs = TabManager(settings, parent=parent)
     changed = []
+    created = []
     tabs.tab_changed.connect(changed.append)
+    tabs.editor_created.connect(created.append)
 
     untitled = tabs.new_tab()
     script = tmp_path / "demo.py"
@@ -97,6 +99,7 @@ def test_tab_manager_creates_deduplicates_titles_and_paths(qapp, tmp_path):
 
     assert untitled.display_name == "Untitled-1"
     assert opened is duplicate
+    assert created == [untitled, opened]
     assert tabs.current_editor() is opened
     assert tabs.get_open_file_paths() == [str(script)]
     assert tabs.tabText(tabs.indexOf(opened)) == "demo.py"
@@ -122,6 +125,8 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     parent = ParentWindow()
     fake_fm = FakeFileManager()
     tabs = TabManager(settings, fake_fm, parent)
+    closed = []
+    tabs.editor_closed.connect(closed.append)
 
     first = tabs.new_tab(str(tmp_path / "first.py"), "print(1)\n")
     first.setModified(True)
@@ -142,6 +147,7 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     assert tabs.close_tab(tabs.indexOf(first)) is True
     assert fake_fm.saved == 1
     assert first.deleted_later is True
+    assert closed == [first]
 
     second = tabs.new_tab(str(tmp_path / "second.py"), "print(2)\n")
     third = tabs.new_tab(str(tmp_path / "third.py"), "print(3)\n")
@@ -156,6 +162,7 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
     assert tabs.count() == 0
     assert second.deleted_later is True
     assert third.deleted_later is True
+    assert closed == [first, second, third]
 
     tabs.deleteLater()
     parent.deleteLater()

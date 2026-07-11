@@ -571,6 +571,20 @@ class MainWindow(QMainWindow):
         # Tab changes -> update status bar
         self._tab_manager.tab_changed.connect(self._on_tab_changed)
 
+        # Every editor owns its breakpoint signal. Register it at creation so
+        # gutter clicks, F9, and marker relocation after edits all use the
+        # same debugger synchronization path.
+        editor_created = getattr(self._tab_manager, "editor_created", None)
+        connect = getattr(editor_created, "connect", None)
+        if callable(connect):
+            connect(self._wire_editor_breakpoints)
+        editor_closed = getattr(self._tab_manager, "editor_closed", None)
+        connect = getattr(editor_closed, "connect", None)
+        if callable(connect):
+            connect(self._on_editor_closed)
+        for index in range(self._tab_manager.count()):
+            self._wire_editor_breakpoints(self._tab_manager.widget(index))
+
         # Recent files changes -> rebuild menu
         self._recent_files.recent_files_changed.connect(
             lambda _: self._menu_builder.rebuild_recent_files_menu()

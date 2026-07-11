@@ -6,8 +6,8 @@ import meadowpy.editor.code_editor as code_editor_module
 import meadowpy.editor.editor_fonts as editor_fonts
 import pytest
 from helpers import DummySignal
-from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QColor, QKeyEvent, QWheelEvent
+from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
+from PyQt6.QtGui import QColor, QImage, QKeyEvent, QPainter, QWheelEvent
 from PyQt6.Qsci import (
     QsciLexerJSON,
     QsciLexerMarkdown,
@@ -17,7 +17,7 @@ from PyQt6.Qsci import (
     QsciScintilla,
 )
 
-from meadowpy.core.file_types import syntax_language_for_path
+from meadowpy.core.file_types import SyntaxLanguage, syntax_language_for_path
 from meadowpy.core.settings import Settings
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.editor.editor_config import EditorConfigurator
@@ -31,6 +31,14 @@ def make_editor(qapp, tmp_path) -> CodeEditor:
     settings.set("editor.auto_complete", False)
     editor = CodeEditor(settings)
     return editor
+
+
+def dispose_editor(qapp, editor: CodeEditor) -> None:
+    """Close a native editor and flush its deferred Qt destruction."""
+    editor.close()
+    editor.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
 
 
 def _colorise(editor: CodeEditor) -> None:
@@ -146,7 +154,7 @@ def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_p
     editor.deleteLater()
 
 
-def test_breakpoint_marker_pixmaps_are_centered_and_antialiased(qapp):
+def test_breakpoint_marker_pixmaps_are_flat_centered_and_dpr_aware(qapp):
     size = code_editor_module.BREAKPOINT_MARKER_SIZE
     marker = CodeEditor._breakpoint_marker_pixmap(
         QColor("#E9483F"),
@@ -158,28 +166,49 @@ def test_breakpoint_marker_pixmaps_are_centered_and_antialiased(qapp):
         QColor("#E9483F"),
         filled=False,
     ).toImage()
+    hidpi = CodeEditor._breakpoint_marker_pixmap(
+        QColor("#E9483F"),
+        QColor("#9E2F2B"),
+        filled=True,
+        logical_size=size,
+        device_pixel_ratio=2.0,
+    )
 
     assert marker.pixelColor(0, 0).alpha() == 0
     assert ghost.pixelColor(0, 0).alpha() == 0
 
     center = marker.pixelColor(size // 2, size // 2)
-    rim = marker.pixelColor(3, size // 2)
+    lower_center = marker.pixelColor(size // 2, size // 2 + 2)
     ghost_center = ghost.pixelColor(size // 2, size // 2)
     assert center.alpha() > 220
     assert center.red() > 220
     assert center.green() < 120
-    assert rim.red() < center.red()
+    # Flat artwork deliberately has no legacy top-to-bottom gradient.
+    assert lower_center == center
     assert ghost_center.alpha() < center.alpha()
+    assert hidpi.devicePixelRatio() == 2.0
+    assert hidpi.width() == size * 2
+    assert hidpi.height() == size * 2
 
-    # Keep the inset rim from leaking square pixels at the cardinal points.
-    assert marker.pixelColor(size // 2, 2).alpha() == 0
-    assert marker.pixelColor(size // 2, size - 3).alpha() == 0
-    assert marker.pixelColor(2, size // 2).alpha() == 0
-    assert marker.pixelColor(size - 3, size // 2).alpha() == 0
-    assert ghost.pixelColor(size // 2, 2).alpha() == 0
-    assert ghost.pixelColor(size // 2, size - 3).alpha() == 0
-    assert ghost.pixelColor(2, size // 2).alpha() == 0
-    assert ghost.pixelColor(size - 3, size // 2).alpha() == 0
+    # Corners stay transparent even though antialiasing softens the circle.
+    assert marker.pixelColor(0, 0).alpha() == 0
+    assert marker.pixelColor(size - 1, size - 1).alpha() == 0
+    assert ghost.pixelColor(0, 0).alpha() == 0
+    assert ghost.pixelColor(size - 1, size - 1).alpha() == 0
+
+
+@pytest.mark.parametrize("symbol", ["plus", "minus", "slash"])
+def test_breakpoint_marker_symbol_variants_render(qapp, symbol):
+    image = CodeEditor._breakpoint_marker_pixmap(
+        QColor("#FF5C57"),
+        QColor("#FFFFFF"),
+        filled=symbol != "plus",
+        symbol=symbol,
+        symbol_color=QColor("#000000"),
+    ).toImage()
+
+    center = code_editor_module.BREAKPOINT_MARKER_SIZE // 2
+    assert image.pixelColor(center, center).alpha() > 0
 
 
 def test_breakpoints_follow_editor_marker_line_changes(qapp, tmp_path):
@@ -196,7 +225,10 @@ def test_breakpoints_follow_editor_marker_line_changes(qapp, tmp_path):
     editor.deleteLater()
 
 
-def test_breakpoints_on_non_code_lines_snap_to_next_statement(qapp, tmp_path):
+def test_breakpoints_on_non_code_lines_resolve_forward_but_never_backward(
+    qapp,
+    tmp_path,
+):
     editor = make_editor(qapp, tmp_path)
     editor.setText("# heading\n\nvalue = 1\n# trailing\n\n")
 
@@ -207,7 +239,7 @@ def test_breakpoints_on_non_code_lines_snap_to_next_statement(qapp, tmp_path):
     assert editor.get_breakpoints() == set()
 
     editor.toggle_breakpoint(3)
-    assert editor.get_breakpoints() == {2}
+    assert editor.get_breakpoints() == set()
 
     editor.toggle_breakpoint(4)
     assert editor.get_breakpoints() == set()
@@ -242,6 +274,410 @@ def test_non_python_file_path_blocks_breakpoints(qapp, tmp_path):
     assert editor.lexer() is not None
 
     editor.deleteLater()
+
+
+def test_breakpoints_changed_emits_effective_sets_and_path_resync(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("first = 1\nsecond = 2\n")
+    changes = []
+    editor.breakpoints_changed.connect(lambda lines: changes.append(set(lines)))
+
+    editor.toggle_breakpoint(1)
+    assert changes == [{1}]
+
+    # Scintilla marker handles follow edits; the public signal reports the
+    # moved effective line rather than the stale requested line.
+    editor.insertAt("inserted = 0\n", 0, 0)
+    assert changes[-1] == {2}
+
+    editor.file_path = str(tmp_path / "renamed.py")
+    assert changes[-1] == {2}
+    assert changes.count({2}) >= 2
+
+    editor.toggle_breakpoint(2)
+    assert changes[-1] == set()
+    before = len(changes)
+    editor.clear_breakpoints()
+    assert len(changes) == before
+    dispose_editor(qapp, editor)
+
+
+def test_breakpoint_verification_and_combined_current_line_states(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("print('ready')\n")
+    editor.toggle_breakpoint(0)
+    assert editor.get_breakpoint_state(0) == code_editor_module.BreakpointState.ACCEPTED
+
+    editor.set_current_line(0)
+    markers = editor.markersAtLine(0)
+    assert markers & (1 << code_editor_module.MARKER_BREAKPOINT_CURRENT)
+
+    editor.mark_breakpoints_pending()
+    assert editor.get_breakpoint_state(0) == code_editor_module.BreakpointState.PENDING
+    markers = editor.markersAtLine(0)
+    assert markers & (1 << code_editor_module.MARKER_BREAKPOINT_PENDING_CURRENT)
+
+    editor.set_breakpoint_verification([], {0: "the debugger skipped this line"})
+    assert editor.get_breakpoint_state(0) == code_editor_module.BreakpointState.REJECTED
+    assert editor.get_breakpoint_rejection_reason(0) == "the debugger skipped this line"
+    markers = editor.markersAtLine(0)
+    assert markers & (1 << code_editor_module.MARKER_BREAKPOINT_REJECTED_CURRENT)
+
+    editor.set_breakpoint_verification([0])
+    assert editor.get_breakpoint_state(0) == code_editor_module.BreakpointState.ACCEPTED
+    assert editor.get_breakpoint_rejection_reason(0) is None
+
+    # Removing a breakpoint while paused restores the standalone execution
+    # chevron rather than erasing the current-line location.
+    editor.clear_breakpoints()
+    markers = editor.markersAtLine(0)
+    assert markers & (1 << code_editor_module.MARKER_CURRENT_LINE)
+    dispose_editor(qapp, editor)
+
+
+def test_visible_adjacent_breakpoint_current_markers_repaint_safely(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    try:
+        editor.file_path = str(tmp_path / "adjacent.py")
+        editor.setText("print('first')\nprint('second')\n")
+        editor.toggle_breakpoint(0)
+        editor.toggle_breakpoint(1)
+        editor.show()
+        qapp.processEvents()
+
+        editor.set_current_line(0)
+        editor.repaint()
+        qapp.processEvents()
+        editor.clear_current_line()
+        editor.set_current_line(1)
+        editor.repaint()
+        qapp.processEvents()
+
+        assert editor.get_breakpoint_state(0) == (
+            code_editor_module.BreakpointState.ACCEPTED
+        )
+        assert editor.get_breakpoint_state(1) == (
+            code_editor_module.BreakpointState.ACCEPTED
+        )
+        assert editor.markersAtLine(1) & (
+            1 << code_editor_module.MARKER_BREAKPOINT_CURRENT
+        )
+    finally:
+        dispose_editor(qapp, editor)
+
+
+def test_paused_breakpoint_remove_hover_uses_topmost_combined_marker(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("print('paused')\n")
+    editor.toggle_breakpoint(0)
+    editor.set_current_line(0)
+
+    editor._set_phantom_breakpoint(0, remove=True)
+
+    markers = editor.markersAtLine(0)
+    combined_hover = code_editor_module.MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE
+    assert combined_hover > code_editor_module.MARKER_BREAKPOINT_REJECTED_CURRENT
+    assert markers & (1 << combined_hover)
+    assert editor._phantom_breakpoint_marker == combined_hover
+
+    editor.clear_current_line()
+
+    markers = editor.markersAtLine(0)
+    current_mask = sum(
+        1 << marker
+        for marker in (
+            code_editor_module.MARKER_CURRENT_LINE,
+            code_editor_module.MARKER_BREAKPOINT_CURRENT,
+            code_editor_module.MARKER_BREAKPOINT_PENDING_CURRENT,
+            code_editor_module.MARKER_BREAKPOINT_REJECTED_CURRENT,
+            code_editor_module.MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE,
+            code_editor_module.MARKER_CURRENT_LINE_HOVER_ADD,
+        )
+    )
+    assert not (markers & current_mask)
+    assert editor._phantom_breakpoint_line is None
+    dispose_editor(qapp, editor)
+
+
+def test_breakpoint_on_line_made_non_executable_remains_removable(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("first = 1\nsecond = 2\nthird = 3\n")
+    editor.toggle_breakpoint(1)
+    editor.setSelection(1, 0, 1, len("second = 2"))
+    editor.replaceSelectedText("# no longer executable")
+
+    assert editor.get_breakpoints() == {1}
+    assert editor._resolve_breakpoint_line(1) == 2
+
+    # The visible marker wins over forward resolution, so a click removes the
+    # dot the user actually clicked instead of toggling line 3.
+    editor.toggle_breakpoint(1)
+    assert editor.get_breakpoints() == set()
+    dispose_editor(qapp, editor)
+
+
+def test_breakpoint_lane_hides_for_unsupported_files_and_line_numbers_ignore_clicks(
+    qapp,
+    tmp_path,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("print('ready')\n")
+
+    editor._on_margin_clicked(0, 0, None)
+    assert editor.get_breakpoints() == set()
+    editor._on_margin_clicked(2, 0, None)
+    assert editor.get_breakpoints() == {0}
+
+    editor.file_path = str(tmp_path / "document.json")
+    assert editor.marginWidth(2) == 0
+    assert editor.marginSensitivity(2) is False
+    assert editor.marginSensitivity(0) is False
+    assert editor.get_breakpoints() == set()
+
+    editor.file_path = str(tmp_path / "document.py")
+    assert editor.marginWidth(2) >= code_editor_module.BREAKPOINT_MARGIN_WIDTH
+    assert editor.marginSensitivity(2) is True
+    dispose_editor(qapp, editor)
+
+
+def test_breakpoint_resolution_is_forward_and_bounded(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("# heading\n\nvalue = 1\n")
+    assert editor._resolve_breakpoint_line(0) == 2
+    assert editor._resolve_breakpoint_line(2) == 2
+
+    gap = code_editor_module.BREAKPOINT_FORWARD_SEARCH_LIMIT + 1
+    editor.setText("# heading\n" + ("\n" * gap) + "value = 1\n")
+    assert editor._resolve_breakpoint_line(0) is None
+    dispose_editor(qapp, editor)
+
+
+def _relative_luminance(color: QColor) -> float:
+    channels = []
+    for value in (color.redF(), color.greenF(), color.blueF()):
+        channels.append(
+            value / 12.92
+            if value <= 0.04045
+            else ((value + 0.055) / 1.055) ** 2.4
+        )
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def _contrast_ratio(first: str, second: str) -> float:
+    first_luminance = _relative_luminance(QColor(first))
+    second_luminance = _relative_luminance(QColor(second))
+    lighter = max(first_luminance, second_luminance)
+    darker = min(first_luminance, second_luminance)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+@pytest.mark.parametrize(
+    "theme_name",
+    ["default_light", "default_dark", "default_high_contrast"],
+)
+def test_breakpoint_semantic_hover_tokens_exceed_three_to_one(theme_name):
+    theme = get_theme(theme_name)
+
+    assert _contrast_ratio(theme.breakpoint_hover_add, theme.margin_background) >= 3.0
+    assert _contrast_ratio(theme.breakpoint_hover_remove, theme.margin_background) >= 3.0
+    for color in (
+        theme.breakpoint_active,
+        theme.breakpoint_pending,
+        theme.breakpoint_rejected,
+        theme.current_execution,
+    ):
+        assert QColor(color).isValid()
+
+
+def test_breakpoint_artwork_responds_to_editor_zoom(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("print('zoom')\n")
+    before_size = editor._breakpoint_marker_logical_size()
+    before_width = editor.marginWidth(2)
+
+    editor.zoomIn(8)
+
+    assert editor._breakpoint_marker_logical_size() > before_size
+    assert editor.marginWidth(2) > before_width
+    assert editor.marginWidth(2) == editor._breakpoint_marker_logical_size() + 8
+    dispose_editor(qapp, editor)
+
+
+@pytest.mark.parametrize(
+    ("theme_name", "custom_base"),
+    [
+        ("default_light", "light"),
+        ("default_dark", "dark"),
+        ("default_high_contrast", "dark"),
+        ("custom", "light"),
+    ],
+)
+@pytest.mark.parametrize("device_pixel_ratio", [1.0, 2.0])
+def test_rendered_breakpoint_lane_uses_theme_color_at_each_dpr(
+    qapp,
+    tmp_path,
+    theme_name,
+    custom_base,
+    device_pixel_ratio,
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", False)
+    settings.set("editor.theme", theme_name)
+    settings.set("editor.custom_theme.base", custom_base)
+    editor = CodeEditor(settings)
+    try:
+        editor._marker_device_pixel_ratio = lambda: device_pixel_ratio
+        editor.refresh_marker_colors()
+        editor.setText("print('rendered')\n")
+        editor.toggle_breakpoint(0)
+        editor.resize(360, 90)
+        editor.show()
+        qapp.processEvents()
+
+        physical_width = round(editor.width() * device_pixel_ratio)
+        physical_height = round(editor.height() * device_pixel_ratio)
+        image = QImage(
+            physical_width,
+            physical_height,
+            QImage.Format.Format_ARGB32_Premultiplied,
+        )
+        image.setDevicePixelRatio(device_pixel_ratio)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        try:
+            editor.render(painter)
+        finally:
+            painter.end()
+
+        lane_start = editor.marginWidth(0) + editor.marginWidth(1)
+        lane_end = lane_start + editor.marginWidth(2)
+        pixel_start = round(lane_start * device_pixel_ratio)
+        pixel_end = round(lane_end * device_pixel_ratio)
+        expected = QColor(
+            get_theme(theme_name, custom_base).breakpoint_active
+        )
+
+        matching_pixels = 0
+        for x in range(pixel_start, pixel_end):
+            for y in range(image.height()):
+                actual = image.pixelColor(x, y)
+                distance = (
+                    abs(actual.red() - expected.red())
+                    + abs(actual.green() - expected.green())
+                    + abs(actual.blue() - expected.blue())
+                )
+                if actual.alpha() > 200 and distance <= 18:
+                    matching_pixels += 1
+
+        assert matching_pixels >= round(8 * device_pixel_ratio**2)
+    finally:
+        dispose_editor(qapp, editor)
+
+
+def test_marker_lines_uses_scintilla_marker_next_not_document_scan():
+    class MarkerHarness:
+        def __init__(self):
+            self.calls = []
+
+        def lines(self):
+            return 1_000_000
+
+        def SendScintilla(self, message, start, mask):
+            self.calls.append((message, start, mask))
+            return {0: 10, 11: 500_000, 500_001: -1}[start]
+
+    harness = MarkerHarness()
+    mask = 1 << code_editor_module.MARKER_BREAKPOINT
+
+    assert list(CodeEditor._marker_lines(harness, mask)) == [10, 500_000]
+    assert harness.calls == [
+        (2047, 0, mask),
+        (2047, 11, mask),
+        (2047, 500_001, mask),
+    ]
+
+
+def test_repeated_breakpoint_resolution_binary_searches_cached_index():
+    class BisectOnlySequence:
+        def __init__(self, length):
+            self.length = length
+            self.item_reads = 0
+
+        def __len__(self):
+            return self.length
+
+        def __getitem__(self, index):
+            self.item_reads += 1
+            return index * 2
+
+        def __iter__(self):
+            raise AssertionError("breakpoint resolution scanned the cache")
+
+    class ResolutionHarness:
+        _sorted_breakable_lines = CodeEditor._sorted_breakable_lines
+
+        def __init__(self):
+            self.index = BisectOnlySequence(1_000_000)
+            self._sorted_breakable_lines_cache = self.index
+
+        def lines(self):
+            return 2_000_000
+
+        def _breakable_lines(self):
+            raise AssertionError("the cached index was rebuilt")
+
+    harness = ResolutionHarness()
+    for _ in range(20):
+        assert CodeEditor._resolve_breakpoint_line(harness, 1_234_567) == 1_234_568
+
+    # Twenty binary searches over one million entries need only a few hundred
+    # indexed reads; iteration/sorting would trigger the guards above.
+    assert harness.index.item_reads < 500
+
+
+def test_breakable_line_ast_is_cached_until_text_changes(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    editor = make_editor(qapp, tmp_path)
+    editor.setText("value = 1\n")
+    real_parse = code_editor_module.ast.parse
+    parsed_sources = []
+
+    def recording_parse(source):
+        parsed_sources.append(source)
+        return real_parse(source)
+
+    monkeypatch.setattr(code_editor_module.ast, "parse", recording_parse)
+    assert editor._breakable_lines() == {0}
+    first_sorted_cache = editor._sorted_breakable_lines_cache
+    assert first_sorted_cache == (0,)
+    assert editor._breakable_lines() == {0}
+    assert editor._sorted_breakable_lines_cache is first_sorted_cache
+    assert len(parsed_sources) == 1
+
+    editor.insertAt("other = 2\n", 0, 0)
+    assert editor._breakable_lines() == {0, 1}
+    assert editor._sorted_breakable_lines_cache == (0, 1)
+    assert editor._sorted_breakable_lines_cache is not first_sorted_cache
+    assert len(parsed_sources) == 2
+    dispose_editor(qapp, editor)
 
 
 def test_python_lexer_classifies_current_keywords_and_builtins(qapp, tmp_path):
@@ -571,6 +1007,51 @@ def test_reapplying_settings_reuses_lexer_and_completion_objects(
     editor.deleteLater()
 
 
+def test_replacing_lexer_queues_completion_child_for_deletion_first():
+    deletion_order = []
+
+    class FakeLexer:
+        def __init__(self, parent, name):
+            self._parent = parent
+            self._name = name
+
+        def parent(self):
+            return self._parent
+
+        def deleteLater(self):
+            deletion_order.append(self._name)
+
+    class FakeApis:
+        def deleteLater(self):
+            deletion_order.append("apis")
+
+    class FakeEditor:
+        def __init__(self):
+            self.old_lexer = FakeLexer(self, "old_lexer")
+            self.new_lexer = FakeLexer(self, "new_lexer")
+            self._completion_lexer = self.old_lexer
+            self._completion_apis = FakeApis()
+
+        def lexer(self):
+            return self.old_lexer
+
+        def setLexer(self, lexer):
+            assert lexer is self.new_lexer
+            deletion_order.append("set_lexer")
+
+    editor = FakeEditor()
+
+    EditorConfigurator._install_lexer(
+        editor,
+        editor.new_lexer,
+        SyntaxLanguage.JSON,
+    )
+
+    assert deletion_order == ["apis", "set_lexer", "old_lexer"]
+    assert not hasattr(editor, "_completion_apis")
+    assert not hasattr(editor, "_completion_lexer")
+
+
 class PhantomBreakpointHarness:
     _breakpoint_hover_margin_at_x = CodeEditor._breakpoint_hover_margin_at_x
     _line_from_mouse_y = CodeEditor._line_from_mouse_y
@@ -579,6 +1060,7 @@ class PhantomBreakpointHarness:
 
     def __init__(self):
         self._phantom_breakpoint_line = None
+        self._phantom_breakpoint_is_remove = False
         self.widths = {0: 24, 1: 12, 2: 18, 3: 0, 4: 0}
         self.line = 1
         self.resolved_line = 2
@@ -586,6 +1068,7 @@ class PhantomBreakpointHarness:
         self.added = []
         self.deleted = []
         self.supports_breakpoints = True
+        self.cursor = None
 
     def _breakpoints_supported(self):
         return self.supports_breakpoints
@@ -618,22 +1101,38 @@ class PhantomBreakpointHarness:
     def markerDeleteAll(self, marker):
         self.deleted.append(("all", marker))
 
+    def setCursor(self, cursor):
+        self.cursor = cursor
 
-def test_phantom_breakpoint_follows_hoverable_gutter_and_skips_real_breakpoints():
-    marker = code_editor_module.MARKER_PHANTOM_BREAKPOINT
+    def unsetCursor(self):
+        self.cursor = None
+
+
+def test_breakpoint_hover_is_dedicated_lane_with_add_and_remove_states():
+    add_marker = code_editor_module.MARKER_BREAKPOINT_HOVER_ADD
+    remove_marker = code_editor_module.MARKER_BREAKPOINT_HOVER_REMOVE
     harness = PhantomBreakpointHarness()
 
+    # Line-number and folding margins do not toggle breakpoints.
     CodeEditor._update_phantom_breakpoint(harness, 5, 12)
+    assert harness._phantom_breakpoint_line is None
+    CodeEditor._update_phantom_breakpoint(harness, 25, 12)
+    assert harness._phantom_breakpoint_line is None
+
+    CodeEditor._update_phantom_breakpoint(harness, 40, 12)
     assert harness._phantom_breakpoint_line == 2
-    assert harness.added == [(2, marker)]
+    assert harness.added == [(2, add_marker)]
+    assert harness.cursor == Qt.CursorShape.PointingHandCursor
 
     CodeEditor._update_phantom_breakpoint(harness, 25, 12)
     assert harness._phantom_breakpoint_line is None
-    assert harness.deleted == [("all", marker)]
+    assert harness.deleted == [("all", add_marker)]
+    assert harness.cursor is None
 
     harness.real_breakpoints = {2}
     CodeEditor._update_phantom_breakpoint(harness, 40, 12)
-    assert harness.added == [(2, marker)]
+    assert harness.added[-1] == (2, remove_marker)
+    assert harness._phantom_breakpoint_is_remove is True
 
 
 def test_phantom_breakpoint_hides_when_file_does_not_support_breakpoints():

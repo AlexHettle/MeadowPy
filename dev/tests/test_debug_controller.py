@@ -82,12 +82,20 @@ class StartDebugEditor:
         self.modified = modified
         self.current_lines = []
         self.focused = False
+        self.pending = []
+        self.verifications = []
 
     def isModified(self):
         return self.modified
 
     def get_breakpoints(self):
         return self._breakpoints
+
+    def mark_breakpoints_pending(self, lines=None):
+        self.pending.append(set(lines or ()))
+
+    def set_breakpoint_verification(self, accepted, rejected=()):
+        self.verifications.append((set(accepted), rejected))
 
     def set_current_line(self, line):
         self.current_lines.append(line)
@@ -166,6 +174,7 @@ def test_start_debug_saves_file_collects_breakpoints_and_shows_output(monkeypatc
     assert debug_calls == [
         (str(script), "python.exe", str(tmp_path), {str(script): [1, 4]})
     ]
+    assert editor.pending == [{0, 3}]
 
 
 def test_start_debug_aborts_when_save_before_debug_fails(monkeypatch, tmp_path):
@@ -437,6 +446,7 @@ def test_create_debug_manager_wires_every_signal(monkeypatch):
             self.debug_output = DummySignal()
             self.debug_started = DummySignal()
             self.debug_finished = DummySignal()
+            self.breakpoint_update_acknowledged = DummySignal()
 
     monkeypatch.setattr(debug_module, "DebugManager", FakeDebugManager)
     forwarded_output = []
@@ -456,6 +466,9 @@ def test_create_debug_manager_wires_every_signal(monkeypatch):
     assert manager.eval_result._callbacks == [controller._on_debug_eval_result]
     assert manager.debug_started._callbacks == [controller._on_debug_started]
     assert manager.debug_finished._callbacks == [controller._on_debug_finished]
+    assert manager.breakpoint_update_acknowledged._callbacks == [
+        controller._on_breakpoint_update_acknowledged
+    ]
     assert forwarded_output == [("hello", "stdout")]
 
 
@@ -465,6 +478,9 @@ class CursorBreakpointEditor:
         self.toggled = []
         self._breakpoints = set()
         self.cleared = 0
+        self.breakpoints_changed = DummySignal()
+        self.pending = []
+        self.verifications = []
 
     def getCursorPosition(self):
         return 12, 4
@@ -475,13 +491,23 @@ class CursorBreakpointEditor:
             self._breakpoints.discard(line)
         else:
             self._breakpoints.add(line)
+        self.breakpoints_changed.emit(self._breakpoints.copy())
 
     def get_breakpoints(self):
         return self._breakpoints
 
     def clear_breakpoints(self):
+        changed = bool(self._breakpoints)
         self._breakpoints.clear()
         self.cleared += 1
+        if changed:
+            self.breakpoints_changed.emit(set())
+
+    def mark_breakpoints_pending(self, lines=None):
+        self.pending.append(set(lines or ()))
+
+    def set_breakpoint_verification(self, accepted, rejected=()):
+        self.verifications.append((set(accepted), rejected))
 
 
 def test_breakpoint_actions_use_current_editor_and_all_open_tabs(monkeypatch):
@@ -531,11 +557,131 @@ def test_breakpoint_actions_update_active_debug_session(monkeypatch):
             None,
         )
     )
+    controller._wire_editor_breakpoints(editor)
 
     controller.action_toggle_breakpoint()
     controller.action_clear_all_breakpoints()
 
     assert updates == [{"live.py": [13]}, {}]
+    assert editor.pending == [{12}, set()]
+
+
+def test_editor_breakpoint_signal_is_wired_once_for_gutter_and_edit_updates(
+    monkeypatch,
+):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("live.py")
+    tabs = FakeTabManager([editor])
+    updates = []
+    manager = SimpleNamespace(
+        state=DebugState.RUNNING,
+        update_breakpoints=lambda breakpoints: updates.append(breakpoints),
+    )
+    controller = DebugController(
+        MainWindowContext(
+            SimpleNamespace(_tab_manager=tabs, _debug_manager=manager),
+            None,
+            None,
+            None,
+        )
+    )
+
+    controller._wire_editor_breakpoints(editor)
+    controller._wire_editor_breakpoints(editor)
+    editor._breakpoints = {2}
+    editor.breakpoints_changed.emit({2})
+    editor._breakpoints = {4}
+    editor.breakpoints_changed.emit({4})
+
+    assert updates == [{"live.py": [3]}, {"live.py": [5]}]
+    assert editor.pending == [{2}, {4}]
+    assert len(editor.breakpoints_changed._callbacks) == 1
+
+
+def test_breakpoint_acknowledgement_updates_matching_editor_state(monkeypatch, tmp_path):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    script = tmp_path / "ack.py"
+    editor = CursorBreakpointEditor(str(script))
+    editor._breakpoints = {0, 4, 7}
+    other = CursorBreakpointEditor(str(tmp_path / "other.py"))
+    tabs = FakeTabManager([editor, other])
+    controller = DebugController(
+        MainWindowContext(SimpleNamespace(_tab_manager=tabs), None, None, None)
+    )
+
+    controller._on_breakpoint_update_acknowledged(
+        {str(script): [1, 5]},
+        {str(script): {8: "No executable code on this line"}},
+    )
+
+    assert editor.verifications == [
+        ({0, 4}, {7: "No executable code on this line"})
+    ]
+    assert other.verifications == []
+
+
+def test_breakpoint_changes_do_not_sync_while_debugger_is_idle(monkeypatch):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("idle.py")
+    updates = []
+    manager = SimpleNamespace(
+        state=DebugState.IDLE,
+        update_breakpoints=lambda breakpoints: updates.append(breakpoints),
+    )
+    controller = DebugController(
+        MainWindowContext(
+            SimpleNamespace(
+                _tab_manager=FakeTabManager([editor]),
+                _debug_manager=manager,
+            ),
+            None,
+            None,
+            None,
+        )
+    )
+    controller._wire_editor_breakpoints(editor)
+
+    editor.toggle_breakpoint(3)
+
+    assert updates == []
+    assert editor.pending == []
+
+
+def test_closed_editor_breakpoint_updates_are_coalesced(monkeypatch):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("closing.py")
+    editor._breakpoints = {0}
+    tabs = FakeTabManager([editor])
+    updates = []
+    scheduled = []
+    manager = SimpleNamespace(
+        state=DebugState.RUNNING,
+        update_breakpoints=lambda breakpoints: updates.append(breakpoints),
+    )
+    controller = DebugController(
+        MainWindowContext(
+            SimpleNamespace(_tab_manager=tabs, _debug_manager=manager),
+            None,
+            None,
+            None,
+        )
+    )
+    monkeypatch.setattr(
+        debug_module.QTimer,
+        "singleShot",
+        lambda delay, callback: scheduled.append((delay, callback)),
+    )
+
+    controller._on_editor_closed(editor)
+    controller._on_editor_closed(editor)
+    tabs.widgets.clear()
+
+    assert len(scheduled) == 1
+    assert updates == []
+
+    scheduled[0][1]()
+
+    assert updates == [{}]
 
 
 class RecordingDebugManager:
@@ -648,8 +794,14 @@ def test_debug_pause_opens_missing_file_in_new_tab(monkeypatch, tmp_path):
         def __init__(self):
             super().__init__([])
 
-        def open_file_in_tab(self, path, content):
-            calls.append(("open", path, content))
+        def open_file_in_tab(
+            self,
+            path,
+            content,
+            *,
+            large_file_mode=False,
+        ):
+            calls.append(("open", path, content, large_file_mode))
             editor = StartDebugEditor(path)
             self.widgets.append(editor)
             return editor
@@ -657,6 +809,7 @@ def test_debug_pause_opens_missing_file_in_new_tab(monkeypatch, tmp_path):
     tabs = OpeningTabs()
     window = SimpleNamespace(
         _tab_manager=tabs,
+        _read_editor_file=lambda path: ("answer = 42\n", True),
         _file_manager=SimpleNamespace(read_file=lambda path: "answer = 42\n"),
         _variable_inspector=SimpleNamespace(
             update_variables=lambda variables: calls.append(("vars", variables)),
@@ -677,9 +830,29 @@ def test_debug_pause_opens_missing_file_in_new_tab(monkeypatch, tmp_path):
     controller._on_debug_paused(str(script), 1, {}, [])
 
     opened_editor = tabs.widgets[0]
-    assert calls[0] == ("open", str(script), "answer = 42\n")
+    assert calls[0] == ("open", str(script), "answer = 42\n", True)
     assert opened_editor.current_lines == [1]
     assert opened_editor.focused is True
+
+
+def test_debug_pause_ignores_non_text_workspace_reader_payload(tmp_path):
+    script = tmp_path / "invalid_reader_payload.py"
+    script.write_text("answer = 42\n", encoding="utf-8")
+    opened = []
+
+    tabs = FakeTabManager([])
+    tabs.open_file_in_tab = lambda *args, **kwargs: opened.append(
+        (args, kwargs)
+    )
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _read_editor_file=lambda path: (b"not decoded text", False),
+    )
+    controller = DebugController(MainWindowContext(window, None, None, None))
+
+    controller._on_debug_paused(str(script), 0, {}, [])
+
+    assert opened == []
 
 
 def test_debug_started_resumed_eval_and_finished_reset_ui(monkeypatch, tmp_path):
@@ -737,6 +910,7 @@ def test_debug_started_resumed_eval_and_finished_reset_ui(monkeypatch, tmp_path)
     assert controller_window._run_selection_action.enabled is True
     assert run_action.tooltip == "Run File (F5)"
     assert editor.current_lines == []
+    assert editor.verifications == [(set(), {})]
     assert ("answer", "42", "") in calls
     assert "clear_vars" in calls
     assert "hide_watches" in calls

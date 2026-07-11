@@ -28,6 +28,14 @@ class EditorTheme:
     margin_background: str
     margin_foreground: str
     fold_margin_background: str
+    breakpoint_active: str
+    breakpoint_hover_add: str
+    breakpoint_hover_remove: str
+    breakpoint_pending: str
+    breakpoint_rejected: str
+    breakpoint_keyline: str
+    current_execution: str
+    current_execution_foreground: str
     foreground_colors: dict[int, str] = field(default_factory=dict)
     background_colors: dict[int, str] = field(default_factory=dict)
 
@@ -85,6 +93,18 @@ DEFAULT_LIGHT = EditorTheme(
     margin_background="#F5F5F5",
     margin_foreground="#999999",
     fold_margin_background="#F5F5F5",
+    # Debugger colors are semantic editor tokens rather than widget-local
+    # constants.  In particular, both hover colors exceed 3:1 against the
+    # margin background so the click target remains visible without relying
+    # on subtle alpha changes.
+    breakpoint_active="#C62828",
+    breakpoint_hover_add="#B3261E",
+    breakpoint_hover_remove="#8E1B16",
+    breakpoint_pending="#765700",
+    breakpoint_rejected="#A30000",
+    breakpoint_keyline="#641414",
+    current_execution="#805500",
+    current_execution_foreground="#FFFFFF",
     foreground_colors={
         PY_STYLE_DEFAULT: "#333333",
         PY_STYLE_COMMENT: "#4B763C",
@@ -117,6 +137,14 @@ DEFAULT_DARK = EditorTheme(
     margin_background="#252526",
     margin_foreground="#858585",
     fold_margin_background="#252526",
+    breakpoint_active="#FF5C57",
+    breakpoint_hover_add="#FF7B75",
+    breakpoint_hover_remove="#FFAAA5",
+    breakpoint_pending="#C9B6FF",
+    breakpoint_rejected="#FF9C95",
+    breakpoint_keyline="#FFEDEA",
+    current_execution="#FFD54F",
+    current_execution_foreground="#171717",
     foreground_colors={
         PY_STYLE_DEFAULT: "#D4D4D4",
         PY_STYLE_COMMENT: "#72A463",
@@ -153,6 +181,16 @@ DEFAULT_HIGH_CONTRAST = EditorTheme(
     margin_background="#000000",
     margin_foreground="#FFFFFF",
     fold_margin_background="#000000",
+    # Shape and symbols distinguish states in high-contrast mode; keeping the
+    # tokens monochrome avoids making color perception a requirement.
+    breakpoint_active="#FFFFFF",
+    breakpoint_hover_add="#FFFFFF",
+    breakpoint_hover_remove="#FFFFFF",
+    breakpoint_pending="#FFFFFF",
+    breakpoint_rejected="#FFFFFF",
+    breakpoint_keyline="#000000",
+    current_execution="#FFFFFF",
+    current_execution_foreground="#000000",
     foreground_colors={
         PY_STYLE_DEFAULT: "#FFFFFF",
         PY_STYLE_COMMENT: "#FFFFFF",

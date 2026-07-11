@@ -143,6 +143,8 @@ class TabManager(QTabWidget):
     """Manages editor tabs. Each tab contains a CodeEditor."""
 
     tab_changed = pyqtSignal(object)  # emits CodeEditor or None
+    editor_created = pyqtSignal(object)  # emits each newly constructed CodeEditor
+    editor_closed = pyqtSignal(object)  # emits after an editor leaves the tab set
 
     def __init__(self, settings: Settings, file_manager=None, parent=None):
         super().__init__(parent)
@@ -189,6 +191,7 @@ class TabManager(QTabWidget):
         editor.modification_changed.connect(
             lambda modified, ed=editor: self._update_modified_indicator(ed, modified)
         )
+        self.editor_created.emit(editor)
         return editor
 
     def _close_btn_stylesheet(self, is_dark: bool) -> str:
@@ -269,6 +272,8 @@ class TabManager(QTabWidget):
         """Remove a tab and schedule its page widget for deletion."""
         widget = self.widget(index)
         self.removeTab(index)
+        if isinstance(widget, CodeEditor):
+            self.editor_closed.emit(widget)
         if widget is not None:
             widget.deleteLater()
 

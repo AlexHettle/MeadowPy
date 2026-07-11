@@ -1,10 +1,67 @@
 from types import SimpleNamespace
 
+from PyQt6.QtCore import QElapsedTimer
+
+from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.file_manager import FileManager
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.settings import Settings
 from meadowpy.ui.main_window import MainWindow
 from meadowpy.ui.welcome_widget import WelcomeWidget
+from helpers import DummySignal
+
+
+def _wait_for_debug_state(qapp, manager, state, timeout_ms=5_000):
+    timer = QElapsedTimer()
+    timer.start()
+    while manager.state != state and timer.elapsed() < timeout_ms:
+        qapp.processEvents()
+    return manager.state == state
+
+
+def test_full_window_step_into_print_does_not_abort(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("general.restore_tabs_on_startup", False)
+    settings.set("editor.linting_enabled", False)
+    settings.set("editor.linter", "pyflakes")
+    settings.set("run.show_output_panel", False)
+    settings.set("ollama.auto_connect", False)
+    settings.set("repl.auto_start", False)
+    recent_files = RecentFilesManager(settings)
+    file_manager = FileManager(settings, recent_files)
+    script = tmp_path / "step_into_repro.py"
+    source = "print('first')\nprint('second')\n"
+    script.write_text(source, encoding="utf-8")
+
+    window = MainWindow(settings, file_manager, recent_files)
+    try:
+        window.show()
+        qapp.processEvents()
+        editor = window._tab_manager.open_file_in_tab(str(script), source)
+        editor.toggle_breakpoint(0)
+        editor.toggle_breakpoint(1)
+        window.action_start_debug()
+
+        assert _wait_for_debug_state(
+            qapp,
+            window._debug_manager,
+            DebugState.PAUSED,
+        )
+        qapp.processEvents()
+        window._step_into_action.trigger()
+        assert _wait_for_debug_state(
+            qapp,
+            window._debug_manager,
+            DebugState.PAUSED,
+        )
+        qapp.processEvents()
+        assert window._tab_manager.current_editor() is editor
+        assert editor.getCursorPosition()[0] == 1
+    finally:
+        window._debug_manager.stop_debug()
+        window._shutdown_background_work()
+        window.deleteLater()
+        qapp.processEvents()
 
 
 def test_main_window_builds_with_controller_layer(qapp, tmp_path):
@@ -28,6 +85,48 @@ def test_main_window_builds_with_controller_layer(qapp, tmp_path):
     window._lint_runner.stop()
     window._repl_manager.stop()
     window.deleteLater()
+
+
+def test_connect_signals_wires_existing_and_new_editors_once():
+    existing_editor = object()
+    new_editor = object()
+    wired = []
+    tab_changed = DummySignal()
+    editor_created = DummySignal()
+    editor_closed = DummySignal()
+    recent_changed = DummySignal()
+    file_saved = DummySignal()
+    settings_changed = DummySignal()
+    window = SimpleNamespace(
+        _tab_manager=SimpleNamespace(
+            tab_changed=tab_changed,
+            editor_created=editor_created,
+            editor_closed=editor_closed,
+            count=lambda: 1,
+            widget=lambda index: existing_editor,
+        ),
+        _on_tab_changed=lambda editor: None,
+        _wire_editor_breakpoints=wired.append,
+        _on_editor_closed=lambda editor: wired.append(("closed", editor)),
+        _recent_files=SimpleNamespace(recent_files_changed=recent_changed),
+        _menu_builder=SimpleNamespace(rebuild_recent_files_menu=lambda: None),
+        _file_manager=SimpleNamespace(file_saved=file_saved),
+        _on_file_saved=lambda path: None,
+        _settings=SimpleNamespace(settings_changed=settings_changed),
+        _on_settings_changed=lambda key, value: None,
+    )
+
+    MainWindow._connect_signals(window)
+    editor_created.emit(new_editor)
+    editor_closed.emit(existing_editor)
+
+    assert wired == [
+        existing_editor,
+        new_editor,
+        ("closed", existing_editor),
+    ]
+    assert editor_created._callbacks == [window._wire_editor_breakpoints]
+    assert editor_closed._callbacks == [window._on_editor_closed]
 
 
 class FakeCloseEvent:

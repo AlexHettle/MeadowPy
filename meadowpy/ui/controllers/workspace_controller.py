@@ -179,8 +179,16 @@ class WorkspaceController(MainWindowController):
             # Match exact file or any file inside a deleted folder
             if (editor_resolved == deleted_resolved
                     or editor_resolved.startswith(deleted_resolved + "\\")):
-                self._tab_manager.removeTab(i)
-                editor.deleteLater()
+                remove_editor = getattr(
+                    self._tab_manager,
+                    "_remove_tab_and_delete",
+                    None,
+                )
+                if callable(remove_editor):
+                    remove_editor(i)
+                else:
+                    self._tab_manager.removeTab(i)
+                    editor.deleteLater()
 
     # ── Drag & Drop ──────────────────────────────────────────────────
 

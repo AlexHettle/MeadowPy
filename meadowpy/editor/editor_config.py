@@ -286,6 +286,11 @@ class EditorConfigurator:
         owns_previous = (
             previous is not None and previous.parent() is editor
         )
+        # QsciAPIs is parented to its lexer.  Queue its deferred deletion
+        # before the parent lexer; posting the parent first can make Qt visit
+        # the already-destroyed child event later in the same event drain.
+        if getattr(editor, "_completion_lexer", None) is previous:
+            EditorConfigurator._clear_completion_apis(editor)
         editor.setLexer(lexer)
         editor._syntax_language = language
         if owns_previous:
@@ -415,11 +420,37 @@ class EditorConfigurator:
         from meadowpy.editor.code_editor import (
             BREAKPOINT_MARGIN_WIDTH,
             MARKER_BREAKPOINT,
+            MARKER_BREAKPOINT_CURRENT,
+            MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE,
+            MARKER_BREAKPOINT_HOVER_ADD,
+            MARKER_BREAKPOINT_HOVER_REMOVE,
+            MARKER_BREAKPOINT_PENDING,
+            MARKER_BREAKPOINT_PENDING_CURRENT,
+            MARKER_BREAKPOINT_REJECTED,
+            MARKER_BREAKPOINT_REJECTED_CURRENT,
+            MARKER_CURRENT_LINE_HOVER_ADD,
             MARKER_CURRENT_LINE,
-            MARKER_PHANTOM_BREAKPOINT,
         )
-        editor.setMarginWidth(2, BREAKPOINT_MARGIN_WIDTH)
-        editor.setMarginSensitivity(2, True)
+        supports_breakpoints = is_python_file_path(
+            getattr(editor, "file_path", None)
+        )
+        marker_size_getter = getattr(
+            editor,
+            "_breakpoint_marker_logical_size",
+            None,
+        )
+        marker_size = (
+            int(marker_size_getter())
+            if callable(marker_size_getter)
+            else BREAKPOINT_MARGIN_WIDTH - 8
+        )
+        margin_width = (
+            max(BREAKPOINT_MARGIN_WIDTH, marker_size + 8)
+            if supports_breakpoints
+            else 0
+        )
+        editor.setMarginWidth(2, margin_width)
+        editor.setMarginSensitivity(2, supports_breakpoints)
 
         # Show breakpoint + current-line markers in this margin
         editor.setMarginMarkerMask(
@@ -427,15 +458,23 @@ class EditorConfigurator:
             (
                 (1 << MARKER_BREAKPOINT)
                 | (1 << MARKER_CURRENT_LINE)
-                | (1 << MARKER_PHANTOM_BREAKPOINT)
+                | (1 << MARKER_BREAKPOINT_HOVER_ADD)
+                | (1 << MARKER_BREAKPOINT_PENDING)
+                | (1 << MARKER_BREAKPOINT_REJECTED)
+                | (1 << MARKER_BREAKPOINT_HOVER_REMOVE)
+                | (1 << MARKER_BREAKPOINT_CURRENT)
+                | (1 << MARKER_BREAKPOINT_PENDING_CURRENT)
+                | (1 << MARKER_BREAKPOINT_REJECTED_CURRENT)
+                | (1 << MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE)
+                | (1 << MARKER_CURRENT_LINE_HOVER_ADD)
             ),
         )
 
         # Match margin background to theme
         editor.setMarginBackgroundColor(2, QColor(theme.margin_background))
 
-        # Also make line-number margin (0) clickable to toggle breakpoints
-        editor.setMarginSensitivity(0, True)
+        # Line numbers remain a reading aid; only the dedicated lane toggles.
+        editor.setMarginSensitivity(0, False)
 
     @staticmethod
     def _apply_folding(editor: QsciScintilla, settings: Settings) -> None:

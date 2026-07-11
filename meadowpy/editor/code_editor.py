@@ -1,17 +1,18 @@
 """Core code editor widget based on QScintilla."""
 
 import ast
+from bisect import bisect_left
+from collections.abc import Iterable, Mapping
+from enum import Enum
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal, Qt, QEvent, QRectF
+from PyQt6.QtCore import pyqtSignal, Qt, QEvent, QLineF, QRectF
 from PyQt6.QtGui import (
     QColor,
     QKeySequence,
     QPainter,
     QPen,
-    QBrush,
     QPixmap,
-    QLinearGradient,
     QPainterPath,
 )
 from PyQt6.QtWidgets import QToolTip, QWidget
@@ -29,12 +30,48 @@ from meadowpy.editor.auto_close import AutoCloseHandler
 from meadowpy.resources.resource_loader import theme_is_dark
 
 
-# Marker IDs for gutter symbols
-MARKER_BREAKPOINT = 0    # Red filled circle for breakpoints
-MARKER_CURRENT_LINE = 1  # Yellow arrow for current execution line during debug
-MARKER_PHANTOM_BREAKPOINT = 2  # Muted circle shown while hovering the gutter
+# Marker IDs for gutter symbols.  Keep these below Scintilla's reserved fold
+# marker range (25-31).
+MARKER_BREAKPOINT = 0
+MARKER_CURRENT_LINE = 1
+MARKER_BREAKPOINT_HOVER_ADD = 2
+# Backwards-compatible name used by a few integrations and older tests.
+MARKER_PHANTOM_BREAKPOINT = MARKER_BREAKPOINT_HOVER_ADD
+MARKER_BREAKPOINT_PENDING = 3
+MARKER_BREAKPOINT_REJECTED = 4
+MARKER_BREAKPOINT_HOVER_REMOVE = 5
+MARKER_BREAKPOINT_CURRENT = 6
+MARKER_BREAKPOINT_PENDING_CURRENT = 7
+MARKER_BREAKPOINT_REJECTED_CURRENT = 8
+MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE = 9
+MARKER_CURRENT_LINE_HOVER_ADD = 10
 BREAKPOINT_MARGIN_WIDTH = 26
 BREAKPOINT_MARKER_SIZE = 18
+BREAKPOINT_FORWARD_SEARCH_LIMIT = 5
+
+
+class BreakpointState(str, Enum):
+    """Debugger verification state for a requested breakpoint."""
+
+    ACCEPTED = "accepted"
+    PENDING = "pending"
+    REJECTED = "rejected"
+
+
+_BREAKPOINT_STATE_MARKERS = {
+    BreakpointState.ACCEPTED: MARKER_BREAKPOINT,
+    BreakpointState.PENDING: MARKER_BREAKPOINT_PENDING,
+    BreakpointState.REJECTED: MARKER_BREAKPOINT_REJECTED,
+}
+_BREAKPOINT_MARKER_MASK = sum(
+    1 << marker for marker in _BREAKPOINT_STATE_MARKERS.values()
+)
+_CURRENT_LINE_MARKERS = (
+    MARKER_CURRENT_LINE,
+    MARKER_BREAKPOINT_CURRENT,
+    MARKER_BREAKPOINT_PENDING_CURRENT,
+    MARKER_BREAKPOINT_REJECTED_CURRENT,
+)
 
 # Indicator IDs for squiggle underlines
 # QScintilla reserves indicators 0-7 for lexer use and 8-10 internally
@@ -65,6 +102,9 @@ class CodeEditor(QsciScintilla):
     """Enhanced QScintilla editor widget with Python-specific configuration."""
 
     modification_changed = pyqtSignal(bool)
+    # Emits a copied set of effective 0-based lines.  ``object`` keeps the
+    # signal stable across Python/Qt versions while preserving set semantics.
+    breakpoints_changed = pyqtSignal(object)
     ai_explain_requested = pyqtSignal(str)  # selected code text
     ai_improve_requested = pyqtSignal(str)  # selected code text
     ai_docstring_requested = pyqtSignal(str, int)  # (func/class code, insert line 0-based)
@@ -86,7 +126,14 @@ class CodeEditor(QsciScintilla):
 
         # Breakpoint storage (0-based line numbers)
         self._breakpoints: set[int] = set()
+        self._published_breakpoints: set[int] = set()
         self._phantom_breakpoint_line: int | None = None
+        self._phantom_breakpoint_is_remove = False
+        self._phantom_breakpoint_marker: int | None = None
+        self._rejected_breakpoint_reasons: dict[int, str] = {}
+        self._current_line: int | None = None
+        self._breakable_lines_cache: set[int] | None = None
+        self._sorted_breakable_lines_cache: tuple[int, ...] | None = None
         self.setMouseTracking(True)
 
         # Define gutter marker shapes; colors are applied separately so they
@@ -95,6 +142,8 @@ class CodeEditor(QsciScintilla):
         self._apply_marker_colors()
 
         EditorConfigurator.apply(self, settings)
+        # Font metrics and DPR are reliable after the configurator runs.
+        self._refresh_breakpoint_lane_artwork()
         self._indent_guide_overlay = _IndentGuideOverlay(self)
         self._indent_guide_overlay.setGeometry(self.rect())
         self._indent_guide_overlay.raise_()
@@ -119,6 +168,8 @@ class CodeEditor(QsciScintilla):
         self.linesChanged.connect(self._indent_guide_overlay.update)
         self.textChanged.connect(self._indent_guide_overlay.update)
         self.textChanged.connect(self._clear_phantom_breakpoint)
+        self.textChanged.connect(self._invalidate_breakable_lines_cache)
+        self.textChanged.connect(self._sync_breakpoints_from_markers)
         self.marginClicked.connect(self._on_margin_clicked)
 
     @property
@@ -127,6 +178,7 @@ class CodeEditor(QsciScintilla):
 
     @file_path.setter
     def file_path(self, path: str | None) -> None:
+        previous_path = self._file_path
         old_editor_mode = (
             syntax_language_for_path(self._file_path),
             is_python_file_path(self._file_path),
@@ -143,6 +195,12 @@ class CodeEditor(QsciScintilla):
                 overlay.update()
         if not self._breakpoints_supported():
             self.clear_breakpoints()
+        else:
+            self._refresh_breakpoint_lane_artwork()
+            # A save-as/rename changes the path-keyed debugger payload even
+            # when every marker stayed on the same line.
+            if previous_path != path and self._breakpoint_lines_from_markers():
+                self._emit_breakpoints_changed(force=True)
 
     @property
     def is_modified(self) -> bool:
@@ -159,6 +217,7 @@ class CodeEditor(QsciScintilla):
         """Re-apply settings (called when preferences change)."""
         self._settings = settings
         EditorConfigurator.apply(self, settings)
+        self._refresh_breakpoint_lane_artwork()
         self._indent_guide_overlay.update()
         self.update()
 
@@ -454,8 +513,25 @@ class CodeEditor(QsciScintilla):
     # --- Hover tooltip for lint issues ---
 
     def event(self, e) -> bool:
-        """Show lint issue tooltip when hovering over squiggle-underlined code."""
+        """Show plain-English gutter and lint hover help."""
+        dpr_change = getattr(QEvent.Type, "DevicePixelRatioChange", None)
+        if dpr_change is not None and e.type() == dpr_change:
+            refresh = getattr(self, "_refresh_breakpoint_lane_artwork", None)
+            if callable(refresh):
+                refresh()
+
         if e.type() == QEvent.Type.ToolTip:
+            breakpoint_tooltip = None
+            tooltip_getter = getattr(self, "_get_breakpoint_tooltip", None)
+            if callable(tooltip_getter):
+                breakpoint_tooltip = tooltip_getter(
+                    e.pos().x(),
+                    e.pos().y(),
+                )
+            if breakpoint_tooltip:
+                QToolTip.showText(e.globalPos(), breakpoint_tooltip, self)
+                return True
+
             pos = self.SendScintilla(
                 2023, e.pos().x(), e.pos().y()  # SCI_POSITIONFROMPOINTCLOSE
             )
@@ -488,27 +564,32 @@ class CodeEditor(QsciScintilla):
     def zoomIn(self, range_=1) -> None:
         super().zoomIn(range_)
         self._update_margin_width()
+        self._refresh_breakpoint_lane_artwork()
 
     def zoomOut(self, range_=1) -> None:
         super().zoomOut(range_)
         self._update_margin_width()
+        self._refresh_breakpoint_lane_artwork()
 
     def zoomTo(self, size) -> None:
         super().zoomTo(size)
         self._update_margin_width()
+        self._refresh_breakpoint_lane_artwork()
 
     def wheelEvent(self, event) -> None:
         super().wheelEvent(event)
         # Ctrl+wheel triggers zoom inside Scintilla
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._update_margin_width()
+            self._refresh_breakpoint_lane_artwork()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
-        self._update_phantom_breakpoint(event.pos().x(), event.pos().y())
         super().mouseMoveEvent(event)
+        self._update_phantom_breakpoint(event.pos().x(), event.pos().y())
 
     def leaveEvent(self, event) -> None:  # noqa: N802
         self._clear_phantom_breakpoint()
+        self.unsetCursor()
         super().leaveEvent(event)
 
     # ── Drag & Drop (forward file URLs to main window) ───────────
@@ -720,167 +801,310 @@ class CodeEditor(QsciScintilla):
         border: QColor,
         *,
         filled: bool,
+        logical_size: int = BREAKPOINT_MARKER_SIZE,
+        device_pixel_ratio: float = 1.0,
+        symbol: str | None = None,
+        symbol_color: QColor | None = None,
+        dashed: bool = False,
+        execution_ring: QColor | None = None,
     ) -> QPixmap:
-        """Return an antialiased breakpoint marker pixmap for the gutter."""
-        size = BREAKPOINT_MARKER_SIZE
-        pixmap = QPixmap(size, size)
+        """Return flat, DPR-aware breakpoint artwork.
+
+        ``logical_size`` is expressed in device-independent pixels.  The
+        backing raster is allocated at the screen's real pixel density and
+        tagged with its DPR so Scintilla does not blur a 1x asset on HiDPI
+        displays.
+        """
+        size = max(int(logical_size), 12)
+        dpr = max(float(device_pixel_ratio), 1.0)
+        physical_size = max(int(round(size * dpr)), 1)
+        pixmap = QPixmap(physical_size, physical_size)
+        pixmap.setDevicePixelRatio(dpr)
         pixmap.fill(Qt.GlobalColor.transparent)
 
         painter = QPainter(pixmap)
         try:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-            if filled:
-                outer = QRectF(3.0, 3.0, 12.0, 12.0)
-                inner_edge = outer.adjusted(0.55, 0.55, -0.55, -0.55)
-                clip = QPainterPath()
-                clip.addEllipse(outer)
-                painter.setClipPath(clip)
-
-                painter.setPen(Qt.PenStyle.NoPen)
-                gradient = QLinearGradient(0, outer.top(), 0, outer.bottom())
-                gradient.setColorAt(0.0, fill.lighter(112))
-                gradient.setColorAt(1.0, fill.darker(106))
-                painter.setBrush(QBrush(gradient))
-                painter.drawEllipse(outer)
-
-                painter.setPen(QPen(border, 1.0))
+            if execution_ring is not None:
+                ring_pen = QPen(execution_ring, 1.8)
+                ring_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                painter.setPen(ring_pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawEllipse(inner_edge)
-                painter.setClipping(False)
+                painter.drawEllipse(QRectF(1.5, 1.5, size - 3.0, size - 3.0))
+                diameter = max(8.0, min(11.0, size - 8.0))
             else:
-                ghost_fill = QColor(fill)
-                ghost_fill.setAlpha(22)
-                ghost_border = QColor(border)
-                ghost_border.setAlpha(155)
-                outer = QRectF(3.0, 3.0, 12.0, 12.0)
-                inner_edge = outer.adjusted(0.7, 0.7, -0.7, -0.7)
-                clip = QPainterPath()
-                clip.addEllipse(outer)
-                painter.setClipPath(clip)
+                diameter = max(10.0, min(16.0, size - 4.0))
 
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QBrush(ghost_fill))
-                painter.drawEllipse(outer)
+            inset = (size - diameter) / 2.0
+            circle = QRectF(inset, inset, diameter, diameter)
+            pen = QPen(border, 1.35)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            if dashed:
+                pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(fill if filled else Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(circle)
 
-                painter.setPen(QPen(ghost_border, 1.45))
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawEllipse(inner_edge)
-                painter.setClipping(False)
+            if symbol:
+                glyph_color = symbol_color or border
+                glyph_pen = QPen(glyph_color, 1.65)
+                glyph_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                painter.setPen(glyph_pen)
+                center = size / 2.0
+                arm = max(2.0, diameter * 0.22)
+                if symbol in ("plus", "minus"):
+                    painter.drawLine(
+                        QLineF(center - arm, center, center + arm, center)
+                    )
+                    if symbol == "plus":
+                        painter.drawLine(
+                            QLineF(center, center - arm, center, center + arm)
+                        )
+                elif symbol == "slash":
+                    painter.drawLine(
+                        QLineF(
+                            center - arm,
+                            center + arm,
+                            center + arm,
+                            center - arm,
+                        )
+                    )
         finally:
             painter.end()
 
         return pixmap
 
+    @staticmethod
+    def _current_line_marker_pixmap(
+        fill: QColor,
+        border: QColor,
+        *,
+        logical_size: int = BREAKPOINT_MARKER_SIZE,
+        device_pixel_ratio: float = 1.0,
+    ) -> QPixmap:
+        """Return a crisp execution chevron for a line without a breakpoint."""
+        size = max(int(logical_size), 12)
+        dpr = max(float(device_pixel_ratio), 1.0)
+        pixmap = QPixmap(
+            max(int(round(size * dpr)), 1),
+            max(int(round(size * dpr)), 1),
+        )
+        pixmap.setDevicePixelRatio(dpr)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            middle = size / 2.0
+            path = QPainterPath()
+            path.moveTo(size - 2.0, middle)
+            path.lineTo(size * 0.38, middle - size * 0.30)
+            path.lineTo(size * 0.38, middle - size * 0.12)
+            path.lineTo(2.0, middle - size * 0.12)
+            path.lineTo(2.0, middle + size * 0.12)
+            path.lineTo(size * 0.38, middle + size * 0.12)
+            path.lineTo(size * 0.38, middle + size * 0.30)
+            path.closeSubpath()
+            painter.setPen(QPen(border, 1.0))
+            painter.setBrush(fill)
+            painter.drawPath(path)
+        finally:
+            painter.end()
+        return pixmap
+
+    def _breakpoint_marker_logical_size(self) -> int:
+        """Scale marker artwork modestly with the editor's line height."""
+        try:
+            line_height = int(self._line_height(0))
+        except (AttributeError, TypeError, RuntimeError):
+            line_height = BREAKPOINT_MARKER_SIZE
+        return max(16, min(24, int(round(line_height * 0.95))))
+
+    def _marker_device_pixel_ratio(self) -> float:
+        try:
+            return max(float(self.devicePixelRatioF()), 1.0)
+        except (AttributeError, TypeError, RuntimeError):
+            return 1.0
+
     def _define_breakpoint_markers(self) -> None:
         """Install custom breakpoint marker artwork for the current theme."""
-        is_hc = self._settings.get("editor.theme") == "default_high_contrast"
-        theme_name = self._settings.get("editor.theme")
-        custom_base = self._settings.get("editor.custom_theme.base")
-        is_dark = theme_is_dark(theme_name, custom_base)
+        from meadowpy.editor.themes import get_theme
 
-        if is_hc:
-            bp_fill = QColor("#FFFFFF")
-            bp_border = QColor("#FFFFFF")
-            ghost_fill = QColor("#FFFFFF")
-            ghost_border = QColor("#FFFFFF")
-        else:
-            bp_fill = QColor("#E9483F")
-            bp_border = QColor("#9E2F2B" if is_dark else "#B8322E")
-            ghost_fill = QColor("#E9483F")
-            ghost_border = QColor("#E9483F")
+        theme = get_theme(
+            self._settings.get("editor.theme"),
+            custom_base=self._settings.get("editor.custom_theme.base"),
+        )
+        size = self._breakpoint_marker_logical_size()
+        dpr = self._marker_device_pixel_ratio()
+        margin = QColor(theme.margin_background)
+        keyline = QColor(theme.breakpoint_keyline)
+        current = QColor(theme.current_execution)
 
-        self.markerDefine(
-            self._breakpoint_marker_pixmap(
-                bp_fill,
-                bp_border,
+        marker_specs = {
+            MARKER_BREAKPOINT: dict(
+                fill=QColor(theme.breakpoint_active),
+                border=keyline,
                 filled=True,
             ),
-            MARKER_BREAKPOINT,
-        )
-        self.markerDefine(
-            self._breakpoint_marker_pixmap(
-                ghost_fill,
-                ghost_border,
+            MARKER_BREAKPOINT_HOVER_ADD: dict(
+                fill=QColor(theme.breakpoint_hover_add),
+                border=QColor(theme.breakpoint_hover_add),
                 filled=False,
+                symbol="plus",
             ),
-            MARKER_PHANTOM_BREAKPOINT,
+            MARKER_BREAKPOINT_PENDING: dict(
+                fill=QColor(theme.breakpoint_pending),
+                border=QColor(theme.breakpoint_pending),
+                filled=False,
+                dashed=True,
+            ),
+            MARKER_BREAKPOINT_REJECTED: dict(
+                fill=QColor(theme.breakpoint_rejected),
+                border=keyline,
+                filled=True,
+                symbol="slash",
+                symbol_color=margin,
+            ),
+            MARKER_BREAKPOINT_HOVER_REMOVE: dict(
+                fill=QColor(theme.breakpoint_hover_remove),
+                border=keyline,
+                filled=True,
+                symbol="minus",
+                symbol_color=margin,
+            ),
+            MARKER_BREAKPOINT_CURRENT: dict(
+                fill=QColor(theme.breakpoint_active),
+                border=keyline,
+                filled=True,
+                execution_ring=current,
+            ),
+            MARKER_BREAKPOINT_PENDING_CURRENT: dict(
+                fill=QColor(theme.breakpoint_pending),
+                border=QColor(theme.breakpoint_pending),
+                filled=False,
+                dashed=True,
+                execution_ring=current,
+            ),
+            MARKER_BREAKPOINT_REJECTED_CURRENT: dict(
+                fill=QColor(theme.breakpoint_rejected),
+                border=keyline,
+                filled=True,
+                symbol="slash",
+                symbol_color=margin,
+                execution_ring=current,
+            ),
+            MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE: dict(
+                fill=QColor(theme.breakpoint_hover_remove),
+                border=keyline,
+                filled=True,
+                symbol="minus",
+                symbol_color=margin,
+                execution_ring=current,
+            ),
+            MARKER_CURRENT_LINE_HOVER_ADD: dict(
+                fill=QColor(theme.breakpoint_hover_add),
+                border=QColor(theme.breakpoint_hover_add),
+                filled=False,
+                symbol="plus",
+                execution_ring=current,
+            ),
+        }
+        for marker, spec in marker_specs.items():
+            self.markerDefine(
+                self._breakpoint_marker_pixmap(
+                    logical_size=size,
+                    device_pixel_ratio=dpr,
+                    **spec,
+                ),
+                marker,
+            )
+
+        self.markerDefine(
+            self._current_line_marker_pixmap(
+                current,
+                QColor(theme.current_execution_foreground),
+                logical_size=size,
+                device_pixel_ratio=dpr,
+            ),
+            MARKER_CURRENT_LINE,
         )
 
     def _apply_marker_colors(self) -> None:
-        """Set breakpoint / current-line marker colors for the active theme.
-
-        High-contrast collapses both markers onto pure black & white so the
-        gutter stays monochrome alongside everything else.
-        """
+        """Install semantic breakpoint/current-line marker artwork."""
         self._define_breakpoint_markers()
-        is_hc = self._settings.get("editor.theme") == "default_high_contrast"
-        if is_hc:
-            bp_color = QColor("#FFFFFF")
-            cur_fg = QColor("#000000")
-            cur_bg = QColor("#FFFFFF")
-        else:
-            bp_color = QColor("#E9483F")
-            cur_fg = QColor("#000000")
-            cur_bg = QColor("#FFCC00")
-            theme_name = self._settings.get("editor.theme")
-            custom_base = self._settings.get("editor.custom_theme.base")
-            phantom_color = QColor(
-                "#6F7780" if theme_is_dark(theme_name, custom_base) else "#9AA3AD"
-            )
-        if is_hc:
-            phantom_color = QColor("#808080")
-        self.setMarkerForegroundColor(bp_color, MARKER_BREAKPOINT)
-        self.setMarkerBackgroundColor(bp_color, MARKER_BREAKPOINT)
-        self.setMarkerForegroundColor(cur_fg, MARKER_CURRENT_LINE)
-        self.setMarkerBackgroundColor(cur_bg, MARKER_CURRENT_LINE)
-        self.setMarkerForegroundColor(
-            phantom_color, MARKER_PHANTOM_BREAKPOINT
-        )
-        self.setMarkerBackgroundColor(
-            phantom_color, MARKER_PHANTOM_BREAKPOINT
-        )
+
+    def _refresh_breakpoint_lane_artwork(self) -> None:
+        """Refresh marker rasters and lane width after theme/zoom/DPR changes."""
+        self._apply_marker_colors()
+        supported = self._breakpoints_supported()
+        size = self._breakpoint_marker_logical_size()
+        width = max(BREAKPOINT_MARGIN_WIDTH, size + 8) if supported else 0
+        self.setMarginWidth(2, width)
+        self.setMarginSensitivity(2, supported)
+        # Line numbers are for navigation/reading only; breakpoint toggles
+        # belong to the dedicated lane.
+        self.setMarginSensitivity(0, False)
 
     def refresh_marker_colors(self) -> None:
         """Re-apply breakpoint / current-line marker colors after a theme change."""
-        self._apply_marker_colors()
+        self._refresh_breakpoint_lane_artwork()
 
     # --- Breakpoint methods ---
 
     def _breakpoint_lines_from_markers(self) -> set[int]:
         """Return breakpoint line numbers from Scintilla's marker state."""
-        marker_mask = 1 << MARKER_BREAKPOINT
-        return {
-            line
-            for line in range(self.lines())
-            if self.markersAtLine(line) & marker_mask
-        }
+        return set(self._marker_lines(_BREAKPOINT_MARKER_MASK))
+
+    def _marker_lines(self, marker_mask: int):
+        """Yield matching marker lines without scanning the whole document."""
+        line = 0
+        total = self.lines()
+        while line < total:
+            found = int(
+                self.SendScintilla(
+                    2047,  # SCI_MARKERNEXT
+                    line,
+                    marker_mask,
+                )
+            )
+            if found < 0 or found >= total:
+                return
+            yield found
+            line = found + 1
 
     def _has_breakpoint_marker(self, line: int) -> bool:
         """Return True if the given line currently has a breakpoint marker."""
         if line < 0 or line >= self.lines():
             return False
-        return bool(self.markersAtLine(line) & (1 << MARKER_BREAKPOINT))
+        return bool(self.markersAtLine(line) & _BREAKPOINT_MARKER_MASK)
 
-    def _sync_breakpoints_from_markers(self) -> None:
+    def _emit_breakpoints_changed(self, *, force: bool = False) -> None:
+        current = self._breakpoint_lines_from_markers()
+        self._breakpoints = current
+        if force or current != self._published_breakpoints:
+            self._published_breakpoints = current.copy()
+            self.breakpoints_changed.emit(current.copy())
+
+    def _sync_breakpoints_from_markers(self, *_args) -> None:
         """Keep cached breakpoint lines aligned with movable editor markers."""
-        self._breakpoints = self._breakpoint_lines_from_markers()
+        self._emit_breakpoints_changed()
+        self._refresh_current_line_marker()
 
     def _breakpoints_supported(self) -> bool:
         """Return True when this tab can display debugger breakpoints."""
         return is_python_file_path(self._file_path)
 
     def _breakpoint_hover_margin_at_x(self, x: int) -> bool:
-        """Return True when x is over a margin that toggles breakpoints."""
+        """Return True only when x is over the dedicated breakpoint lane."""
         line_number_width = int(self.marginWidth(0) or 0)
         fold_width = int(self.marginWidth(1) or 0)
         breakpoint_width = int(self.marginWidth(2) or 0)
-
-        if 0 <= x < line_number_width:
-            return True
-
         breakpoint_start = line_number_width + fold_width
         breakpoint_end = breakpoint_start + breakpoint_width
-        return breakpoint_start <= x < breakpoint_end
+        return (
+            breakpoint_width > 0
+            and breakpoint_start <= x < breakpoint_end
+        )
 
     def _line_from_mouse_y(self, y: int) -> int | None:
         """Resolve a widget y-coordinate to a document line."""
@@ -894,85 +1118,299 @@ class CodeEditor(QsciScintilla):
             return None
         return line
 
-    def _set_phantom_breakpoint(self, line: int | None) -> None:
-        """Move or hide the hover-only breakpoint marker."""
-        if self._phantom_breakpoint_line == line:
+    def _set_phantom_breakpoint(
+        self,
+        line: int | None,
+        *,
+        remove: bool = False,
+    ) -> None:
+        """Move the explicit add/remove hover marker."""
+        marker = None
+        if line is not None:
+            current_line_getter = getattr(
+                self,
+                "_current_execution_line_from_markers",
+                None,
+            )
+            is_current = (
+                callable(current_line_getter)
+                and current_line_getter() == line
+            )
+            if is_current:
+                marker = (
+                    MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE
+                    if remove
+                    else MARKER_CURRENT_LINE_HOVER_ADD
+                )
+            else:
+                marker = (
+                    MARKER_BREAKPOINT_HOVER_REMOVE
+                    if remove
+                    else MARKER_BREAKPOINT_HOVER_ADD
+                )
+        if (
+            self._phantom_breakpoint_line == line
+            and getattr(self, "_phantom_breakpoint_is_remove", False) == remove
+            and getattr(self, "_phantom_breakpoint_marker", None) == marker
+        ):
             return
 
         self._clear_phantom_breakpoint()
         if line is None:
             return
 
-        self.markerAdd(line, MARKER_PHANTOM_BREAKPOINT)
+        self.markerAdd(line, marker)
         self._phantom_breakpoint_line = line
+        self._phantom_breakpoint_is_remove = remove
+        self._phantom_breakpoint_marker = marker
 
     def _clear_phantom_breakpoint(self) -> None:
         """Remove the hover-only breakpoint marker."""
         if self._phantom_breakpoint_line is not None:
-            self.markerDeleteAll(MARKER_PHANTOM_BREAKPOINT)
+            marker = getattr(self, "_phantom_breakpoint_marker", None)
+            if marker is None:
+                marker = (
+                    MARKER_BREAKPOINT_HOVER_REMOVE
+                    if getattr(self, "_phantom_breakpoint_is_remove", False)
+                    else MARKER_BREAKPOINT_HOVER_ADD
+                )
+            self.markerDeleteAll(marker)
             self._phantom_breakpoint_line = None
+            self._phantom_breakpoint_is_remove = False
+            self._phantom_breakpoint_marker = None
 
     def _update_phantom_breakpoint(self, x: int, y: int) -> None:
-        """Show a ghost breakpoint on the executable line under the gutter."""
+        """Show add/remove artwork and a pointer over the breakpoint lane."""
         if not self._breakpoints_supported():
             self._clear_phantom_breakpoint()
+            unset_cursor = getattr(self, "unsetCursor", None)
+            if callable(unset_cursor):
+                unset_cursor()
             return
 
         if not self._breakpoint_hover_margin_at_x(x):
             self._clear_phantom_breakpoint()
+            unset_cursor = getattr(self, "unsetCursor", None)
+            if callable(unset_cursor):
+                unset_cursor()
             return
 
         line = self._line_from_mouse_y(y)
         if line is None:
             self._clear_phantom_breakpoint()
+            unset_cursor = getattr(self, "unsetCursor", None)
+            if callable(unset_cursor):
+                unset_cursor()
             return
 
-        resolved = self._resolve_breakpoint_line(line)
-        if resolved is None or self._has_breakpoint_marker(resolved):
+        # Existing markers remain removable even if an edit has turned their
+        # line into a blank/comment/non-executable line.
+        resolved = (
+            line
+            if self._has_breakpoint_marker(line)
+            else self._resolve_breakpoint_line(line)
+        )
+        if resolved is None:
             self._clear_phantom_breakpoint()
+            unset_cursor = getattr(self, "unsetCursor", None)
+            if callable(unset_cursor):
+                unset_cursor()
             return
 
-        self._set_phantom_breakpoint(resolved)
+        self._set_phantom_breakpoint(
+            resolved,
+            remove=self._has_breakpoint_marker(resolved),
+        )
+        set_cursor = getattr(self, "setCursor", None)
+        if callable(set_cursor):
+            set_cursor(Qt.CursorShape.PointingHandCursor)
+
+    def _get_breakpoint_tooltip(self, x: int, y: int) -> str | None:
+        """Return beginner-friendly help for the breakpoint lane."""
+        if (
+            not self._breakpoints_supported()
+            or not self._breakpoint_hover_margin_at_x(x)
+        ):
+            return None
+        requested = self._line_from_mouse_y(y)
+        if requested is None:
+            return None
+        line = (
+            requested
+            if self._has_breakpoint_marker(requested)
+            else self._resolve_breakpoint_line(requested)
+        )
+        if line is None:
+            return "No executable Python statement nearby"
+
+        display_line = line + 1
+        state = self.get_breakpoint_state(line)
+        if state == BreakpointState.PENDING:
+            return (
+                f"Breakpoint on line {display_line} is waiting for the debugger. "
+                "Click to remove it."
+            )
+        if state == BreakpointState.REJECTED:
+            reason = self.get_breakpoint_rejection_reason(line)
+            detail = f": {reason}" if reason else ""
+            return (
+                f"The debugger could not set the breakpoint on line "
+                f"{display_line}{detail}. Click to remove it."
+            )
+        if state == BreakpointState.ACCEPTED:
+            return f"Remove breakpoint from line {display_line}"
+        if line != requested:
+            return (
+                f"Add breakpoint on line {display_line} "
+                "(the next executable line)"
+            )
+        return f"Add breakpoint on line {display_line}"
 
     def _breakable_lines(self) -> set[int]:
         """Return 0-based lines that can reasonably hold Python breakpoints."""
+        if self._breakable_lines_cache is not None:
+            return self._breakable_lines_cache
+
         try:
             tree = ast.parse(self.text())
         except SyntaxError:
-            return {
+            result = {
                 line
                 for line in range(self.lines())
                 if self.text(line).strip()
                 and not self.text(line).lstrip().startswith("#")
             }
+        else:
+            result = {
+                node.lineno - 1
+                for node in ast.walk(tree)
+                if isinstance(node, ast.stmt) and hasattr(node, "lineno")
+            }
+        self._breakable_lines_cache = result
+        self._sorted_breakable_lines_cache = tuple(sorted(result))
+        return result
 
-        return {
-            node.lineno - 1
-            for node in ast.walk(tree)
-            if isinstance(node, ast.stmt) and hasattr(node, "lineno")
-        }
+    def _sorted_breakable_lines(self) -> tuple[int, ...]:
+        """Return a cached ordered index used by gutter hover lookups."""
+        if self._sorted_breakable_lines_cache is None:
+            # `_breakable_lines()` normally populates both caches together.
+            # The fallback also supports lightweight test/integration
+            # harnesses that seed only the established set cache.
+            self._sorted_breakable_lines_cache = tuple(
+                sorted(self._breakable_lines())
+            )
+        return self._sorted_breakable_lines_cache
+
+    def _invalidate_breakable_lines_cache(self, *_args) -> None:
+        self._breakable_lines_cache = None
+        self._sorted_breakable_lines_cache = None
 
     def _resolve_breakpoint_line(self, line: int) -> int | None:
         """Map a gutter click/hover to a nearby executable line."""
         if line < 0 or line >= self.lines():
             return None
 
-        breakable_lines = sorted(self._breakable_lines())
-        if line in breakable_lines:
-            return line
-
-        for candidate in breakable_lines:
-            if candidate > line:
-                return candidate
-        for candidate in reversed(breakable_lines):
-            if candidate < line:
+        breakable_lines = self._sorted_breakable_lines()
+        index = bisect_left(breakable_lines, line)
+        if index < len(breakable_lines):
+            candidate = breakable_lines[index]
+            if candidate <= line + BREAKPOINT_FORWARD_SEARCH_LIMIT:
                 return candidate
         return None
 
     def _on_margin_clicked(self, margin: int, line: int, state) -> None:
-        """Handle clicks on the breakpoint margin (2) or line number margin (0)."""
-        if margin in (0, 2):
+        """Handle clicks only in the dedicated breakpoint margin (2)."""
+        if margin == 2:
             self.toggle_breakpoint(line)
+
+    def get_breakpoint_state(self, line: int) -> BreakpointState | None:
+        """Return the debugger state for a 0-based breakpoint line."""
+        if line < 0 or line >= self.lines():
+            return None
+        markers = self.markersAtLine(line)
+        for state in (
+            BreakpointState.REJECTED,
+            BreakpointState.PENDING,
+            BreakpointState.ACCEPTED,
+        ):
+            if markers & (1 << _BREAKPOINT_STATE_MARKERS[state]):
+                return state
+        return None
+
+    def _forget_rejection_reasons_at_line(self, line: int) -> None:
+        for handle in tuple(self._rejected_breakpoint_reasons):
+            marker_line = self.SendScintilla(2017, handle)  # SCI_MARKERLINEFROMHANDLE
+            if marker_line < 0 or marker_line == line:
+                self._rejected_breakpoint_reasons.pop(handle, None)
+
+    def get_breakpoint_rejection_reason(self, line: int) -> str | None:
+        """Return the debugger's rejection explanation for ``line``."""
+        for handle, reason in tuple(self._rejected_breakpoint_reasons.items()):
+            marker_line = self.SendScintilla(2017, handle)  # SCI_MARKERLINEFROMHANDLE
+            if marker_line < 0:
+                self._rejected_breakpoint_reasons.pop(handle, None)
+            elif marker_line == line:
+                return reason
+        return None
+
+    def _set_breakpoint_state(
+        self,
+        line: int,
+        state: BreakpointState,
+        reason: str = "",
+    ) -> None:
+        if not self._has_breakpoint_marker(line):
+            return
+        self._forget_rejection_reasons_at_line(line)
+        for marker in _BREAKPOINT_STATE_MARKERS.values():
+            self.markerDelete(line, marker)
+        handle = self.markerAdd(line, _BREAKPOINT_STATE_MARKERS[state])
+        if state == BreakpointState.REJECTED and reason and handle >= 0:
+            self._rejected_breakpoint_reasons[int(handle)] = str(reason)
+
+    def mark_breakpoints_pending(
+        self,
+        lines: Iterable[int] | None = None,
+    ) -> None:
+        """Mark requested 0-based lines as awaiting debugger confirmation."""
+        current = self._breakpoint_lines_from_markers()
+        targets = current if lines is None else current.intersection(lines)
+        for line in targets:
+            self._set_breakpoint_state(line, BreakpointState.PENDING)
+        self._refresh_current_line_marker()
+
+    def set_breakpoint_verification(
+        self,
+        accepted_lines: Iterable[int],
+        rejected_lines: Mapping[int, str] | Iterable[int] = (),
+    ) -> None:
+        """Apply a debugger acknowledgment expressed with 0-based lines.
+
+        Current breakpoints omitted from both collections stay pending.  A
+        mapping for ``rejected_lines`` preserves the helper's explanation for
+        the hover tooltip; a plain iterable is accepted for simpler clients.
+        """
+        accepted = {int(line) for line in accepted_lines}
+        if isinstance(rejected_lines, Mapping):
+            rejected = {
+                int(line): str(reason)
+                for line, reason in rejected_lines.items()
+            }
+        else:
+            rejected = {int(line): "" for line in rejected_lines}
+
+        for line in self._breakpoint_lines_from_markers():
+            if line in rejected:
+                self._set_breakpoint_state(
+                    line,
+                    BreakpointState.REJECTED,
+                    rejected[line],
+                )
+            elif line in accepted:
+                self._set_breakpoint_state(line, BreakpointState.ACCEPTED)
+            else:
+                self._set_breakpoint_state(line, BreakpointState.PENDING)
+        self._refresh_current_line_marker()
 
     def toggle_breakpoint(self, line: int) -> None:
         """Toggle a breakpoint on the given 0-based line number."""
@@ -980,14 +1418,20 @@ class CodeEditor(QsciScintilla):
             self.clear_breakpoints()
             return
 
-        line = self._resolve_breakpoint_line(line)
+        line = (
+            line
+            if self._has_breakpoint_marker(line)
+            else self._resolve_breakpoint_line(line)
+        )
         if line is None:
             self._clear_phantom_breakpoint()
             return
 
         self._clear_phantom_breakpoint()
         if self._has_breakpoint_marker(line):
-            self.markerDelete(line, MARKER_BREAKPOINT)
+            self._forget_rejection_reasons_at_line(line)
+            for marker in _BREAKPOINT_STATE_MARKERS.values():
+                self.markerDelete(line, marker)
         else:
             self.markerAdd(line, MARKER_BREAKPOINT)
         self._sync_breakpoints_from_markers()
@@ -1004,21 +1448,56 @@ class CodeEditor(QsciScintilla):
     def clear_breakpoints(self) -> None:
         """Remove all breakpoint markers."""
         self._clear_phantom_breakpoint()
-        self._breakpoints.clear()
-        self.markerDeleteAll(MARKER_BREAKPOINT)
+        for marker in _BREAKPOINT_STATE_MARKERS.values():
+            self.markerDeleteAll(marker)
+        self._rejected_breakpoint_reasons.clear()
+        self._sync_breakpoints_from_markers()
 
     # --- Debug current-line methods ---
 
     def set_current_line(self, line: int) -> None:
-        """Show the yellow current-execution-line arrow (0-based)."""
+        """Show a current-line chevron or combined breakpoint ring."""
         self.clear_current_line()
-        self.markerAdd(line, MARKER_CURRENT_LINE)
+        if line < 0 or line >= self.lines():
+            return
+        self._refresh_current_line_marker(line)
         self.ensureLineVisible(line)
         self.setCursorPosition(line, 0)
 
+    def _current_execution_line_from_markers(self) -> int | None:
+        mask = sum(1 << marker for marker in _CURRENT_LINE_MARKERS)
+        return next(self._marker_lines(mask), None)
+
+    def _refresh_current_line_marker(self, line: int | None = None) -> None:
+        if line is None:
+            line = self._current_execution_line_from_markers()
+        if line is None or line < 0 or line >= self.lines():
+            self._current_line = None
+            return
+
+        if self._current_line is not None and self._current_line != line:
+            self._clear_phantom_breakpoint()
+        for marker in _CURRENT_LINE_MARKERS:
+            self.markerDeleteAll(marker)
+        state = self.get_breakpoint_state(line)
+        marker = {
+            BreakpointState.ACCEPTED: MARKER_BREAKPOINT_CURRENT,
+            BreakpointState.PENDING: MARKER_BREAKPOINT_PENDING_CURRENT,
+            BreakpointState.REJECTED: MARKER_BREAKPOINT_REJECTED_CURRENT,
+            None: MARKER_CURRENT_LINE,
+        }[state]
+        self.markerAdd(line, marker)
+        self._current_line = line
+
     def clear_current_line(self) -> None:
         """Remove the current-execution-line arrow."""
-        self.markerDeleteAll(MARKER_CURRENT_LINE)
+        # Composite add/remove hover markers can carry the gold execution
+        # ring.  Drop them with the current line so resume never leaves a
+        # stale paused affordance behind under a stationary mouse.
+        self._clear_phantom_breakpoint()
+        for marker in _CURRENT_LINE_MARKERS:
+            self.markerDeleteAll(marker)
+        self._current_line = None
 
     # --- Lint marker methods ---
 
