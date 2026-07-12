@@ -40,22 +40,128 @@ QTabBar {
 
 #editorTabs QTabBar {
     background: #181818;
+    border: none;
+    border-bottom: 1px solid #333638;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
+}
+
+QTabWidget#editorTabs::pane {
+    margin-top: 0px;
+}
+
+#editorTabs QTabBar::tab {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    min-height: 31px;
+    max-height: 31px;
+    min-width: 104px;
+    max-width: 196px;
+    padding: 0px 10px 0px 12px;
+    margin: 3px 1px 0px 1px;
+    color: #A0A0A0;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+#editorTabs QTabBar::tab:first {
+    margin-left: 8px;
+}
+
+#editorTabs QTabBar::tab:hover:!selected {
+    background: #242424;
+    color: #E4E4E4;
+    border-radius: 6px;
+}
+
+#editorTabs QTabBar::tab:selected {
+    background: #222422;
+    border: 1px solid {{ACCENT_BRIGHT}};
+    border-radius: 6px;
+    color: #F5F5F5;
+    font-weight: 600;
+}
+
+#editorTabs QTabBar[editorKeyboardFocus="true"]::tab:selected {
+    border: 1px dashed {{ACCENT_BRIGHT}};
+    border-radius: 6px;
+}
+
+#editorTabs QTabBar[editorPressed="true"]::tab:selected {
+    background: #2B2B2B;
+    border: 1px solid {{ACCENT_BRIGHT}};
+    border-radius: 6px;
+    color: #F5F5F5;
+}
+
+#editorTabs QTabBar::tab:disabled {
+    color: #666A70;
 }
 
 /* Tabified dock-widget tab strips (Problems/Outline, Search/AI Chat, etc.) */
 QMainWindow > QTabBar {
     background: #181818;
-    border-bottom: 1px solid #1E1E1E;
+    border: none;
+    border-bottom: 1px solid #333638;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
+    qproperty-drawBase: 0;
+    qproperty-expanding: 0;
 }
 
 QMainWindow > QTabBar::tab {
-    min-height: 34px;
-    max-height: 34px;
-    padding: 0px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0px;
+    min-height: 31px;
+    max-height: 31px;
+    min-width: 68px;
+    padding: 0px 12px;
+    margin: 3px 1px 0px 1px;
+    color: #A0A0A0;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QMainWindow > QTabBar::tab:first {
+    margin-left: 8px;
+}
+
+QMainWindow > QTabBar::tab:hover:!selected {
+    background: #242424;
+    color: #E4E4E4;
+    border-radius: 6px;
+}
+
+QMainWindow > QTabBar::tab:pressed:!selected {
+    background: #2B2B2B;
+    color: #F5F5F5;
+    border-radius: 6px;
+}
+
+QMainWindow > QTabBar::tab:selected {
+    background: #222422;
+    border: 1px solid {{ACCENT_BRIGHT}};
+    border-radius: 6px;
+    color: #F5F5F5;
+    font-weight: 600;
+}
+
+QTabBar#dockPanelTabs[panelKeyboardFocus="true"]::tab:selected {
+    border: 1px dashed {{ACCENT_BRIGHT}};
+    border-radius: 6px;
+}
+
+QTabBar#dockPanelTabs[panelPressed="true"]::tab:selected {
+    background: #2B2B2B;
+    border: 1px solid {{ACCENT_BRIGHT}};
+    border-radius: 6px;
+    color: #F5F5F5;
+}
+
+QMainWindow > QTabBar::tab:disabled {
+    color: #666A70;
 }
 
 #explorerTitleBar,
@@ -69,8 +175,8 @@ QMainWindow > QTabBar::tab {
     max-height: 36px;
 }
 
-QTabBar::scroller {
-    width: 0px;
+#editorTabs QTabBar::scroller {
+    width: 52px;
 }
 
 QTabBar::tear {
@@ -78,21 +184,62 @@ QTabBar::tear {
     image: none;
 }
 
-QTabBar > QToolButton {
-    background: #181818;
-    border: none;
-    width: 0px;
-    height: 0px;
+#editorTabs QTabBar > QToolButton {
+    background: transparent;
+    color: #C8C8C8;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    min-width: 18px;
+    max-width: 18px;
+    min-height: 26px;
+    max-height: 26px;
     padding: 0px;
-    margin: 0px;
+    margin: 3px 2px;
 }
 
-QTabBar > QToolButton::left-arrow {
-    image: none;
+#editorTabs QTabBar > QToolButton:disabled {
+    color: #666A70;
 }
 
-QTabBar > QToolButton::right-arrow {
-    image: none;
+#editorTabs QTabBar > QToolButton:hover {
+    background: #242424;
+    border-color: #3C4043;
+}
+
+#editorTabs QTabBar > QToolButton:pressed {
+    background: #2B2B2B;
+    color: #F5F5F5;
+}
+
+QTabBar#dockPanelTabs::scroller {
+    width: 52px;
+}
+
+QTabBar#dockPanelTabs > QToolButton {
+    background: transparent;
+    color: #C8C8C8;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    min-width: 18px;
+    max-width: 18px;
+    min-height: 26px;
+    max-height: 26px;
+    padding: 0px;
+    margin: 3px 2px;
+}
+
+QTabBar#dockPanelTabs > QToolButton:disabled {
+    color: #666A70;
+}
+
+QTabBar#dockPanelTabs > QToolButton:hover {
+    background: #242424;
+    border-color: #3C4043;
+}
+
+QTabBar#dockPanelTabs > QToolButton:pressed {
+    background: #2B2B2B;
+    color: #F5F5F5;
 }
 
 QTabBar::tab {

@@ -299,6 +299,13 @@ class WorkspaceController(MainWindowController):
         state = QByteArray.fromBase64(DEFAULT_WINDOW_STATE.encode())
         restored = self.window.restoreState(state)
         if restored:
+            refresh_dock_tabs = getattr(
+                self.window,
+                "_refresh_dock_tab_bars",
+                None,
+            )
+            if callable(refresh_dock_tabs):
+                refresh_dock_tabs()
             self._settings.set("window.state", DEFAULT_WINDOW_STATE)
             self._settings.set(
                 "window.layout_version",

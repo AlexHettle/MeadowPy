@@ -34,6 +34,7 @@ from meadowpy.ui.variable_inspector import VariableInspectorPanel
 from meadowpy.ui.call_stack_panel import CallStackPanel
 from meadowpy.ui.watch_panel import WatchPanel
 from meadowpy.ui.ai_chat_panel import AIChatPanel
+from meadowpy.ui.dock_tab_styler import DockTabStyler
 from meadowpy.ui.controllers import (
     AIAssistantController,
     CodeQualityController,
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         self._create_find_replace_bar()
         self._connect_signals()
         self._restore_state()
+        self._dock_tab_styler = DockTabStyler(self)
         self._initial_refresh_pending = True
 
         # Apply the current theme's accent to the shared toolbar controls.
@@ -153,9 +155,16 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        self._refresh_dock_tab_bars()
         if self._initial_refresh_pending:
             self._initial_refresh_pending = False
             QTimer.singleShot(0, self._initial_refresh)
+
+    def _refresh_dock_tab_bars(self) -> None:
+        """Re-polish dock tabs after layout restore or dock rearrangement."""
+        styler = getattr(self, "_dock_tab_styler", None)
+        if styler is not None:
+            styler.refresh()
 
     def _create_tab_manager(self) -> None:
         from PyQt6.QtWidgets import QFrame, QVBoxLayout

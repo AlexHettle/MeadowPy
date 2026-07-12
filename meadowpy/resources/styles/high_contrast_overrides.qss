@@ -209,16 +209,141 @@ QDockWidget::title { background: #000000; color: #FFFFFF; border: 1px solid #FFF
     border-top: 2px solid #FFFFFF;
 }
 
-/* Tab bars - selected tab inverts with white background and black text. */
-QMainWindow > QTabBar { border-bottom: 2px solid #000000; }
+/* Generic tabs retain a high-contrast fallback treatment. */
 QTabBar::tab { color: #FFFFFF; background: #000000; border: 2px solid transparent; border-bottom: none; min-height: 34px; max-height: 34px; padding: 0px 14px; }
-QMainWindow > QTabBar::tab { min-height: 34px; max-height: 34px; padding: 0px 14px; }
 QTabBar::tab:selected {
     background: #FFFFFF; color: #000000;
     border: 2px solid #FFFFFF; border-bottom: none;
     border-top: 3px solid #FFFFFF;
 }
 QTabBar::tab:hover:!selected { background: #2A2A2A; color: #FFFFFF; }
+
+/* Editor-document tabs share the same rounded interaction grammar. */
+#editorTabs QTabBar {
+    background: #000000;
+    border: none;
+    border-bottom: 1px solid #FFFFFF;
+}
+#editorTabs QTabBar::tab {
+    background: transparent;
+    color: #FFFFFF;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    min-height: 31px;
+    max-height: 31px;
+    min-width: 104px;
+    max-width: 196px;
+    padding: 0px 10px 0px 12px;
+    margin: 3px 1px 0px 1px;
+    font-weight: 500;
+}
+#editorTabs QTabBar::tab:first { margin-left: 8px; }
+#editorTabs QTabBar::tab:hover:!selected {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+}
+#editorTabs QTabBar::tab:selected {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+    font-weight: 600;
+}
+#editorTabs QTabBar[editorKeyboardFocus="true"]::tab:selected {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px dashed #FFFFFF;
+    border-radius: 6px;
+}
+#editorTabs QTabBar[editorPressed="true"]::tab:selected {
+    background: #2A2A2A;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+}
+#editorTabs QTabBar > QToolButton {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px solid transparent;
+}
+#editorTabs QTabBar > QToolButton:disabled { color: #7F7F7F; }
+#editorTabs QTabBar > QToolButton:hover {
+    background: #000000;
+    border: 1px solid #FFFFFF;
+}
+#editorTabs QTabBar > QToolButton:pressed {
+    background: #FFFFFF;
+    color: #000000;
+}
+
+/* Dock-panel navigation is flat, compact, and independently scoped. */
+QMainWindow > QTabBar {
+    background: #000000;
+    border: none;
+    border-bottom: 1px solid #FFFFFF;
+}
+QMainWindow > QTabBar::tab {
+    background: transparent;
+    color: #FFFFFF;
+    border: 1px solid transparent;
+    border-radius: 0px;
+    min-height: 31px;
+    max-height: 31px;
+    min-width: 68px;
+    padding: 0px 12px;
+    margin: 3px 1px 0px 1px;
+    font-weight: 500;
+}
+QMainWindow > QTabBar::tab:first { margin-left: 8px; }
+QMainWindow > QTabBar::tab:hover:!selected {
+    background: transparent;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+}
+QMainWindow > QTabBar::tab:pressed:!selected {
+    background: #FFFFFF;
+    color: #000000;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+}
+QMainWindow > QTabBar::tab:selected {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+    font-weight: 600;
+}
+QTabBar#dockPanelTabs[panelKeyboardFocus="true"]::tab:selected {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px dashed #FFFFFF;
+    border-radius: 6px;
+}
+QTabBar#dockPanelTabs[panelPressed="true"]::tab:selected {
+    background: #2A2A2A;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF;
+    border-radius: 6px;
+}
+QTabBar#dockPanelTabs > QToolButton {
+    background: #000000;
+    color: #FFFFFF;
+    border: 1px solid transparent;
+}
+QTabBar#dockPanelTabs > QToolButton:disabled {
+    color: #7F7F7F;
+}
+QTabBar#dockPanelTabs > QToolButton:hover {
+    background: #000000;
+    border: 1px solid #FFFFFF;
+}
+QTabBar#dockPanelTabs > QToolButton:pressed {
+    background: #FFFFFF;
+    color: #000000;
+}
 
 /* Project pill badge - must override its inline stylesheet */
 #explorerProjectBadge {

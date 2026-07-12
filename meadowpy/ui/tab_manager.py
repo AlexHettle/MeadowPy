@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer, QSize, QPoint
+from PyQt6.QtCore import pyqtSignal, QEvent, Qt, QTimer, QSize, QPoint
 from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -52,8 +52,8 @@ class _TabRightWidget(QWidget):
     def __init__(self, close_btn: QToolButton, dot: _ModifiedDot | None, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 3, 4, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 6, 0)
+        layout.setSpacing(4)
         self._dot = dot
         if dot is not None:
             sp = dot.sizePolicy()
@@ -74,13 +74,23 @@ class _TabRightWidget(QWidget):
 
 
 class _EditorTabBar(QTabBar):
-    """Editor tab bar with an overflow scroll indicator."""
-
-    _SCROLLBAR_H = 3  # height of the thin scrollbar
+    """Accessible editor tab bar with responsive interaction states."""
 
     def __init__(self, settings: Settings, parent=None):
         super().__init__(parent)
         self._settings = settings
+        self.setExpanding(False)
+        self.setUsesScrollButtons(True)
+        self.setElideMode(Qt.TextElideMode.ElideMiddle)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.setMouseTracking(True)
+        self.setAccessibleName("Open file tabs")
+        self.setAccessibleDescription(
+            "Switch between open files. Use the Left and Right arrow keys."
+        )
+        self.setProperty("editorKeyboardFocus", False)
+        self.setProperty("editorPressed", False)
+        self._configure_scroll_buttons()
 
     def minimumSizeHint(self) -> QSize:
         """Prevent the tab bar from forcing the layout wider."""
@@ -88,55 +98,77 @@ class _EditorTabBar(QTabBar):
         hint.setWidth(0)
         return hint
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        self._paint_scroll_indicator()
+    def _configure_scroll_buttons(self) -> None:
+        for button in self.findChildren(QToolButton):
+            if button.parent() is not self:
+                continue
+            if button.arrowType() == Qt.ArrowType.LeftArrow:
+                label = "Scroll file tabs left"
+            elif button.arrowType() == Qt.ArrowType.RightArrow:
+                label = "Scroll file tabs right"
+            else:
+                continue
+            button.setAccessibleName(label)
+            button.setToolTip(label)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.style().unpolish(button)
+            button.style().polish(button)
+            button.update()
 
-    def _paint_scroll_indicator(self):
-        """Paint a thin scrollbar at the bottom when tabs overflow."""
-        if self.count() == 0:
+    def _set_visual_state(self, name: str, enabled: bool) -> None:
+        if bool(self.property(name)) == enabled:
             return
+        self.setProperty(name, enabled)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
 
-        first_rect = self.tabRect(0)
-        last_rect = self.tabRect(self.count() - 1)
-        total_width = last_rect.right() - first_rect.left()
-        visible_width = self.width()
+    def focusInEvent(self, event) -> None:  # noqa: N802
+        is_keyboard_focus = event.reason() in {
+            Qt.FocusReason.TabFocusReason,
+            Qt.FocusReason.BacktabFocusReason,
+            Qt.FocusReason.ShortcutFocusReason,
+        }
+        self._set_visual_state("editorKeyboardFocus", is_keyboard_focus)
+        super().focusInEvent(event)
 
-        if total_width <= visible_width:
-            return  # all tabs fit, no scrollbar needed
+    def focusOutEvent(self, event) -> None:  # noqa: N802
+        self._set_visual_state("editorKeyboardFocus", False)
+        self._set_visual_state("editorPressed", False)
+        super().focusOutEvent(event)
 
-        is_dark = theme_is_dark(
-            self._settings.get("editor.theme") or "default_dark",
-            self._settings.get("editor.custom_theme.base"),
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        is_tab_press = (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.tabAt(event.position().toPoint()) >= 0
         )
+        self._set_visual_state("editorPressed", is_tab_press)
+        super().mousePressEvent(event)
 
-        h = self._SCROLLBAR_H
-        bar_y = self.height() - h
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        super().mouseReleaseEvent(event)
+        self._set_visual_state("editorPressed", False)
 
-        # Thumb proportional to visible / total
-        thumb_w = max(20, int(visible_width * visible_width / total_width))
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if self.tabAt(event.position().toPoint()) >= 0:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.unsetCursor()
+        super().mouseMoveEvent(event)
 
-        # Position from scroll offset (first tab's left goes negative when scrolled)
-        scroll_offset = -first_rect.left()
-        max_scroll = total_width - visible_width
-        scroll_pct = scroll_offset / max_scroll if max_scroll > 0 else 0
-        thumb_x = int(scroll_pct * (visible_width - thumb_w))
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        self._set_visual_state("editorPressed", False)
+        self.unsetCursor()
+        super().leaveEvent(event)
 
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-
-        # Track
-        track_color = QColor(60, 60, 60, 60) if is_dark else QColor(0, 0, 0, 30)
-        painter.setBrush(track_color)
-        painter.drawRoundedRect(0, bar_y, visible_width, h, 1, 1)
-
-        # Thumb
-        thumb_color = QColor(150, 150, 150, 160) if is_dark else QColor(100, 100, 100, 140)
-        painter.setBrush(thumb_color)
-        painter.drawRoundedRect(thumb_x, bar_y, thumb_w, h, 1, 1)
-
-        painter.end()
+    def event(self, event) -> bool:
+        if event.type() in {
+            QEvent.Type.UngrabMouse,
+            QEvent.Type.WindowDeactivate,
+            QEvent.Type.Hide,
+        }:
+            self._set_visual_state("editorPressed", False)
+        return super().event(event)
 
 
 class TabManager(QTabWidget):
@@ -186,6 +218,7 @@ class TabManager(QTabWidget):
 
         index = self.addTab(editor, tab_title)
         self._set_close_button(index, editor)
+        self._refresh_tab_metadata(index, editor)
         self.setCurrentIndex(index)
 
         editor.modification_changed.connect(
@@ -194,15 +227,30 @@ class TabManager(QTabWidget):
         self.editor_created.emit(editor)
         return editor
 
-    def _close_btn_stylesheet(self, is_dark: bool) -> str:
-        """QSS for the tab close button — circular hover pill."""
-        idle_color = "#858585"
-        hover_color = "#FFFFFF" if is_dark else "#1F1F1F"
-        hover_bg = "rgba(255,255,255,0.12)" if is_dark else "rgba(0,0,0,0.08)"
+    def _close_btn_stylesheet(self, is_dark: bool, is_high_contrast: bool) -> str:
+        """QSS for a stable, accessible close-tab hit target."""
+        if is_high_contrast:
+            idle_color = "#FFFFFF"
+            hover_color = "#000000"
+            hover_bg = "#FFFFFF"
+            pressed_bg = "#FFFFFF"
+        elif is_dark:
+            idle_color = "#A0A0A0"
+            hover_color = "#FFFFFF"
+            hover_bg = "rgba(255,255,255,0.12)"
+            pressed_bg = "rgba(255,255,255,0.20)"
+        else:
+            idle_color = "#60656D"
+            hover_color = "#111827"
+            hover_bg = "rgba(0,0,0,0.08)"
+            pressed_bg = "rgba(0,0,0,0.14)"
         return (
-            f"QToolButton {{ color: {idle_color}; font-size: 11px; font-weight: normal;"
-            f" background: transparent; border: none; border-radius: 9px; padding: 0; margin: 0; }}"
+            f"QToolButton {{ color: {idle_color}; font-family: 'Segoe UI Symbol';"
+            f" font-size: 12px; font-weight: normal; background: transparent;"
+            f" border: 1px solid transparent; border-radius: 12px;"
+            f" padding: 0; margin: 0; }}"
             f" QToolButton:hover {{ background: {hover_bg}; color: {hover_color}; }}"
+            f" QToolButton:pressed {{ background: {pressed_bg}; color: {hover_color}; }}"
         )
 
     def _accent_color(self) -> str:
@@ -212,26 +260,55 @@ class TabManager(QTabWidget):
             self._settings.get("editor.custom_theme.accent"),
         )
 
+    def _refresh_tab_metadata(self, index: int, editor: CodeEditor) -> None:
+        """Keep title, full-path tooltip, and trailing controls in sync."""
+        if index < 0 or index >= self.count():
+            return
+        display_name = editor.display_name
+        self.setTabText(index, display_name)
+        self.setTabToolTip(index, editor.file_path or display_name)
+        side = self.tabBar().tabButton(index, QTabBar.ButtonPosition.RightSide)
+        if isinstance(side, _TabRightWidget):
+            close_label = f"Close {display_name}"
+            side.close_btn.setAccessibleName(close_label)
+            side.close_btn.setToolTip(close_label)
+            if side._dot is not None:
+                side._dot.setAccessibleName(
+                    f"{display_name} has unsaved changes"
+                )
+
     def _set_close_button(self, index: int, editor: CodeEditor) -> None:
         """Add a styled close button (with modified dot) tied to this editor."""
         is_dark = theme_is_dark(
             self._settings.get("editor.theme"),
             self._settings.get("editor.custom_theme.base"),
         )
+        is_high_contrast = (
+            self._settings.get("editor.theme") == "default_high_contrast"
+        )
 
         btn = QToolButton()
         btn.setText("\u2715")
-        btn.setFixedSize(18, 18)
+        btn.setFixedSize(24, 24)
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setToolTip("Close Tab")
+        close_label = f"Close {editor.display_name}"
+        btn.setAccessibleName(close_label)
+        btn.setToolTip(close_label)
         btn.setAutoRaise(True)
-        btn.setStyleSheet(self._close_btn_stylesheet(is_dark))
+        btn.setStyleSheet(
+            self._close_btn_stylesheet(is_dark, is_high_contrast)
+        )
         btn.clicked.connect(lambda checked=False, ed=editor: self._close_editor_tab(ed))
 
         dot = _ModifiedDot(self._accent_color)
+        dot.setAccessibleName(f"{editor.display_name} has unsaved changes")
         side = _TabRightWidget(btn, dot)
         side.set_modified(editor.is_modified)
-        self.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, side)
+        bar = self.tabBar()
+        bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, side)
+        if isinstance(bar, _EditorTabBar):
+            bar._configure_scroll_buttons()
 
     def _close_editor_tab(self, editor: CodeEditor) -> None:
         """Close the tab containing this editor (deferred to next event loop)."""
@@ -316,6 +393,7 @@ class TabManager(QTabWidget):
         if path:
             editor.file_path = path
             editor.setModified(False)
+            self._refresh_tab_metadata(self.indexOf(editor), editor)
             return True
         if getattr(self._file_manager, "last_save_error", None):
             show_save_failed(
@@ -343,14 +421,14 @@ class TabManager(QTabWidget):
         """Update the tab title from the editor's display_name."""
         editor = self.widget(index)
         if isinstance(editor, CodeEditor):
-            self.setTabText(index, editor.display_name)
+            self._refresh_tab_metadata(index, editor)
 
     def _update_modified_indicator(self, editor: CodeEditor, modified: bool) -> None:
         """Show/hide the dot on this editor's tab."""
         index = self.indexOf(editor)
         if index < 0:
             return
-        self.setTabText(index, editor.display_name)
+        self._refresh_tab_metadata(index, editor)
         side = self.tabBar().tabButton(index, QTabBar.ButtonPosition.RightSide)
         if isinstance(side, _TabRightWidget):
             side.set_modified(modified)
@@ -361,7 +439,8 @@ class TabManager(QTabWidget):
         custom_base = self._settings.get("editor.custom_theme.base") or "dark"
         custom_accent = self._settings.get("editor.custom_theme.accent")
         is_dark = theme_is_dark(theme_name, custom_base)
-        qss = self._close_btn_stylesheet(is_dark)
+        is_high_contrast = theme_name == "default_high_contrast"
+        qss = self._close_btn_stylesheet(is_dark, is_high_contrast)
         bar = self.tabBar()
         for i in range(self.count()):
             widget = self.widget(i)
@@ -419,14 +498,22 @@ class TabManager(QTabWidget):
             self._settings.get("editor.theme"),
             self._settings.get("editor.custom_theme.base"),
         )
+        is_high_contrast = (
+            self._settings.get("editor.theme") == "default_high_contrast"
+        )
 
         btn = QToolButton()
         btn.setText("\u2715")
-        btn.setFixedSize(18, 18)
+        btn.setFixedSize(24, 24)
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setToolTip("Close Tab")
+        btn.setAccessibleName("Close Welcome")
+        btn.setToolTip("Close Welcome")
         btn.setAutoRaise(True)
-        btn.setStyleSheet(self._close_btn_stylesheet(is_dark))
+        btn.setStyleSheet(
+            self._close_btn_stylesheet(is_dark, is_high_contrast)
+        )
         btn.clicked.connect(lambda: QTimer.singleShot(0, self.close_welcome_tab))
         side = _TabRightWidget(btn, None)
         self.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, side)
+        self.setTabToolTip(index, "Welcome")
