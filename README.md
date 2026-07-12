@@ -58,7 +58,7 @@ MeadowPy is different. It's built specifically for beginners, with three core id
 
 **AI that stays on your machine.** MeadowPy's AI assistant runs entirely locally via Ollama — no account, no subscription, no data sent anywhere. It knows the context of what you're writing and answers questions like a knowledgeable friend sitting next to you.
 
-**Zero friction to get started.** Six ready-to-run starter projects, one-click setup, and a full example library mean you can go from download to running code in minutes — no configuration required.
+**Zero friction to get started.** Twelve ready-to-run starter projects, one-click setup, and a full example library mean you can go from download to running code in minutes — no configuration required.
 
 If you're learning Python and want an environment that supports you rather than gets in your way, MeadowPy is for you.
 
@@ -100,7 +100,7 @@ MeadowPy has a built-in AI assistant powered by [Ollama](https://ollama.com) tha
 
 **AI Chat Panel** — Open the chat sidebar and ask questions in plain English. The AI knows which file you're editing and what function you're in, so it gives relevant answers. Responses stream in token-by-token so you don't have to wait.
 
-![AI chat sidebar open alongside the code editor, showing a conversation about a Python function](meadowpy/resources/Images/AI%20chat.png)
+![AI chat panel showing a conversation about a Python function](meadowpy/resources/Images/AI%20chat.png)
 
 **Right-click any code** to:
 - **Explain this code** — Get a plain-English breakdown of what selected code does
@@ -119,9 +119,9 @@ Works with any model you have installed in Ollama — Llama, CodeLlama, DeepSeek
 
 MeadowPy is designed from the ground up for people learning to code.
 
-**Welcome screen with templates** — When you first open MeadowPy, you'll see six ready-to-run projects to get started with: Hello World, Simple Calculator, Guessing Game, Todo List, Turtle Graphics, and Simple Quiz. One click and you're coding.
+**Welcome screen with templates** — When you first open MeadowPy, you'll see twelve ready-to-run projects, from Hello World and Simple Calculator to Bank Account, Safe Input, and Rock Paper Scissors. One click and you're coding.
 
-![MeadowPy welcome screen showing six starter project templates](meadowpy/resources/Images/Welcome%20screen.png)
+![MeadowPy welcome screen showing the current quick-start project templates](meadowpy/resources/Images/Welcome%20screen.png)
 
 **Error messages you can actually understand** — When your code hits an error, MeadowPy translates the traceback into plain English. Over 100 common error patterns are covered, from `NameError` typos to `IndentationError` mix-ups. Each explanation tells you what went wrong and how to fix it.
 
