@@ -19,7 +19,7 @@ from meadowpy.editor.lexer_profiles import (
     get_lexer_profile,
 )
 from meadowpy.editor.themes import get_theme
-from meadowpy.resources.resource_loader import current_accent_hex, theme_is_dark
+from meadowpy.resources.resource_loader import current_accent_hex
 
 
 class EditorConfigurator:
@@ -478,59 +478,30 @@ class EditorConfigurator:
 
     @staticmethod
     def _apply_folding(editor: QsciScintilla, settings: Settings) -> None:
-        """Apply V2 fold margin styling.
-
-        Replaces the default boxed-tree +/− with a clean circled style
-        tinted in the current accent color, matching the rounded panel
-        chrome used elsewhere in the IDE. The fold margin and the tree
-        connector lines blend into the editor background so only the
-        accent-colored circle reads as interactive.
-        """
+        """Configure folding before CodeEditor installs its custom artwork."""
         theme_name = settings.get("editor.theme")
         custom_base = settings.get("editor.custom_theme.base")
         theme = get_theme(theme_name, custom_base=custom_base)
+        editor.setMarginType(1, QsciScintilla.MarginType.SymbolMargin)
+        editor.setMarginBackgroundColor(1, QColor(theme.fold_margin_background))
 
         if settings.get("editor.code_folding"):
-            # Circled + tree style: rounded ⊕ / ⊖ markers with the
-            # vertical connector lines that show fold hierarchy.
-            editor.setFolding(QsciScintilla.FoldStyle.CircledTreeFoldStyle, 1)
+            # Plain style keeps QScintilla's folding behavior without opting
+            # into its legacy tree connectors. CodeEditor replaces the
+            # reserved marker artwork after every settings/theme pass.
+            editor.setFolding(QsciScintilla.FoldStyle.PlainFoldStyle, 1)
+            editor.setMarginSensitivity(1, True)
         else:
+            # Never strand contracted text behind a hidden folding margin.
+            editor.clearFolds()
             editor.setFolding(QsciScintilla.FoldStyle.NoFoldStyle)
+            editor.setMarginWidth(1, 0)
+            editor.setMarginSensitivity(1, False)
 
         editor.setFoldMarginColors(
             QColor(theme.fold_margin_background),
             QColor(theme.fold_margin_background),
         )
-
-        # Tint the fold markers with the current accent color.
-        # QScintilla uses marker numbers 25–31 for fold indicators:
-        #   25 SC_MARKNUM_FOLDERMIDTAIL   (T-junction connector)
-        #   26 SC_MARKNUM_FOLDEREND       (end bump, in tree styles)
-        #   27 SC_MARKNUM_FOLDEROPENMID   (mid expanded, tree styles)
-        #   28 SC_MARKNUM_FOLDERTAIL      (corner connector)
-        #   29 SC_MARKNUM_FOLDERSUB       (vertical connector)
-        #   30 SC_MARKNUM_FOLDER          (collapsed ⊕)
-        #   31 SC_MARKNUM_FOLDEROPEN      (expanded ⊖)
-        accent = current_accent_hex(
-            theme_name,
-            custom_base,
-            settings.get("editor.custom_theme.accent"),
-        )
-        is_dark = theme_is_dark(theme_name, custom_base)
-        margin_bg = QColor(theme.fold_margin_background)
-        accent_color = QColor(accent)
-        # Foreground (the +/− glyph and the circle outline): accent.
-        # Background (the circle fill): panel bg so the outline pops.
-        for marker in (30, 31):   # FOLDER, FOLDEROPEN
-            editor.setMarkerForegroundColor(accent_color, marker)
-            editor.setMarkerBackgroundColor(margin_bg, marker)
-        # Connector lines (tree styles) — neutralize them so only the
-        # circles read. CircledFoldStyle doesn't draw them, but setting
-        # colors is harmless and keeps other styles clean if switched.
-        connector_color = QColor("#6B6B6B" if is_dark else "#B0B3B8")
-        for marker in (25, 26, 27, 28, 29):
-            editor.setMarkerForegroundColor(connector_color, marker)
-            editor.setMarkerBackgroundColor(margin_bg, marker)
 
     @staticmethod
     def _apply_general(editor: QsciScintilla, settings: Settings) -> None:

@@ -28,6 +28,10 @@ class EditorTheme:
     margin_background: str
     margin_foreground: str
     fold_margin_background: str
+    fold_indicator: str
+    fold_indicator_hover: str
+    fold_hover_background: str
+    fold_pressed_background: str
     breakpoint_active: str
     breakpoint_hover_add: str
     breakpoint_hover_remove: str
@@ -93,6 +97,10 @@ DEFAULT_LIGHT = EditorTheme(
     margin_background="#F5F5F5",
     margin_foreground="#999999",
     fold_margin_background="#F5F5F5",
+    fold_indicator="#5F6368",
+    fold_indicator_hover="#202124",
+    fold_hover_background="#E2E5E9",
+    fold_pressed_background="#D2D6DC",
     # Debugger colors are semantic editor tokens rather than widget-local
     # constants.  In particular, both hover colors exceed 3:1 against the
     # margin background so the click target remains visible without relying
@@ -137,6 +145,10 @@ DEFAULT_DARK = EditorTheme(
     margin_background="#252526",
     margin_foreground="#858585",
     fold_margin_background="#252526",
+    fold_indicator="#A8ADB5",
+    fold_indicator_hover="#F1F3F4",
+    fold_hover_background="#3A3D41",
+    fold_pressed_background="#484C52",
     breakpoint_active="#FF5C57",
     breakpoint_hover_add="#FF7B75",
     breakpoint_hover_remove="#FFAAA5",
@@ -181,6 +193,10 @@ DEFAULT_HIGH_CONTRAST = EditorTheme(
     margin_background="#000000",
     margin_foreground="#FFFFFF",
     fold_margin_background="#000000",
+    fold_indicator="#FFFFFF",
+    fold_indicator_hover="#FFFFFF",
+    fold_hover_background="#333333",
+    fold_pressed_background="#595959",
     # Shape and symbols distinguish states in high-contrast mode; keeping the
     # tokens monochrome avoids making color perception a requirement.
     breakpoint_active="#FFFFFF",

@@ -45,9 +45,15 @@ MARKER_BREAKPOINT_PENDING_CURRENT = 7
 MARKER_BREAKPOINT_REJECTED_CURRENT = 8
 MARKER_BREAKPOINT_CURRENT_HOVER_REMOVE = 9
 MARKER_CURRENT_LINE_HOVER_ADD = 10
+MARKER_FOLD_HOVER = 11
+MARKER_FOLD_PRESSED = 12
 BREAKPOINT_MARGIN_WIDTH = 26
 BREAKPOINT_MARKER_SIZE = 18
 BREAKPOINT_FORWARD_SEARCH_LIMIT = 5
+FOLD_MARGIN_WIDTH = 24
+FOLD_MARKER_SIZE = 18
+
+_FOLD_FEEDBACK_MASK = (1 << MARKER_FOLD_HOVER) | (1 << MARKER_FOLD_PRESSED)
 
 
 class BreakpointState(str, Enum):
@@ -132,6 +138,8 @@ class CodeEditor(QsciScintilla):
         self._phantom_breakpoint_marker: int | None = None
         self._rejected_breakpoint_reasons: dict[int, str] = {}
         self._current_line: int | None = None
+        self._fold_hover_line: int | None = None
+        self._fold_pressed_line: int | None = None
         self._breakable_lines_cache: set[int] | None = None
         self._sorted_breakable_lines_cache: tuple[int, ...] | None = None
         self.setMouseTracking(True)
@@ -144,6 +152,7 @@ class CodeEditor(QsciScintilla):
         EditorConfigurator.apply(self, settings)
         # Font metrics and DPR are reliable after the configurator runs.
         self._refresh_breakpoint_lane_artwork()
+        self._refresh_folding_lane_artwork()
         self._indent_guide_overlay = _IndentGuideOverlay(self)
         self._indent_guide_overlay.setGeometry(self.rect())
         self._indent_guide_overlay.raise_()
@@ -168,6 +177,7 @@ class CodeEditor(QsciScintilla):
         self.linesChanged.connect(self._indent_guide_overlay.update)
         self.textChanged.connect(self._indent_guide_overlay.update)
         self.textChanged.connect(self._clear_phantom_breakpoint)
+        self.textChanged.connect(self._clear_fold_feedback)
         self.textChanged.connect(self._invalidate_breakable_lines_cache)
         self.textChanged.connect(self._sync_breakpoints_from_markers)
         self.marginClicked.connect(self._on_margin_clicked)
@@ -190,6 +200,7 @@ class CodeEditor(QsciScintilla):
         )
         if old_editor_mode != new_editor_mode:
             EditorConfigurator.apply(self, self._settings)
+            self._refresh_folding_lane_artwork()
             overlay = getattr(self, "_indent_guide_overlay", None)
             if overlay is not None:
                 overlay.update()
@@ -218,6 +229,7 @@ class CodeEditor(QsciScintilla):
         self._settings = settings
         EditorConfigurator.apply(self, settings)
         self._refresh_breakpoint_lane_artwork()
+        self._refresh_folding_lane_artwork()
         self._indent_guide_overlay.update()
         self.update()
 
@@ -519,8 +531,26 @@ class CodeEditor(QsciScintilla):
             refresh = getattr(self, "_refresh_breakpoint_lane_artwork", None)
             if callable(refresh):
                 refresh()
+            fold_refresh = getattr(self, "_refresh_folding_lane_artwork", None)
+            if callable(fold_refresh):
+                fold_refresh()
 
         if e.type() == QEvent.Type.ToolTip:
+            folding_tooltip = None
+            folding_tooltip_getter = getattr(
+                self,
+                "_get_folding_tooltip",
+                None,
+            )
+            if callable(folding_tooltip_getter):
+                folding_tooltip = folding_tooltip_getter(
+                    e.pos().x(),
+                    e.pos().y(),
+                )
+            if folding_tooltip:
+                QToolTip.showText(e.globalPos(), folding_tooltip, self)
+                return True
+
             breakpoint_tooltip = None
             tooltip_getter = getattr(self, "_get_breakpoint_tooltip", None)
             if callable(tooltip_getter):
@@ -565,16 +595,19 @@ class CodeEditor(QsciScintilla):
         super().zoomIn(range_)
         self._update_margin_width()
         self._refresh_breakpoint_lane_artwork()
+        self._refresh_folding_lane_artwork()
 
     def zoomOut(self, range_=1) -> None:
         super().zoomOut(range_)
         self._update_margin_width()
         self._refresh_breakpoint_lane_artwork()
+        self._refresh_folding_lane_artwork()
 
     def zoomTo(self, size) -> None:
         super().zoomTo(size)
         self._update_margin_width()
         self._refresh_breakpoint_lane_artwork()
+        self._refresh_folding_lane_artwork()
 
     def wheelEvent(self, event) -> None:
         super().wheelEvent(event)
@@ -582,13 +615,30 @@ class CodeEditor(QsciScintilla):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._update_margin_width()
             self._refresh_breakpoint_lane_artwork()
+            self._refresh_folding_lane_artwork()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         super().mouseMoveEvent(event)
         self._update_phantom_breakpoint(event.pos().x(), event.pos().y())
+        self._update_fold_hover(event.pos().x(), event.pos().y())
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            line = self._fold_header_from_point(event.pos().x(), event.pos().y())
+            if line is not None:
+                self._fold_pressed_line = line
+                self._fold_hover_line = line
+                self._sync_fold_feedback_marker()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        super().mouseReleaseEvent(event)
+        self._fold_pressed_line = None
+        self._update_fold_hover(event.pos().x(), event.pos().y())
 
     def leaveEvent(self, event) -> None:  # noqa: N802
         self._clear_phantom_breakpoint()
+        self._clear_fold_feedback()
         self.unsetCursor()
         super().leaveEvent(event)
 
@@ -926,6 +976,297 @@ class CodeEditor(QsciScintilla):
         except (AttributeError, TypeError, RuntimeError):
             return 1.0
 
+    @staticmethod
+    def _fold_marker_pixmap(
+        color: QColor,
+        *,
+        expanded: bool,
+        logical_size: int = FOLD_MARKER_SIZE,
+        device_pixel_ratio: float = 1.0,
+    ) -> QPixmap:
+        """Return a crisp right/down chevron for a fold header."""
+        size = max(int(logical_size), 14)
+        dpr = max(float(device_pixel_ratio), 1.0)
+        physical_size = max(int(round(size * dpr)), 1)
+        pixmap = QPixmap(physical_size, physical_size)
+        pixmap.setDevicePixelRatio(dpr)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            pen = QPen(color, max(1.65, size * 0.095))
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+
+            center = size / 2.0
+            arm = max(3.2, min(4.4, size * 0.22))
+            if expanded:
+                middle_y = center + arm * 0.38
+                painter.drawLine(
+                    QLineF(center - arm, center - arm * 0.45, center, middle_y)
+                )
+                painter.drawLine(
+                    QLineF(center, middle_y, center + arm, center - arm * 0.45)
+                )
+            else:
+                middle_x = center + arm * 0.38
+                painter.drawLine(
+                    QLineF(center - arm * 0.45, center - arm, middle_x, center)
+                )
+                painter.drawLine(
+                    QLineF(middle_x, center, center - arm * 0.45, center + arm)
+                )
+        finally:
+            painter.end()
+        return pixmap
+
+    @staticmethod
+    def _fold_feedback_pixmap(
+        background: QColor,
+        *,
+        border: QColor | None = None,
+        logical_size: int = FOLD_MARKER_SIZE,
+        device_pixel_ratio: float = 1.0,
+    ) -> QPixmap:
+        """Return the rounded hover/press surface behind a fold chevron."""
+        size = max(int(logical_size), 14)
+        dpr = max(float(device_pixel_ratio), 1.0)
+        physical_size = max(int(round(size * dpr)), 1)
+        pixmap = QPixmap(physical_size, physical_size)
+        pixmap.setDevicePixelRatio(dpr)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            if border is None:
+                painter.setPen(Qt.PenStyle.NoPen)
+            else:
+                border_color = QColor(border)
+                border_color.setAlpha(150)
+                painter.setPen(QPen(border_color, 1.0))
+            painter.setBrush(background)
+            inset = max(1.0, size * 0.08)
+            radius = max(3.5, size * 0.24)
+            painter.drawRoundedRect(
+                QRectF(inset, inset, size - 2 * inset, size - 2 * inset),
+                radius,
+                radius,
+            )
+        finally:
+            painter.end()
+        return pixmap
+
+    def _fold_marker_logical_size(self) -> int:
+        """Scale the fold target with the current editor line height."""
+        try:
+            line_height = int(self._line_height(0))
+        except (AttributeError, TypeError, RuntimeError):
+            line_height = FOLD_MARKER_SIZE
+        return max(16, min(24, int(round(line_height * 0.90))))
+
+    def _define_fold_markers(self) -> None:
+        """Install connector-free, semantic fold artwork."""
+        from meadowpy.editor.themes import get_theme
+
+        theme = get_theme(
+            self._settings.get("editor.theme"),
+            custom_base=self._settings.get("editor.custom_theme.base"),
+        )
+        size = self._fold_marker_logical_size()
+        dpr = self._marker_device_pixel_ratio()
+        collapsed = self._fold_marker_pixmap(
+            QColor(theme.fold_indicator),
+            expanded=False,
+            logical_size=size,
+            device_pixel_ratio=dpr,
+        )
+        expanded = self._fold_marker_pixmap(
+            QColor(theme.fold_indicator),
+            expanded=True,
+            logical_size=size,
+            device_pixel_ratio=dpr,
+        )
+        transparent = QPixmap(
+            max(int(round(size * dpr)), 1),
+            max(int(round(size * dpr)), 1),
+        )
+        transparent.setDevicePixelRatio(dpr)
+        transparent.fill(Qt.GlobalColor.transparent)
+
+        # FOLDEREND/FOLDEROPENMID are real controls for nested tree headers;
+        # FOLDER/FOLDEROPEN are their top-level counterparts. Only the three
+        # connector markers are intentionally blank.
+        for marker in (
+            QsciScintilla.SC_MARKNUM_FOLDEREND,
+            QsciScintilla.SC_MARKNUM_FOLDER,
+        ):
+            self.markerDefine(collapsed, marker)
+        for marker in (
+            QsciScintilla.SC_MARKNUM_FOLDEROPENMID,
+            QsciScintilla.SC_MARKNUM_FOLDEROPEN,
+        ):
+            self.markerDefine(expanded, marker)
+        for marker in (
+            QsciScintilla.SC_MARKNUM_FOLDERMIDTAIL,
+            QsciScintilla.SC_MARKNUM_FOLDERTAIL,
+            QsciScintilla.SC_MARKNUM_FOLDERSUB,
+        ):
+            self.markerDefine(transparent, marker)
+
+        self.markerDefine(
+            self._fold_feedback_pixmap(
+                QColor(theme.fold_hover_background),
+                border=QColor(theme.fold_indicator_hover),
+                logical_size=size,
+                device_pixel_ratio=dpr,
+            ),
+            MARKER_FOLD_HOVER,
+        )
+        self.markerDefine(
+            self._fold_feedback_pixmap(
+                QColor(theme.fold_pressed_background),
+                border=QColor(theme.fold_indicator_hover),
+                logical_size=size,
+                device_pixel_ratio=dpr,
+            ),
+            MARKER_FOLD_PRESSED,
+        )
+
+    def _refresh_folding_lane_artwork(self) -> None:
+        """Refresh folding artwork and geometry after UI scale changes."""
+        if not self._settings.get("editor.code_folding"):
+            self._clear_fold_feedback()
+            self.setMarginWidth(1, 0)
+            self.setMarginSensitivity(1, False)
+            return
+
+        from meadowpy.editor.themes import get_theme
+
+        theme = get_theme(
+            self._settings.get("editor.theme"),
+            custom_base=self._settings.get("editor.custom_theme.base"),
+        )
+        self.setFoldMarginColors(
+            QColor(theme.fold_margin_background),
+            QColor(theme.fold_margin_background),
+        )
+        self._define_fold_markers()
+        size = self._fold_marker_logical_size()
+        self.setMarginWidth(1, max(FOLD_MARGIN_WIDTH, size + 6))
+        self.setMarginMarkerMask(
+            1,
+            int(QsciScintilla.SC_MASK_FOLDERS) | _FOLD_FEEDBACK_MASK,
+        )
+        self.setMarginSensitivity(1, True)
+
+    def _folding_enabled(self) -> bool:
+        return bool(
+            self._settings.get("editor.code_folding")
+            and int(self.marginWidth(1) or 0) > 0
+        )
+
+    def _fold_hover_margin_at_x(self, x: int) -> bool:
+        """Return True when x is inside the dedicated folding lane."""
+        fold_start = int(self.marginWidth(0) or 0)
+        fold_width = int(self.marginWidth(1) or 0)
+        return (
+            self._folding_enabled()
+            and fold_start <= x < fold_start + fold_width
+        )
+
+    def _is_fold_header(self, line: int) -> bool:
+        if not self._folding_enabled() or line < 0 or line >= self.lines():
+            return False
+        try:
+            level = int(
+                self.SendScintilla(QsciScintilla.SCI_GETFOLDLEVEL, line)
+            )
+        except (TypeError, RuntimeError):
+            return False
+        return bool(level & int(QsciScintilla.SC_FOLDLEVELHEADERFLAG))
+
+    def _fold_header_from_point(self, x: int, y: int) -> int | None:
+        if not self._fold_hover_margin_at_x(x):
+            return None
+        line = self._line_from_mouse_y(y)
+        return line if line is not None and self._is_fold_header(line) else None
+
+    def _sync_fold_feedback_marker(self) -> None:
+        """Display feedback on only the currently interactive fold header."""
+        self.markerDeleteAll(MARKER_FOLD_HOVER)
+        self.markerDeleteAll(MARKER_FOLD_PRESSED)
+        line = self._fold_hover_line
+        if line is None or not self._is_fold_header(line):
+            return
+        marker = (
+            MARKER_FOLD_PRESSED
+            if self._fold_pressed_line == line
+            else MARKER_FOLD_HOVER
+        )
+        self.markerAdd(line, marker)
+
+    def _clear_fold_feedback(self, *_args) -> None:
+        """Remove transient folding hover and pressed state."""
+        self.markerDeleteAll(MARKER_FOLD_HOVER)
+        self.markerDeleteAll(MARKER_FOLD_PRESSED)
+        self._fold_hover_line = None
+        self._fold_pressed_line = None
+
+    def _update_fold_hover(self, x: int, y: int) -> None:
+        """Update the row-specific folding hover state and pointer cursor."""
+        line = self._fold_header_from_point(x, y)
+        if self._fold_pressed_line is not None and line != self._fold_pressed_line:
+            self._fold_pressed_line = None
+
+        if line != self._fold_hover_line:
+            self._fold_hover_line = line
+            self._sync_fold_feedback_marker()
+        elif line is not None:
+            # Press/release can change the marker while the hovered line stays.
+            self._sync_fold_feedback_marker()
+
+        if line is not None:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        elif self._phantom_breakpoint_line is None:
+            self.unsetCursor()
+
+    @staticmethod
+    def _fold_block_kind(header_text: str) -> str:
+        stripped = header_text.lstrip()
+        if stripped.startswith(("def ", "async def ")):
+            return "function"
+        if stripped.startswith("class "):
+            return "class"
+        return "code block"
+
+    def _get_folding_tooltip(self, x: int, y: int) -> str | None:
+        """Return concise collapse/expand help for a fold header."""
+        line = self._fold_header_from_point(x, y)
+        if line is None:
+            return None
+        try:
+            expanded = bool(
+                self.SendScintilla(QsciScintilla.SCI_GETFOLDEXPANDED, line)
+            )
+            last_child = int(
+                self.SendScintilla(QsciScintilla.SCI_GETLASTCHILD, line, -1)
+            )
+        except (TypeError, RuntimeError):
+            return None
+
+        kind = self._fold_block_kind(self.text(line))
+        if expanded:
+            return (
+                f"Collapse {kind} "
+                f"(lines {line + 1}-{max(last_child, line) + 1})"
+            )
+        hidden_lines = max(last_child - line, 1)
+        suffix = "line" if hidden_lines == 1 else "lines"
+        return f"Expand {kind} ({hidden_lines} hidden {suffix})"
+
     def _define_breakpoint_markers(self) -> None:
         """Install custom breakpoint marker artwork for the current theme."""
         from meadowpy.editor.themes import get_theme
@@ -1046,8 +1387,9 @@ class CodeEditor(QsciScintilla):
         self.setMarginSensitivity(0, False)
 
     def refresh_marker_colors(self) -> None:
-        """Re-apply breakpoint / current-line marker colors after a theme change."""
+        """Re-apply breakpoint, execution, and folding artwork."""
         self._refresh_breakpoint_lane_artwork()
+        self._refresh_folding_lane_artwork()
 
     # --- Breakpoint methods ---
 
