@@ -1,9 +1,11 @@
+import sys
+
 import pytest
-from PyQt6.QtCore import QProcess
+from PyQt6.QtCore import QElapsedTimer, QEvent, QProcess
 
 import meadowpy.core.process_runner as process_module
 from meadowpy.core.process_runner import ProcessRunner, sweep_selection_temp_files
-from tests.helpers import FakeProcess, SignalRecorder
+from tests.helpers import DummySignal, FakeProcess, SignalRecorder
 
 
 class FakeQProcess(FakeProcess):
@@ -11,18 +13,52 @@ class FakeQProcess(FakeProcess):
     ProcessError = QProcess.ProcessError
     ProcessState = QProcess.ProcessState
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.started = DummySignal()
 
-def test_run_file_delegates_to_start_process_and_emits_description():
+    def start(self, interpreter, args):
+        super().start(interpreter, args)
+        self.started.emit()
+
+
+def _wait_until(qapp, predicate, timeout_ms=5_000):
+    timer = QElapsedTimer()
+    timer.start()
+    while not predicate() and timer.elapsed() < timeout_ms:
+        qapp.processEvents()
+    return predicate()
+
+
+def _flush_deferred_deletes(qapp):
+    qapp.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
+
+
+def test_run_file_delegates_to_start_process_with_description():
     runner = ProcessRunner()
     started = SignalRecorder()
     runner.process_started.connect(started)
     calls = []
-    runner._start_process = lambda interpreter, args, working_dir: calls.append((interpreter, args, working_dir))
+
+    def record_start(
+        interpreter,
+        args,
+        working_dir,
+        *,
+        description,
+        temp_file=None,
+    ):
+        calls.append((interpreter, args, working_dir, description, temp_file))
+
+    runner._start_process = record_start
 
     runner.run_file("demo.py", "python.exe", "C:/work")
 
-    assert calls == [("python.exe", ["-u", "demo.py"], "C:/work")]
-    assert started.calls == [("Running: demo.py",)]
+    assert calls == [
+        ("python.exe", ["-u", "demo.py"], "C:/work", "Running: demo.py", None),
+    ]
+    assert started.calls == []
 
 
 def test_run_code_writes_temp_file_and_starts_process(tmp_path, monkeypatch):
@@ -30,7 +66,21 @@ def test_run_code_writes_temp_file_and_starts_process(tmp_path, monkeypatch):
     started_calls = []
     runner.process_started.connect(lambda text: started_calls.append(text))
     process_calls = []
-    runner._start_process = lambda interpreter, args, working_dir: process_calls.append((interpreter, args, working_dir))
+
+    def record_start(
+        interpreter,
+        args,
+        working_dir,
+        *,
+        description,
+        temp_file=None,
+    ):
+        process_calls.append(
+            (interpreter, args, working_dir, description, temp_file)
+        )
+        runner._temp_file = temp_file
+
+    runner._start_process = record_start
     monkeypatch.setattr("meadowpy.core.process_runner.Path.home", lambda: tmp_path)
 
     runner.run_code("print('hello')", "python.exe", str(tmp_path))
@@ -42,9 +92,15 @@ def test_run_code_writes_temp_file_and_starts_process(tmp_path, monkeypatch):
     assert temp_file.suffix == ".py"
     assert temp_file.read_text(encoding="utf-8") == "print('hello')"
     assert process_calls == [
-        ("python.exe", ["-u", str(temp_file)], str(tmp_path)),
+        (
+            "python.exe",
+            ["-u", str(temp_file)],
+            str(tmp_path),
+            "Running selection",
+            str(temp_file),
+        ),
     ]
-    assert started_calls == ["Running selection"]
+    assert started_calls == []
 
     runner._cleanup_temp()
     assert runner._temp_file is None
@@ -55,7 +111,7 @@ def test_run_code_removes_temp_file_when_start_process_fails(tmp_path, monkeypat
     runner = ProcessRunner()
     monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
 
-    def fail_start(interpreter, args, working_dir):
+    def fail_start(interpreter, args, working_dir, **kwargs):
         raise RuntimeError("cannot start")
 
     runner._start_process = fail_start
@@ -65,6 +121,87 @@ def test_run_code_removes_temp_file_when_start_process_fails(tmp_path, monkeypat
 
     assert runner._temp_file is None
     assert list(process_module._selection_temp_dir().glob("selection-*.py")) == []
+
+
+def test_missing_interpreter_finishes_without_starting_and_cleans_temp(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+    runner = ProcessRunner()
+    output = SignalRecorder()
+    started = SignalRecorder()
+    finished = SignalRecorder()
+    runner.output_received.connect(output)
+    runner.process_started.connect(started)
+    runner.process_finished.connect(finished)
+
+    missing_interpreter = tmp_path / "missing-python.exe"
+    runner.run_code(
+        "print('never runs')",
+        str(missing_interpreter),
+        str(tmp_path),
+    )
+
+    assert _wait_until(qapp, lambda: bool(finished.calls))
+    assert started.calls == []
+    assert finished.calls == [
+        (-1, "Failed to start \u2014 check interpreter path"),
+    ]
+    assert output.calls == []
+    assert runner._temp_file is None
+    remaining_temp_files = process_module._selection_temp_dir().glob(
+        "selection-*.py"
+    )
+    assert list(remaining_temp_files) == []
+    assert runner._process is None
+
+    _flush_deferred_deletes(qapp)
+    assert runner.children() == []
+
+
+def test_native_process_emits_started_then_output_and_finished(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+    runner = ProcessRunner()
+    events = []
+    runner.process_started.connect(
+        lambda description: events.append(("started", description))
+    )
+    runner.output_received.connect(
+        lambda text, stream: events.append((stream, text))
+    )
+    runner.process_finished.connect(
+        lambda code, description: events.append(
+            ("finished", code, description)
+        )
+    )
+
+    runner.run_code("print('ok')", sys.executable, str(tmp_path))
+
+    assert _wait_until(
+        qapp,
+        lambda: any(event[0] == "finished" for event in events),
+    )
+    assert events[0] == ("started", "Running selection")
+    assert any(
+        event[0] == "stdout" and event[1].strip() == "ok"
+        for event in events
+    )
+    assert events[-1] == (
+        "finished",
+        0,
+        "Process finished successfully",
+    )
+    assert runner._temp_file is None
+    assert runner._process is None
+
+    _flush_deferred_deletes(qapp)
+    assert runner.children() == []
 
 
 def test_send_stdin_only_writes_when_process_is_running():
@@ -111,11 +248,23 @@ def test_start_process_configures_qprocess_and_replaces_existing(monkeypatch):
 
     monkeypatch.setattr(process_module, "QProcess", ProcessFactory)
     runner = ProcessRunner()
+    started = SignalRecorder()
+    runner.process_started.connect(started)
 
-    runner._start_process("python.exe", ["-u", "demo.py"], "C:/work")
+    runner._start_process(
+        "python.exe",
+        ["-u", "demo.py"],
+        "C:/work",
+        description="Running: demo.py",
+    )
     first = created[0]
     first.state_value = QProcess.ProcessState.Running
-    runner._start_process("python.exe", ["-u", "next.py"], "C:/work2")
+    runner._start_process(
+        "python.exe",
+        ["-u", "next.py"],
+        "C:/work2",
+        description="Running: next.py",
+    )
     second = created[1]
 
     assert first.killed is True
@@ -123,6 +272,10 @@ def test_start_process_configures_qprocess_and_replaces_existing(monkeypatch):
     assert second.working_directory == "C:/work2"
     assert second.channel_mode == QProcess.ProcessChannelMode.SeparateChannels
     assert second.start_args == ("python.exe", ["-u", "next.py"])
+    assert started.calls == [
+        ("Running: demo.py",),
+        ("Running: next.py",),
+    ]
 
 
 def test_run_code_replaces_running_selection_without_leaking_old_temp(
@@ -287,6 +440,30 @@ def test_finished_signal_uses_exit_status_and_cleans_temp(
     assert not temp_file.exists()
 
 
+def test_finished_drains_buffered_output_before_terminal_signal():
+    runner = ProcessRunner()
+    process = FakeQProcess()
+    process.stdout_bytes = b"last stdout"
+    process.stderr_bytes = b"last stderr"
+    runner._process = process
+    events = []
+    runner.output_received.connect(
+        lambda text, stream: events.append((stream, text))
+    )
+    runner.process_finished.connect(
+        lambda code, description: events.append((code, description))
+    )
+
+    runner._on_finished(0, QProcess.ExitStatus.NormalExit)
+
+    assert events == [
+        ("stdout", "last stdout"),
+        ("stderr", "last stderr"),
+        (0, "Process finished successfully"),
+    ]
+    assert runner._process is None
+
+
 def test_finished_ignores_signal_from_stale_process(tmp_path):
     stale_process = object()
     current_process = object()
@@ -313,10 +490,6 @@ def test_finished_ignores_signal_from_stale_process(tmp_path):
 @pytest.mark.parametrize(
     ("error", "message"),
     [
-        (
-            QProcess.ProcessError.FailedToStart,
-            "Failed to start \u2014 check interpreter path",
-        ),
         (QProcess.ProcessError.Crashed, "Process crashed"),
         (QProcess.ProcessError.Timedout, "Process timed out"),
         (QProcess.ProcessError.WriteError, "Write error"),

@@ -51,6 +51,7 @@ class ProcessRunner(QObject):
         super().__init__(parent)
         self._process: QProcess | None = None
         self._temp_file: str | None = None
+        self._process_description: str | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -60,8 +61,12 @@ class ProcessRunner(QObject):
         self, file_path: str, interpreter: str, working_dir: str
     ) -> None:
         """Run a Python file: ``interpreter -u file_path``."""
-        self._start_process(interpreter, ["-u", file_path], working_dir)
-        self.process_started.emit(f"Running: {Path(file_path).name}")
+        self._start_process(
+            interpreter,
+            ["-u", file_path],
+            working_dir,
+            description=f"Running: {Path(file_path).name}",
+        )
 
     def run_code(
         self, code: str, interpreter: str, working_dir: str
@@ -77,12 +82,19 @@ class ProcessRunner(QObject):
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(code)
         try:
-            self._start_process(interpreter, ["-u", tmp_path], working_dir)
+            self._start_process(
+                interpreter,
+                ["-u", tmp_path],
+                working_dir,
+                description="Running selection",
+                temp_file=tmp_path,
+            )
         except Exception:
-            _unlink_temp_file(tmp_path)
+            if self._temp_file == tmp_path:
+                self._cleanup_temp()
+            else:
+                _unlink_temp_file(tmp_path)
             raise
-        self._temp_file = tmp_path
-        self.process_started.emit("Running selection")
 
     def send_stdin(self, text: str) -> None:
         """Write text to the running process's stdin."""
@@ -95,8 +107,9 @@ class ProcessRunner(QObject):
             return
         # On Windows, terminate() and kill() both call TerminateProcess —
         # there is no graceful SIGTERM equivalent. Kill directly.
-        self._process.kill()
-        if self._process.waitForFinished(timeout_ms):
+        process = self._process
+        process.kill()
+        if process.waitForFinished(timeout_ms):
             self._cleanup_temp()
 
     def is_running(self) -> bool:
@@ -110,63 +123,126 @@ class ProcessRunner(QObject):
     # ------------------------------------------------------------------
 
     def _start_process(
-        self, interpreter: str, args: list[str], working_dir: str
+        self,
+        interpreter: str,
+        args: list[str],
+        working_dir: str,
+        *,
+        description: str,
+        temp_file: str | None = None,
     ) -> None:
         """Create a QProcess and start it."""
         if self._process is not None:
             # Disconnect old signals to avoid double-fire
-            self._disconnect_signals()
-            if self._process.state() != QProcess.ProcessState.NotRunning:
-                self._process.kill()
-                self._process.waitForFinished(1000)
+            old_process = self._process
+            self._disconnect_signals(old_process)
+            if old_process.state() != QProcess.ProcessState.NotRunning:
+                old_process.kill()
+                old_process.waitForFinished(1000)
+            self._release_process(old_process)
 
         self._cleanup_temp()
-        self._process = QProcess(self)
-        self._process.setWorkingDirectory(working_dir)
-        self._process.setProcessChannelMode(
+        self._temp_file = temp_file
+        self._process_description = description
+        process = QProcess(self)
+        self._process = process
+        process.setWorkingDirectory(working_dir)
+        process.setProcessChannelMode(
             QProcess.ProcessChannelMode.SeparateChannels
         )
         self._connect_signals()
-        self._process.start(interpreter, args)
+        process.start(interpreter, args)
 
     def _connect_signals(self) -> None:
         p = self._process
+        p.started.connect(self._on_started)
         p.readyReadStandardOutput.connect(self._on_stdout)
         p.readyReadStandardError.connect(self._on_stderr)
         p.finished.connect(self._on_finished)
         p.errorOccurred.connect(self._on_error)
 
-    def _disconnect_signals(self) -> None:
-        try:
-            p = self._process
-            p.readyReadStandardOutput.disconnect(self._on_stdout)
-            p.readyReadStandardError.disconnect(self._on_stderr)
-            p.finished.disconnect(self._on_finished)
-            p.errorOccurred.disconnect(self._on_error)
-        except (TypeError, RuntimeError):
-            pass
+    def _disconnect_signals(self, process=None) -> None:
+        p = process if process is not None else self._process
+        if p is None:
+            return
+        connections = (
+            (p.started, self._on_started),
+            (p.readyReadStandardOutput, self._on_stdout),
+            (p.readyReadStandardError, self._on_stderr),
+            (p.finished, self._on_finished),
+            (p.errorOccurred, self._on_error),
+        )
+        for signal, slot in connections:
+            try:
+                signal.disconnect(slot)
+            except (TypeError, RuntimeError):
+                pass
+
+    def _release_process(self, process=None) -> None:
+        """Detach and schedule an owned process for event-loop deletion."""
+        p = process if process is not None else self._process
+        if p is None:
+            return
+        self._disconnect_signals(p)
+        if p is self._process:
+            self._process = None
+            self._process_description = None
+        delete_later = getattr(p, "deleteLater", None)
+        if callable(delete_later):
+            try:
+                delete_later()
+            except RuntimeError:
+                pass
 
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
 
+    def _on_started(self) -> None:
+        sender = self.sender()
+        if sender is not None and sender is not self._process:
+            return
+        if self._process_description:
+            self.process_started.emit(self._process_description)
+
     def _on_stdout(self) -> None:
-        data = self._process.readAllStandardOutput().data()
-        text = data.decode("utf-8", errors="replace")
-        if text:
-            self.output_received.emit(text, "stdout")
+        sender = self.sender()
+        if self._process is None or (
+            sender is not None and sender is not self._process
+        ):
+            return
+        self._forward_process_output(self._process, "stdout")
 
     def _on_stderr(self) -> None:
-        data = self._process.readAllStandardError().data()
+        sender = self.sender()
+        if self._process is None or (
+            sender is not None and sender is not self._process
+        ):
+            return
+        self._forward_process_output(self._process, "stderr")
+
+    def _forward_process_output(self, process, stream: str) -> None:
+        """Drain one process output channel and emit any remaining text."""
+        try:
+            if stream == "stdout":
+                data = process.readAllStandardOutput().data()
+            else:
+                data = process.readAllStandardError().data()
+        except RuntimeError:
+            return
         text = data.decode("utf-8", errors="replace")
         if text:
-            self.output_received.emit(text, "stderr")
+            self.output_received.emit(text, stream)
 
     def _on_finished(self, exit_code: int, exit_status) -> None:
         sender = self.sender()
         if sender is not None and sender is not self._process:
             return
 
+        process = self._process
+        if process is not None:
+            self._forward_process_output(process, "stdout")
+            self._forward_process_output(process, "stderr")
         self._cleanup_temp()
         if exit_status == QProcess.ExitStatus.CrashExit:
             desc = "Process was terminated"
@@ -174,9 +250,13 @@ class ProcessRunner(QObject):
             desc = "Process finished successfully"
         else:
             desc = f"Process exited with code {exit_code}"
+        self._release_process(process)
         self.process_finished.emit(exit_code, desc)
 
     def _on_error(self, error) -> None:
+        sender = self.sender()
+        if sender is not None and sender is not self._process:
+            return
         error_map = {
             QProcess.ProcessError.FailedToStart: "Failed to start — check interpreter path",
             QProcess.ProcessError.Crashed: "Process crashed",
@@ -185,6 +265,18 @@ class ProcessRunner(QObject):
             QProcess.ProcessError.ReadError: "Read error",
         }
         msg = error_map.get(error, f"Unknown error ({error})")
+
+        # QProcess does not emit ``finished`` when the executable cannot be
+        # started. Treat that error as terminal so the UI can restore its run
+        # controls and Run Selection can remove its temporary file.
+        failed_to_start = error == QProcess.ProcessError.FailedToStart
+        if failed_to_start:
+            if self._process is not None:
+                self._cleanup_temp()
+                self._release_process()
+                self.process_finished.emit(-1, msg)
+            return
+
         self.output_received.emit(msg, "system")
 
     def _cleanup_temp(self) -> None:
