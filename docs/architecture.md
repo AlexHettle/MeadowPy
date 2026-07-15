@@ -371,6 +371,7 @@ Linting behavior is owned by:
 
 ```text
 meadowpy/ui/controllers/code_quality_controller.py
+meadowpy/core/lint_context.py
 meadowpy/core/linter.py
 meadowpy/ui/problems_panel.py
 ```
@@ -378,16 +379,45 @@ meadowpy/ui/problems_panel.py
 Flow:
 
 ```text
-Editor text changes
-  -> debounce timer starts
+Editor text changes (when while-typing lint is enabled)
+  -> configured debounce timer starts
+File save (when lint-on-save is enabled)
+  -> lint starts immediately
+Run > Run Linter / Ctrl+Alt+L
+  -> lint starts on demand
+Any lint trigger
   -> CodeQualityController._do_lint()
-  -> LintRunner.run_lint()
-  -> background lint worker runs flake8 or pylint
+  -> resolve interpreter, working directory, configuration, and trust state
+  -> LintRunner.run_lint() with the resolved execution context and timeout
+  -> background lint worker runs flake8 or pylint in that context
   -> results parsed into LintIssue objects
   -> editor markers updated
   -> Problems panel updated
   -> status bar counts updated
 ```
+
+The two automatic triggers are independent. With both disabled, linting is
+manual only. Settings changes are coalesced so applying several lint
+preferences starts no more than one replacement lint run.
+
+Preferences resolves the same staged execution context for its Effective
+Settings summary and asynchronous **Test Linter** action. The test invokes the
+selected linter through `QProcess` with a known-good in-memory Python source,
+applies the resolved configuration policy and working folder, and enforces the
+selected timeout without persisting the staged values.
+
+`lint_context.py` resolves the effective environment once per run. It supports
+the selected project interpreter, MeadowPy's interpreter, or an explicit
+interpreter; project-root or file-directory working folders; and automatic,
+explicit, or isolated-default configuration. Configuration discovery is a
+bounded scan that stops at the trusted project root. The selected timeout is
+passed to the worker rather than being fixed by the UI.
+
+Project trust is part of context resolution. An untrusted project cannot
+automatically supply an interpreter, working directory, linter configuration,
+hook, or local plugin. MeadowPy instead uses its own interpreter, a safe
+working directory, and isolated/default configuration until the root is
+trusted. Explicit configuration paths must resolve inside a trusted root.
 
 Linting is skipped when:
 

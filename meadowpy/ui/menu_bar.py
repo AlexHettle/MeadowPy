@@ -253,6 +253,14 @@ class MenuBarBuilder:
 
         run_menu.addSeparator()
 
+        self._window._run_linter_action = run_menu.addAction("Run &Linter")
+        self._set_shortcut(self._window._run_linter_action, "run.linter")
+        self._window._run_linter_action.triggered.connect(
+            self._window.action_run_linter
+        )
+
+        run_menu.addSeparator()
+
         theme_name = self._window._settings.get("editor.theme") or ""
         _restart_icon = load_themed_icon("restart", theme_name)
         restart_console = run_menu.addAction(_restart_icon, "Restart Python &Console")

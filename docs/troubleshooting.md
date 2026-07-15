@@ -316,14 +316,62 @@ setup.bat
 2. Confirm dependencies:
 
 ```bat
-.venv\Scripts\python.exe -m pip show flake8 pylint
+"C:\Path\To\Effective\python.exe" -m pip show flake8 pylint
 ```
 
 3. Check **File > Preferences > Linting**.
 4. Make sure linting is enabled.
-5. Make sure the current file is a `.py` or `.pyw` file.
+5. If **While typing** and **On save** are both off, run the check manually
+   with **Run > Run Linter** or `Ctrl+Alt+L`.
+6. Make sure the current file is a `.py` or `.pyw` file.
+7. Check the effective interpreter shown in Linting preferences. Install the
+   selected linter into that interpreter, or select a different interpreter
+   mode.
+8. Review the effective interpreter, working folder, configuration file, and
+   trust state shown in Linting preferences. Select **Test Linter** before
+   applying changes, then run the linter manually.
 
 Linting is disabled for large-file mode.
+
+## Project Linter Configuration Is Not Applied
+
+Symptoms:
+
+- Command-line lint results differ from MeadowPy's Problems panel.
+- A `.flake8`, `pylintrc`, `setup.cfg`, `tox.ini`, or `pyproject.toml` setting
+  appears to be ignored.
+
+Fix:
+
+1. Open **File > Preferences > Linting**.
+2. Check that the current project is trusted. MeadowPy intentionally ignores
+   project interpreters, configurations, hooks, and local plugins until it is
+   trusted.
+3. Choose **Auto-detect** to search up to the trusted project root, or choose
+   **Explicit file** and select the intended configuration file.
+4. Check whether the working folder is set to the project folder or the
+   current file's folder.
+5. Review the effective configuration displayed in Preferences, select
+   **Test Linter**, then use `Ctrl+Alt+L` again.
+
+Only trust a project when you know its contents. Linter configuration can load
+project code through hooks or plugins.
+
+## Linting Times Out
+
+Symptoms:
+
+- The Problems panel reports that `flake8` or `pylint` exceeded its timeout.
+- A large project or slow environment never produces lint results.
+
+Fix:
+
+1. Open **File > Preferences > Linting**.
+2. Increase the linter timeout.
+3. Confirm that the chosen interpreter and working folder are available and
+   responsive.
+4. Select **Test Linter** to check pending timeout and environment choices,
+   then use **Run > Run Linter** to verify the updated setup.
 
 ## Debugger Does Not Stop At Breakpoints
 

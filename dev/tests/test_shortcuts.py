@@ -36,6 +36,10 @@ def test_shortcut_overrides_persist_reset_and_report_conflicts(tmp_path):
 
     assert get_shortcut(settings, "file.save") == "Ctrl+S"
     assert get_default_shortcut("file.preferences") == "Ctrl+,"
+    assert get_default_shortcut("run.linter") == "Ctrl+Alt+L"
+    assert find_shortcut_conflict(
+        settings, "run.linter", "Ctrl+Alt+L"
+    ) is None
 
     set_shortcut(settings, "file.save", "Ctrl+Alt+S")
     assert get_shortcut(settings, "file.save") == "Ctrl+Alt+S"

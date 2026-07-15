@@ -4,6 +4,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import QTimer
 
+from meadowpy.core.interpreter_manager import InterpreterManager
+from meadowpy.core.lint_context import LintContextError, resolve_lint_context
 from meadowpy.core.linter import LintRunner
 from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.ui.controllers.run_eligibility import can_run_editor
@@ -36,6 +38,9 @@ class CodeQualityController(MainWindowController):
         self._outline_timer.start()
         if not self._settings.get("editor.linting_enabled"):
             return
+        if not self._settings.get("editor.lint_while_typing", True):
+            self._clear_lint_state(editor)
+            return
         if can_run_editor(editor, CodeEditor):
             self._lint_timer.start()
         else:
@@ -44,7 +49,11 @@ class CodeQualityController(MainWindowController):
     def _on_file_saved(self, path: str) -> None:
         """Handle file saved: show message + trigger lint."""
         self._status_bar_manager.show_message(f"Saved: {Path(path).name}")
-        if self._settings.get("editor.lint_on_save"):
+        if (
+            self._settings.get("editor.linting_enabled")
+            and self._settings.get("editor.lint_on_save")
+        ):
+            self._stop_pending_lint_debounce()
             self._do_lint()
 
     def _on_outline_navigate(self, line: int) -> None:
@@ -101,19 +110,58 @@ class CodeQualityController(MainWindowController):
         if not can_run_editor(editor, CodeEditor):
             self._clear_lint_state(editor)
             return
+        linter = self._settings.get("editor.linter")
+        explorer = getattr(self, "_file_explorer", None)
+        project_root = getattr(explorer, "root_path", None)
+        interpreter_manager = getattr(self, "_interpreter_manager", None)
+        if interpreter_manager is None:
+            interpreter_manager = InterpreterManager()
+        try:
+            execution_context = resolve_lint_context(
+                settings=self._settings,
+                interpreter_manager=interpreter_manager,
+                linter=linter,
+                file_path=editor.file_path,
+                project_root=project_root,
+            )
+        except LintContextError as exc:
+            self._clear_lint_state(editor)
+            self._on_lint_error(str(exc))
+            return
+        self._last_lint_context = execution_context
         self._lint_target_editor = editor
         self._lint_runner.run_lint(
             editor.text(),
             editor.file_path,
-            self._settings.get("editor.linter"),
+            linter,
             self._settings.get("editor.show_lint_style_issues", True),
+            execution_context=execution_context,
         )
+
+    def action_run_linter(self) -> None:
+        """Run the configured linter for the current file immediately."""
+        if not self._settings.get("editor.linting_enabled"):
+            return
+        self._stop_pending_lint_debounce()
+        self._problems_panel.setVisible(True)
+        self._problems_panel.raise_()
+        self._do_lint()
+
+    def _stop_pending_lint_debounce(self) -> None:
+        timer = getattr(self, "_lint_timer", None)
+        stop = getattr(timer, "stop", None)
+        if callable(stop):
+            stop()
 
     def _on_lint_finished(self, issues: list) -> None:
         """Receive lint results and update UI."""
+        current_editor = self._tab_manager.current_editor()
         editor = getattr(self, "_lint_target_editor", None)
         if editor is None:
-            editor = self._tab_manager.current_editor()
+            editor = current_editor
+        if editor is not current_editor:
+            self._lint_target_editor = None
+            return
         if self._is_large_file_editor(editor):
             self._clear_lint_state(editor)
             return
@@ -121,6 +169,7 @@ class CodeQualityController(MainWindowController):
             self._clear_lint_state(editor)
             return
         editor.set_lint_issues(issues)
+        self._lint_target_editor = None
         self._problems_panel.update_issues(issues)
 
         # Update status bar with counts
@@ -128,8 +177,27 @@ class CodeQualityController(MainWindowController):
         warning_count = sum(1 for i in issues if i.severity == "warning")
         self._status_bar_manager.update_lint_counts(error_count, warning_count)
 
+    def _show_cached_lint_state(self, editor) -> None:
+        """Show the active editor's last results without running the linter."""
+        if not self._settings.get("editor.linting_enabled", True):
+            self._clear_lint_state(editor)
+            return
+        issues = list(getattr(editor, "_lint_issues", ()))
+        self._problems_panel.update_issues(issues)
+        error_count = sum(1 for issue in issues if issue.severity == "error")
+        warning_count = sum(
+            1 for issue in issues if issue.severity == "warning"
+        )
+        self._status_bar_manager.update_lint_counts(error_count, warning_count)
+
     def _on_lint_error(self, message: str) -> None:
         """Show a linter error (e.g. not installed) in the Problems panel."""
+        target = getattr(self, "_lint_target_editor", None)
+        current_editor = self._tab_manager.current_editor()
+        if target is not None and target is not current_editor:
+            self._lint_target_editor = None
+            return
+        self._lint_target_editor = None
         self._problems_panel.show_linter_error(message)
         self._status_bar_manager.update_lint_counts(0, 0)
 

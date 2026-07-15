@@ -1016,7 +1016,7 @@ def test_tab_changed_and_settings_changed_refresh_dependent_ui(monkeypatch, qapp
     assert window._file_explorer.visible is True
 
 
-def test_linter_setting_change_clears_stale_results_and_runs_immediately(monkeypatch):
+def test_linter_setting_change_clears_stale_results_and_runs_once(monkeypatch):
     monkeypatch.setattr(workspace_module, "CodeEditor", SignalEditor)
     monkeypatch.setattr(
         workspace_module.EditorConfigurator,
@@ -1056,6 +1056,7 @@ def test_linter_setting_change_clears_stale_results_and_runs_immediately(monkeyp
     controller._do_lint = lambda: calls.append("lint")
 
     controller._on_settings_changed("editor.linter", "pylint")
+    controller._flush_lint_settings_refresh()
 
     assert lint_timer.stops == 1
     assert lint_runner.cancels == 1
@@ -1064,6 +1065,60 @@ def test_linter_setting_change_clears_stale_results_and_runs_immediately(monkeyp
     assert status.lint_counts == [(0, 0)]
     assert calls == ["lint"]
     assert problems.visible is None
+
+
+def test_linter_setting_change_invalidates_every_open_editor(monkeypatch):
+    monkeypatch.setattr(workspace_module, "CodeEditor", SignalEditor)
+    first = SignalEditor()
+    second = SignalEditor()
+    tabs = WorkspaceTabs([first, second])
+    settings = MutableSettings({
+        "editor.linting_enabled": True,
+        "editor.lint_while_typing": False,
+    })
+    timer = SimpleNamespace(stop=lambda: None)
+    runner = SimpleNamespace(cancel=lambda: None)
+    problems = RecordingPanel()
+    status = SimpleNamespace(update_lint_counts=lambda *args: None)
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=tabs,
+        _lint_timer=timer,
+        _lint_runner=runner,
+        _problems_panel=problems,
+        _status_bar_manager=status,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, settings, None, None)
+    )
+
+    controller._refresh_lint_after_settings_change()
+
+    assert first.cleared_lint == 1
+    assert second.cleared_lint == 1
+
+
+def test_run_linter_action_is_disabled_for_large_file_editor(monkeypatch):
+    monkeypatch.setattr(workspace_module, "CodeEditor", SignalEditor)
+    editor = SignalEditor()
+    editor.large_file_mode = True
+    lint_action = FakeAction()
+    settings = MutableSettings({"editor.linting_enabled": True})
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=WorkspaceTabs([editor]),
+        _run_linter_action=lint_action,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, settings, None, None)
+    )
+
+    controller._update_run_action_enabled(editor)
+    assert lint_action.enabled is False
+
+    editor.large_file_mode = False
+    controller._update_run_action_enabled(editor)
+    assert lint_action.enabled is True
 
 
 def test_enabling_linting_reveals_panel_and_runs_current_linter(monkeypatch):
@@ -1098,9 +1153,65 @@ def test_enabling_linting_reveals_panel_and_runs_current_linter(monkeypatch):
     controller._do_lint = lambda: calls.append("lint")
 
     controller._on_settings_changed("editor.linting_enabled", True)
+    controller._flush_lint_settings_refresh()
 
     assert editor.cleared_lint == 1
     assert problems.cleared == 1
     assert problems.visible is True
     assert status.lint_counts == [(0, 0)]
+    assert calls == ["lint"]
+
+
+def test_lint_setting_changes_are_coalesced_before_refresh(monkeypatch):
+    monkeypatch.setattr(workspace_module, "CodeEditor", SignalEditor)
+    monkeypatch.setattr(
+        workspace_module.EditorConfigurator,
+        "apply",
+        lambda editor, settings: None,
+    )
+    editor = SignalEditor()
+    settings = MutableSettings({
+        "editor.linting_enabled": True,
+        "editor.lint_while_typing": True,
+        "editor.lint_delay_ms": 900,
+    })
+    timer = SimpleNamespace(stops=0, intervals=[])
+    timer.stop = lambda: setattr(timer, "stops", timer.stops + 1)
+    timer.setInterval = timer.intervals.append
+    runner = SimpleNamespace(cancels=0)
+    runner.cancel = lambda: setattr(runner, "cancels", runner.cancels + 1)
+    problems = RecordingPanel()
+    status = SimpleNamespace(
+        lint_counts=[],
+        update_lint_counts=lambda errors, warnings: status.lint_counts.append(
+            (errors, warnings)
+        ),
+        update_indent_info=lambda: None,
+    )
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=WorkspaceTabs([editor]),
+        _problems_panel=problems,
+        _status_bar_manager=status,
+        _lint_timer=timer,
+        _lint_runner=runner,
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, settings, None, None)
+    )
+    calls = []
+    controller._do_lint = lambda: calls.append("lint")
+
+    controller._on_settings_changed("editor.linter", "pylint")
+    controller._on_settings_changed("editor.lint_delay_ms", 900)
+    controller._on_settings_changed(
+        "editor.lint_flake8_timeout_seconds", 20
+    )
+    controller._flush_lint_settings_refresh()
+
+    assert timer.intervals == [900]
+    assert timer.stops == 1
+    assert runner.cancels == 1
+    assert editor.cleared_lint == 1
+    assert problems.cleared == 1
     assert calls == ["lint"]

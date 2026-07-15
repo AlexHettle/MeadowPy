@@ -687,6 +687,33 @@ QColorDialog {
     background: #EEF1EE;
 }
 
+/* Keep the scrollable Linting page on the same surface as Preferences. */
+QScrollArea#lintPreferencesScroll,
+QScrollArea#lintPreferencesScroll > QWidget > QWidget,
+QWidget#lintPreferencesContent {
+    background: #FFFFFF;
+    color: #333333;
+    border: none;
+}
+
+QWidget#lintPreferencesContent QGroupBox {
+    background: #FFFFFF;
+    color: #333333;
+    border: 1px solid #CED4DA;
+    border-radius: 6px;
+    margin-top: 10px;
+    padding: 10px 8px 8px 8px;
+}
+
+QWidget#lintPreferencesContent QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    padding: 0 4px;
+    background: #FFFFFF;
+    color: #333333;
+}
+
 QPushButton {
     padding: 6px 16px;
     border: 1px solid #CCCCCC;

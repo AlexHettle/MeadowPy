@@ -50,9 +50,19 @@ DEFAULT_SETTINGS = {
     "editor.show_symbol_outline": True,
     "editor.linting_enabled": True,
     "editor.linter": "flake8",
+    "editor.lint_while_typing": True,
     "editor.lint_on_save": True,
     "editor.show_lint_style_issues": True,
     "editor.lint_delay_ms": 1500,
+    "editor.lint_interpreter_mode": "selected",
+    "editor.lint_interpreter_path": "",
+    "editor.lint_working_directory": "project",
+    "editor.lint_flake8_config_mode": "defaults",
+    "editor.lint_flake8_config_path": "",
+    "editor.lint_flake8_timeout_seconds": 10,
+    "editor.lint_pylint_config_mode": "defaults",
+    "editor.lint_pylint_config_path": "",
+    "editor.lint_pylint_timeout_seconds": 15,
 
     # Phase 3: Code Execution
     "run.python_interpreter": "",           # empty = auto-detect (sys.executable)
@@ -67,6 +77,9 @@ DEFAULT_SETTINGS = {
     "general.restore_tabs_on_startup_explicit": False,
     "general.restore_tabs_migration_version": RESTORE_TABS_MIGRATION_VERSION,
     "general.open_files": [],
+
+    # Project roots explicitly allowed to provide lint environments/configs.
+    "security.trusted_lint_roots": [],
 
     # Phase 5: File Explorer
     "general.project_folder": "",

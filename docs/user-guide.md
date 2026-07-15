@@ -319,8 +319,29 @@ Preferences are under **File > Preferences > Linting**:
 
 - Choose `flake8` or `pylint`.
 - Enable or disable linting.
-- Enable or disable lint-on-save.
+- Run the linter while typing, on save, both ways, or manually only. Turn off
+  both automatic triggers for manual-only linting.
+- Adjust how long MeadowPy waits after typing before starting a lint check.
+- Use the selected project interpreter, MeadowPy's interpreter, or a custom
+  Python interpreter.
+- Run the linter from the open project folder or the current file's folder.
+- Let MeadowPy find the project's linter configuration, choose a specific
+  configuration file, or use isolated linter defaults.
+- Set how long a lint check may run before it times out.
 - Show or hide style issues.
+
+The Effective Settings section shows the resolved interpreter, working
+folder, configuration, timeout, and trust behavior. Select **Test Linter** to
+check those pending choices without saving or freezing the Preferences window.
+
+Run a check at any time with **Run > Run Linter** or `Ctrl+Alt+L`. This is
+useful when both automatic triggers are turned off.
+
+Project interpreters and linter configuration files are used only after you
+trust the project. Until then, MeadowPy uses its own interpreter, a safe
+working folder, and isolated linter defaults. Only trust projects you know:
+linter configuration can load project code through hooks or plugins. You can
+trust or revoke trust for the current project from the Linting preferences.
 
 Lint results appear in the Problems panel. Click a problem to jump to the
 reported line and column.
@@ -415,7 +436,9 @@ Preference categories:
   word wrap, brace matching, and code folding.
 - **Appearance**: theme, custom theme base, accent color, line numbers,
   current-line highlight, whitespace, and symbol outline.
-- **Linting**: linter choice and lint display options.
+- **Linting**: linter choice, automatic triggers, typing delay, interpreter,
+  working folder, configuration mode, timeout, project trust, and lint display
+  options.
 - **Execution**: interpreter path, working directory, save before run, output
   behavior, and maximum output lines.
 - **General**: restore tabs on startup.

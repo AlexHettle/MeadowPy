@@ -36,6 +36,8 @@ class FakeProblemsPanel:
         self.issues = None
         self.error = None
         self.cleared = 0
+        self.visible = None
+        self.raised = 0
 
     def update_issues(self, issues):
         self.issues = issues
@@ -46,6 +48,12 @@ class FakeProblemsPanel:
     def clear_issues(self):
         self.cleared += 1
         self.issues = []
+
+    def setVisible(self, visible):
+        self.visible = visible
+
+    def raise_(self):
+        self.raised += 1
 
 
 class FakeStatusBar:
@@ -63,9 +71,13 @@ class FakeStatusBar:
 class FakeTimer:
     def __init__(self):
         self.starts = 0
+        self.stops = 0
 
     def start(self):
         self.starts += 1
+
+    def stop(self):
+        self.stops += 1
 
 
 class FakeSettings:
@@ -90,6 +102,7 @@ def test_lint_finished_updates_target_editor_panel_and_status(monkeypatch):
     monkeypatch.setattr(code_quality_module, "CodeEditor", FakeEditor)
     controller, window = make_controller()
     editor = FakeEditor()
+    window._tab_manager = SimpleNamespace(current_editor=lambda: editor)
     controller._lint_target_editor = editor
     issues = [
         SimpleNamespace(severity="error"),
@@ -102,6 +115,28 @@ def test_lint_finished_updates_target_editor_panel_and_status(monkeypatch):
     assert editor.issues == issues
     assert window._problems_panel.issues == issues
     assert window._status_bar_manager.counts == (1, 2)
+
+
+def test_late_lint_result_and_error_do_not_replace_another_tabs_state(
+    monkeypatch,
+):
+    monkeypatch.setattr(code_quality_module, "CodeEditor", FakeEditor)
+    controller, window = make_controller()
+    target = FakeEditor()
+    current = FakeEditor()
+    current.file_path = "other.py"
+    window._tab_manager = SimpleNamespace(current_editor=lambda: current)
+    controller._lint_target_editor = target
+
+    controller._on_lint_finished([SimpleNamespace(severity="error")])
+
+    assert target.issues is None
+    assert window._problems_panel.issues is None
+    assert window._status_bar_manager.counts is None
+
+    controller._lint_target_editor = target
+    controller._on_lint_error("late error")
+    assert window._problems_panel.error is None
 
 
 def test_lint_error_updates_problem_panel_and_clears_counts():
@@ -147,6 +182,7 @@ def test_editor_text_changed_and_file_saved_debounce_outline_and_lint(monkeypatc
 
     assert window._outline_timer.starts == 1
     assert window._lint_timer.starts == 1
+    assert window._lint_timer.stops == 1
     assert window._status_bar_manager.messages == ["Saved: demo.py"]
     assert lint_calls == ["lint"]
 
@@ -165,10 +201,16 @@ def test_outline_refresh_visibility_and_lint_runner_paths(monkeypatch):
         isVisible=lambda: symbol_outline.visible,
         update_symbols=lambda text: symbol_outline.updates.append(text),
     )
+    execution_context = object()
+    monkeypatch.setattr(
+        code_quality_module,
+        "resolve_lint_context",
+        lambda **kwargs: execution_context,
+    )
     lint_runner = SimpleNamespace(
         calls=[],
-        run_lint=lambda text, path, linter, include_style_issues: lint_runner.calls.append(
-            (text, path, linter, include_style_issues)
+        run_lint=lambda text, path, linter, include_style_issues, **kwargs: lint_runner.calls.append(
+            (text, path, linter, include_style_issues, kwargs)
         ),
     )
     settings = FakeSettings({
@@ -190,7 +232,13 @@ def test_outline_refresh_visibility_and_lint_runner_paths(monkeypatch):
     controller._do_lint()
 
     assert symbol_outline.updates == [editor.text_value, editor.text_value, editor.text_value]
-    assert lint_runner.calls == [(editor.text_value, "demo.py", "flake8", False)]
+    assert lint_runner.calls == [(
+        editor.text_value,
+        "demo.py",
+        "flake8",
+        False,
+        {"execution_context": execution_context},
+    )]
     assert controller._lint_target_editor is editor
 
     symbol_outline.visible = False
@@ -199,6 +247,84 @@ def test_outline_refresh_visibility_and_lint_runner_paths(monkeypatch):
     controller._do_lint()
     assert len(symbol_outline.updates) == 3
     assert len(lint_runner.calls) == 1
+
+
+def test_typing_trigger_can_be_disabled_and_clears_stale_results(monkeypatch):
+    monkeypatch.setattr(code_quality_module, "CodeEditor", FakeEditor)
+    editor = FakeEditor()
+    settings = FakeSettings({
+        "editor.linting_enabled": True,
+        "editor.lint_while_typing": False,
+    })
+    lint_runner = SimpleNamespace(
+        cancels=0,
+        cancel=lambda: setattr(lint_runner, "cancels", lint_runner.cancels + 1),
+    )
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _outline_timer=FakeTimer(),
+        _lint_timer=FakeTimer(),
+        _lint_runner=lint_runner,
+        _problems_panel=FakeProblemsPanel(),
+        _status_bar_manager=FakeStatusBar(),
+    )
+    controller = CodeQualityController(MainWindowContext(window, settings, None, None))
+
+    controller._on_editor_text_changed()
+
+    assert window._outline_timer.starts == 1
+    assert window._lint_timer.starts == 0
+    assert editor.cleared == 1
+    assert lint_runner.cancels == 1
+
+
+def test_disabled_linting_never_restores_cached_tab_results(monkeypatch):
+    monkeypatch.setattr(code_quality_module, "CodeEditor", FakeEditor)
+    editor = FakeEditor()
+    editor._lint_issues = [SimpleNamespace(severity="error")]
+    settings = FakeSettings({"editor.linting_enabled": False})
+    lint_runner = SimpleNamespace(cancels=0)
+    lint_runner.cancel = lambda: setattr(
+        lint_runner, "cancels", lint_runner.cancels + 1
+    )
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=SimpleNamespace(current_editor=lambda: editor),
+        _lint_runner=lint_runner,
+        _problems_panel=FakeProblemsPanel(),
+        _status_bar_manager=FakeStatusBar(),
+    )
+    controller = CodeQualityController(
+        MainWindowContext(window, settings, None, None)
+    )
+
+    controller._show_cached_lint_state(editor)
+
+    assert editor.issues == []
+    assert window._problems_panel.issues == []
+    assert window._status_bar_manager.counts == (0, 0)
+
+
+def test_manual_lint_reveals_panel_and_runs_when_enabled():
+    settings = FakeSettings({"editor.linting_enabled": True})
+    panel = FakeProblemsPanel()
+    timer = FakeTimer()
+    window = SimpleNamespace(
+        _settings=settings,
+        _problems_panel=panel,
+        _lint_timer=timer,
+    )
+    controller = CodeQualityController(MainWindowContext(window, settings, None, None))
+    calls = []
+    controller._do_lint = lambda: calls.append("lint")
+
+    controller.action_run_linter()
+
+    assert calls == ["lint"]
+    assert panel.visible is True
+    assert panel.raised == 1
+    assert timer.stops == 1
 
 
 def test_large_file_editor_skips_outline_and_lint(monkeypatch):
@@ -336,6 +462,7 @@ def test_late_lint_result_for_now_non_python_target_is_ignored(monkeypatch, tmp_
     window._lint_runner = SimpleNamespace(cancel=lambda: None)
     editor = FakeEditor()
     editor.file_path = str(tmp_path / "notes.txt")
+    window._tab_manager = SimpleNamespace(current_editor=lambda: editor)
     controller._lint_target_editor = editor
 
     controller._on_lint_finished([SimpleNamespace(severity="error")])

@@ -263,6 +263,13 @@ SHORTCUTS: tuple[ShortcutDefinition, ...] = (
         "Stops the running Python process.",
     ),
     ShortcutDefinition(
+        "run.linter",
+        "Run",
+        "Run Linter",
+        "Ctrl+Alt+L",
+        "Checks the current Python file with the configured linter.",
+    ),
+    ShortcutDefinition(
         "debug.start",
         "Debug",
         "Start Debugging",

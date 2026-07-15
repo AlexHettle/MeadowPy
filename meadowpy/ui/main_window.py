@@ -562,6 +562,7 @@ class MainWindow(QMainWindow):
     def _create_menu_bar(self) -> None:
         self._menu_builder = MenuBarBuilder(self)
         self._menu_builder.build()
+        self._update_run_action_enabled()
 
     def _create_tool_bar(self) -> None:
         self._toolbar_builder = ToolBarBuilder(self)

@@ -102,6 +102,26 @@ QMenuBar::item:selected, QMenu::item:selected {
 QGroupBox { border: 2px solid #FFFFFF; border-radius: 4px; margin-top: 8px; color: #FFFFFF; }
 QGroupBox::title { color: #FFFFFF; }
 
+QScrollArea#lintPreferencesScroll,
+QScrollArea#lintPreferencesScroll > QWidget > QWidget,
+QWidget#lintPreferencesContent {
+    background: #000000;
+    color: #FFFFFF;
+    border: none;
+}
+
+QWidget#lintPreferencesContent QGroupBox {
+    background: #000000;
+    color: #FFFFFF;
+    border: 2px solid #FFFFFF;
+    border-radius: 4px;
+}
+
+QWidget#lintPreferencesContent QGroupBox::title {
+    background: #000000;
+    color: #FFFFFF;
+}
+
 QToolBar { background: #000000; border: none; }
 QToolBar QToolButton { color: #FFFFFF; background: #000000; border: 2px solid transparent; }
 QToolBar QToolButton:hover { background: #FFFFFF; border-color: #FFFFFF; }

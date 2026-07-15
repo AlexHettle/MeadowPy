@@ -557,6 +557,34 @@ QDialog {
     background: #2A2D2E;
 }
 
+/* Preferences > Linting uses a scroll area, whose viewport otherwise keeps
+   the native light palette instead of inheriting the dark dialog surface. */
+QScrollArea#lintPreferencesScroll,
+QScrollArea#lintPreferencesScroll > QWidget > QWidget,
+QWidget#lintPreferencesContent {
+    background: #2D2D2D;
+    color: #CCCCCC;
+    border: none;
+}
+
+QWidget#lintPreferencesContent QGroupBox {
+    background: #2D2D2D;
+    color: #CCCCCC;
+    border: 1px solid #555555;
+    border-radius: 6px;
+    margin-top: 10px;
+    padding: 10px 8px 8px 8px;
+}
+
+QWidget#lintPreferencesContent QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    padding: 0 4px;
+    background: #2D2D2D;
+    color: #CCCCCC;
+}
+
 QPushButton {
     padding: 6px 16px;
     border: 1px solid #555555;

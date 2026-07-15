@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray
+from PyQt6.QtCore import QByteArray, QTimer
 from PyQt6.QtWidgets import QApplication, QInputDialog, QMessageBox
 from PyQt6.Qsci import QsciScintilla
 
@@ -26,6 +26,25 @@ from meadowpy.ui.save_helpers import show_save_failed
 
 _RUN_EDITOR_UNSET = object()
 
+_LINT_SETTING_KEYS = frozenset({
+    "editor.linter",
+    "editor.linting_enabled",
+    "editor.show_lint_style_issues",
+    "editor.lint_while_typing",
+    "editor.lint_on_save",
+    "editor.lint_delay_ms",
+    "editor.lint_interpreter_mode",
+    "editor.lint_interpreter_path",
+    "editor.lint_working_directory",
+    "editor.lint_flake8_config_mode",
+    "editor.lint_flake8_config_path",
+    "editor.lint_flake8_timeout_seconds",
+    "editor.lint_pylint_config_mode",
+    "editor.lint_pylint_config_path",
+    "editor.lint_pylint_timeout_seconds",
+    "security.trusted_lint_roots",
+})
+
 
 class WorkspaceController(MainWindowController):
     """Owns a focused slice of MainWindow behavior."""
@@ -35,7 +54,17 @@ class WorkspaceController(MainWindowController):
         editor = self._tab_manager.current_editor()
         if editor:
             self._refresh_symbol_outline(editor)
-            self._do_lint()
+            if not self._settings.get("editor.linting_enabled", True):
+                self._clear_lint_state(editor)
+            elif self._settings.get("editor.lint_while_typing", True):
+                self._do_lint()
+            else:
+                lint_runner = getattr(self, "_lint_runner", None)
+                cancel = getattr(lint_runner, "cancel", None)
+                if callable(cancel):
+                    cancel()
+                self._lint_target_editor = None
+                self._show_cached_lint_state(editor)
             self._update_interpreter_label()
         self._ollama_client.start()
         # Start the interactive Python console
@@ -573,7 +602,17 @@ class WorkspaceController(MainWindowController):
 
             # Refresh outline, lint, and interpreter label
             self._refresh_symbol_outline(editor)
-            self._do_lint()
+            if not self._settings.get("editor.linting_enabled", True):
+                self._clear_lint_state(editor)
+            elif self._settings.get("editor.lint_while_typing", True):
+                self._do_lint()
+            else:
+                lint_runner = getattr(self, "_lint_runner", None)
+                cancel = getattr(lint_runner, "cancel", None)
+                if callable(cancel):
+                    cancel()
+                self._lint_target_editor = None
+                self._show_cached_lint_state(editor)
             self._update_interpreter_label()
         else:
             self.setWindowTitle(APP_NAME)
@@ -603,19 +642,26 @@ class WorkspaceController(MainWindowController):
         run_action = getattr(self.window, "_run_action", None)
         run_selection_action = getattr(self.window, "_run_selection_action", None)
         debug_action = getattr(self.window, "_debug_action", None)
+        lint_action = getattr(self.window, "_run_linter_action", None)
         if (
-            (
-                run_action is None
-                and run_selection_action is None
-                and debug_action is None
-            )
-            or self._run_control_owned_by_running_work()
+            run_action is None
+            and run_selection_action is None
+            and debug_action is None
+            and lint_action is None
         ):
             return
         if editor is _RUN_EDITOR_UNSET:
             current_editor = getattr(self._tab_manager, "current_editor", None)
             editor = current_editor() if callable(current_editor) else None
         enabled = can_run_editor(editor, CodeEditor)
+        if lint_action is not None:
+            lint_action.setEnabled(
+                enabled
+                and not getattr(editor, "large_file_mode", False)
+                and self._settings.get("editor.linting_enabled", True)
+            )
+        if self._run_control_owned_by_running_work():
+            return
         if run_action is not None:
             run_action.setEnabled(enabled)
         if run_selection_action is not None:
@@ -743,14 +789,18 @@ class WorkspaceController(MainWindowController):
         # Toggle outline/problems visibility based on settings
         if key == "editor.show_symbol_outline":
             self._symbol_outline.setVisible(value)
-        if key in {
-            "editor.linter",
-            "editor.linting_enabled",
-            "editor.show_lint_style_issues",
-        }:
-            self._refresh_lint_after_settings_change(
-                reveal_panel=key == "editor.linting_enabled" and bool(value)
+        lint_context_changed = (
+            key == "general.project_folder"
+            or (
+                key == "run.python_interpreter"
+                and self._settings.get("editor.lint_interpreter_mode")
+                == "selected"
             )
+        )
+        if key in _LINT_SETTING_KEYS or lint_context_changed:
+            self._queue_lint_settings_refresh(key)
+        if key == "editor.linting_enabled":
+            self._update_run_action_enabled()
         if key == "explorer.show_file_explorer":
             self._file_explorer.setVisible(value)
 
@@ -761,6 +811,7 @@ class WorkspaceController(MainWindowController):
             if isinstance(key, str) and key.startswith("editor.")
         }
         if not editor_keys:
+            self._flush_lint_settings_refresh()
             return
 
         theme_keys = {
@@ -777,6 +828,46 @@ class WorkspaceController(MainWindowController):
                 editor,
                 refresh_theme_dependent_colors=refresh_theme_dependent_colors,
             )
+        self._flush_lint_settings_refresh()
+
+    def _queue_lint_settings_refresh(self, key: str) -> None:
+        """Coalesce a burst of lint-setting signals into one refresh."""
+        pending = getattr(self, "_pending_lint_setting_keys", None)
+        if pending is None:
+            pending = set()
+            self._pending_lint_setting_keys = pending
+        pending.add(key)
+        if getattr(self, "_lint_settings_refresh_scheduled", False):
+            return
+        self._lint_settings_refresh_scheduled = True
+        QTimer.singleShot(0, self._flush_lint_settings_refresh)
+
+    def _flush_lint_settings_refresh(self) -> None:
+        """Apply all queued lint setting changes exactly once."""
+        pending = set(getattr(self, "_pending_lint_setting_keys", ()))
+        self._pending_lint_setting_keys = set()
+        self._lint_settings_refresh_scheduled = False
+        if not pending:
+            return
+
+        if "editor.lint_delay_ms" in pending:
+            timer = getattr(self, "_lint_timer", None)
+            set_interval = getattr(timer, "setInterval", None)
+            if callable(set_interval):
+                delay = self._settings.get("editor.lint_delay_ms", 1500)
+                if not isinstance(delay, int):
+                    delay = 1500
+                set_interval(max(100, min(delay, 5000)))
+
+        if pending == {"editor.lint_delay_ms"}:
+            return
+
+        self._refresh_lint_after_settings_change(
+            reveal_panel=(
+                "editor.linting_enabled" in pending
+                and bool(self._settings.get("editor.linting_enabled"))
+            )
+        )
 
     def _refresh_editor_settings(
         self,
@@ -817,9 +908,10 @@ class WorkspaceController(MainWindowController):
         if callable(runner_cancel):
             runner_cancel()
 
-        editor = self._tab_manager.current_editor()
-        if isinstance(editor, CodeEditor):
-            editor.clear_lint_markers()
+        for index in range(self._tab_manager.count()):
+            editor = self._tab_manager.widget(index)
+            if isinstance(editor, CodeEditor):
+                editor.clear_lint_markers()
 
         self._problems_panel.clear_issues()
         self._status_bar_manager.update_lint_counts(0, 0)
@@ -830,6 +922,7 @@ class WorkspaceController(MainWindowController):
 
         if reveal_panel:
             self._problems_panel.setVisible(True)
-        self._do_lint()
+        if self._settings.get("editor.lint_while_typing", True):
+            self._do_lint()
 
     # --- Symbol outline ---

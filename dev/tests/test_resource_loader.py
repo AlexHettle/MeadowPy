@@ -154,6 +154,33 @@ def test_get_stylesheet_applies_high_contrast_overrides():
     assert "#FFFFFF" in stylesheet
 
 
+def test_lint_preferences_scroll_surface_is_styled_for_every_theme():
+    light_stylesheet = resource_loader.get_stylesheet("default_light")
+    dark_stylesheet = resource_loader.get_stylesheet("default_dark")
+    high_contrast_stylesheet = resource_loader.get_stylesheet(
+        "default_high_contrast"
+    )
+
+    for stylesheet in (
+        light_stylesheet,
+        dark_stylesheet,
+        high_contrast_stylesheet,
+    ):
+        assert "QScrollArea#lintPreferencesScroll" in stylesheet
+        assert "QWidget#lintPreferencesContent QGroupBox" in stylesheet
+        assert "QWidget#lintPreferencesContent QGroupBox::title" in stylesheet
+
+    high_contrast_override = high_contrast_stylesheet.rindex(
+        "QScrollArea#lintPreferencesScroll"
+    )
+    assert "background: #000000;" in high_contrast_stylesheet[
+        high_contrast_override:
+    ]
+    assert "border: 2px solid #FFFFFF;" in high_contrast_stylesheet[
+        high_contrast_override:
+    ]
+
+
 def test_high_contrast_stylesheet_allows_missing_optional_overrides(monkeypatch, tmp_path):
     styles_dir = tmp_path / "styles"
     styles_dir.mkdir()
