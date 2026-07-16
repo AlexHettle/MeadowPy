@@ -16,6 +16,22 @@ INTERPRETER_MODES = frozenset({"selected", "meadowpy", "custom"})
 WORKING_DIRECTORY_MODES = frozenset({"project", "file"})
 MAX_CONFIG_BYTES = 1024 * 1024
 
+_PROJECT_ROOT_MARKERS = (
+    ".git",
+    ".hg",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "tox.ini",
+    ".flake8",
+    "pylintrc",
+    "pylintrc.toml",
+    ".pylintrc",
+    ".pylintrc.toml",
+    "Pipfile",
+    "poetry.lock",
+)
+
 _FLAKE8_CONFIG_NAMES = ("setup.cfg", "tox.ini", ".flake8")
 _PYLINT_CONFIG_NAMES = (
     "pylintrc",
@@ -138,6 +154,18 @@ def resolve_lint_context(
     )
 
 
+def resolve_lint_target_root(
+    file_path: str | None,
+    project_root: str | None,
+) -> str | None:
+    """Return the narrowest useful project boundary for the active target."""
+
+    resolved_file = _canonical_file(file_path)
+    resolved_project = _canonical_directory(project_root)
+    effective_root = _effective_root(resolved_file, resolved_project)
+    return str(effective_root) if effective_root is not None else None
+
+
 def _get_setting(settings: Any, key: str, default: Any) -> Any:
     getter = getattr(settings, "get", None)
     if not callable(getter):
@@ -174,10 +202,36 @@ def _effective_root(
     file_path: Path | None, project_root: Path | None
 ) -> Path | None:
     if file_path is not None:
-        if project_root is not None and _contains(project_root, file_path):
-            return project_root
+        boundary = (
+            project_root
+            if project_root is not None and _contains(project_root, file_path)
+            else None
+        )
+        inferred = _nearest_project_root(file_path.parent, boundary)
+        if inferred is not None:
+            return inferred
+        if boundary is not None:
+            return boundary
         return file_path.parent
     return project_root
+
+
+def _nearest_project_root(start: Path, boundary: Path | None) -> Path | None:
+    """Find a project marker without walking above an explorer boundary."""
+
+    current = start
+    while True:
+        if any((current / marker).exists() for marker in _PROJECT_ROOT_MARKERS):
+            return current
+        if boundary is not None and _same_path(current, boundary):
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        if boundary is not None and not _contains(boundary, parent):
+            break
+        current = parent
+    return None
 
 
 def _matching_trusted_root(

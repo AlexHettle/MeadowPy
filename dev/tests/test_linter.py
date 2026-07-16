@@ -77,8 +77,11 @@ def test_run_emits_install_error_when_flake8_module_is_missing(monkeypatch):
     worker.finished.connect(finished)
 
     monkeypatch.setattr(
-        "meadowpy.core.linter.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, stdout="", stderr="No module named flake8"),
+        worker,
+        "_run_process",
+        lambda args, timeout: subprocess.CompletedProcess(
+            args, 1, stdout="", stderr="No module named flake8"
+        ),
     )
 
     worker.run()
@@ -111,10 +114,10 @@ def test_run_emits_install_error_when_linter_executable_is_missing(monkeypatch):
 def test_run_flake8_parses_successful_subprocess_output(monkeypatch):
     worker = LintWorker("x=1\n", "demo.py", "flake8")
 
-    def fake_run(args, **kwargs):
+    def fake_run(args, timeout):
         assert args[:3] == [linter_module.sys.executable, "-m", "flake8"]
-        assert kwargs["input"] == "x=1\n"
-        assert kwargs["timeout"] == 10
+        assert worker._source == "x=1\n"
+        assert timeout == 10
         return subprocess.CompletedProcess(
             args,
             1,
@@ -122,7 +125,7 @@ def test_run_flake8_parses_successful_subprocess_output(monkeypatch):
             stderr="",
         )
 
-    monkeypatch.setattr("meadowpy.core.linter.subprocess.run", fake_run)
+    monkeypatch.setattr(worker, "_run_process", fake_run)
 
     issues = worker._run_flake8()
 
@@ -134,11 +137,11 @@ def test_run_flake8_parses_successful_subprocess_output(monkeypatch):
 def test_run_pylint_parses_successful_subprocess_output(monkeypatch):
     worker = LintWorker("print(x)\n", "demo.py", "pylint")
 
-    def fake_run(args, **kwargs):
+    def fake_run(args, timeout):
         assert args[:3] == [linter_module.sys.executable, "-m", "pylint"]
         assert "--from-stdin" in args
-        assert kwargs["input"] == "print(x)\n"
-        assert kwargs["timeout"] == 15
+        assert worker._source == "print(x)\n"
+        assert timeout == 15
         return subprocess.CompletedProcess(
             args,
             20,
@@ -146,7 +149,7 @@ def test_run_pylint_parses_successful_subprocess_output(monkeypatch):
             stderr="",
         )
 
-    monkeypatch.setattr("meadowpy.core.linter.subprocess.run", fake_run)
+    monkeypatch.setattr(worker, "_run_process", fake_run)
 
     issues = worker._run_pylint()
 
@@ -160,9 +163,10 @@ def test_run_pylint_emits_install_error_when_module_is_missing(monkeypatch):
     errors = SignalRecorder()
     worker.error_occurred.connect(errors)
     monkeypatch.setattr(
-        "meadowpy.core.linter.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0],
+        worker,
+        "_run_process",
+        lambda args, timeout: subprocess.CompletedProcess(
+            args,
             1,
             stdout="",
             stderr="No module named pylint",
@@ -183,6 +187,86 @@ def test_run_emits_timeout_error(monkeypatch):
     worker.run()
 
     assert errors.calls == [("'flake8' timed out while analysing this file.",)]
+
+
+def test_run_process_uses_popen_and_supplies_source_and_timeout(monkeypatch):
+    context = SimpleNamespace(cwd="C:/project")
+    worker = LintWorker(
+        "x=1\n",
+        "C:/project/demo.py",
+        "flake8",
+        execution_context=context,
+    )
+    observed = {}
+
+    class FakeProcess:
+        returncode = 0
+
+        def communicate(self, *, input=None, timeout=None):
+            observed["input"] = input
+            observed["timeout"] = timeout
+            return "clean", ""
+
+        def poll(self):
+            return self.returncode
+
+    def fake_popen(args, **kwargs):
+        observed["args"] = args
+        observed["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setattr(linter_module.subprocess, "Popen", fake_popen)
+
+    result = worker._run_process(["python", "-m", "flake8"], 23)
+
+    assert result.returncode == 0
+    assert result.stdout == "clean"
+    assert observed["input"] == "x=1\n"
+    assert observed["timeout"] == 23
+    assert observed["kwargs"]["cwd"] == context.cwd
+    assert observed["kwargs"]["stdin"] is subprocess.PIPE
+    assert worker._process is None
+
+
+def test_run_process_kills_a_timed_out_linter(monkeypatch):
+    worker = LintWorker("x=1\n", "demo.py", "flake8")
+
+    class TimedOutProcess:
+        returncode = -9
+
+        def __init__(self):
+            self.communicate_calls = 0
+            self.killed = False
+
+        def communicate(self, *, input=None, timeout=None):
+            self.communicate_calls += 1
+            if self.communicate_calls == 1:
+                raise subprocess.TimeoutExpired("flake8", timeout)
+            return "partial", "slow"
+
+        def poll(self):
+            return None if not self.killed else self.returncode
+
+        def kill(self):
+            self.killed = True
+
+    process = TimedOutProcess()
+    monkeypatch.setattr(
+        linter_module.subprocess,
+        "Popen",
+        lambda args, **kwargs: process,
+    )
+
+    try:
+        worker._run_process(["python", "-m", "flake8"], 5)
+    except subprocess.TimeoutExpired as exc:
+        assert exc.output == "partial"
+        assert exc.stderr == "slow"
+    else:
+        raise AssertionError("Expected the lint process to time out")
+
+    assert process.killed is True
+    assert worker._process is None
 
 
 def test_run_emits_unexpected_error(monkeypatch):
@@ -309,7 +393,7 @@ def test_flake8_uses_resolved_context_for_command_and_timeout(monkeypatch):
         execution_context=context,
     )
 
-    def fake_run(args, **kwargs):
+    def fake_run(args, timeout):
         assert args == [
             context.interpreter,
             "-m",
@@ -321,12 +405,12 @@ def test_flake8_uses_resolved_context_for_command_and_timeout(monkeypatch):
             context.display_name,
             "-",
         ]
-        assert kwargs["cwd"] == context.cwd
-        assert kwargs["timeout"] == 27
-        assert "shell" not in kwargs
+        assert worker._working_directory() == context.cwd
+        assert timeout == 27
+        assert "shell" not in worker._subprocess_kwargs()
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("meadowpy.core.linter.subprocess.run", fake_run)
+    monkeypatch.setattr(worker, "_run_process", fake_run)
 
     assert worker._run_flake8() == []
 
@@ -342,8 +426,9 @@ def test_flake8_reports_critical_execution_error_even_with_exit_code_one(
         "plugin could not load"
     )
     monkeypatch.setattr(
-        "meadowpy.core.linter.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
+        worker,
+        "_run_process",
+        lambda args, timeout: subprocess.CompletedProcess(
             args, 1, stdout=message, stderr=""
         ),
     )
@@ -360,8 +445,9 @@ def test_flake8_preserves_plugin_dependency_error_instead_of_install_hint(
     worker.error_occurred.connect(errors)
     message = "FailedToLoadPlugin: No module named 'company_plugin_dep'"
     monkeypatch.setattr(
-        "meadowpy.core.linter.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
+        worker,
+        "_run_process",
+        lambda args, timeout: subprocess.CompletedProcess(
             args, 1, stdout="", stderr=message
         ),
     )
@@ -377,8 +463,9 @@ def test_flake8_reports_exit_one_when_config_suppresses_all_output(
     errors = SignalRecorder()
     worker.error_occurred.connect(errors)
     monkeypatch.setattr(
-        "meadowpy.core.linter.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
+        worker,
+        "_run_process",
+        lambda args, timeout: subprocess.CompletedProcess(
             args, 1, stdout="", stderr=""
         ),
     )
@@ -407,20 +494,20 @@ def test_pylint_uses_isolated_context_and_reports_usage_error(monkeypatch):
     errors = SignalRecorder()
     worker.error_occurred.connect(errors)
 
-    def fake_run(args, **kwargs):
+    def fake_run(args, timeout):
         assert args[:4] == [
             context.interpreter,
             "-m",
             "pylint",
             "--rcfile=",
         ]
-        assert kwargs["cwd"] == context.cwd
-        assert kwargs["timeout"] == 22
+        assert worker._working_directory() == context.cwd
+        assert timeout == 22
         return subprocess.CompletedProcess(
             args, 32, stdout="", stderr="invalid configuration"
         )
 
-    monkeypatch.setattr("meadowpy.core.linter.subprocess.run", fake_run)
+    monkeypatch.setattr(worker, "_run_process", fake_run)
 
     assert worker._run_pylint() == []
     assert errors.calls == [("invalid configuration",)]
@@ -468,7 +555,12 @@ def test_stdin_command_reuses_the_resolved_config_policy():
 def test_cancel_current_moves_running_thread_to_keep_alive_list():
     runner = LintRunner()
     thread = FakeThread(running=True)
-    worker = object()
+    worker = SimpleNamespace(cancel_calls=0)
+
+    def cancel():
+        worker.cancel_calls += 1
+
+    worker.cancel = cancel
     runner._thread = thread
     runner._worker = worker
 
@@ -478,6 +570,7 @@ def test_cancel_current_moves_running_thread_to_keep_alive_list():
     assert runner._worker is None
     assert runner._old_threads == [thread]
     assert runner._old_workers == [worker]
+    assert worker.cancel_calls == 1
     assert thread.quit_called == 1
 
 
@@ -486,7 +579,12 @@ def test_cancel_invalidates_late_results_and_cancels_current_thread():
     finished = SignalRecorder()
     runner.lint_finished.connect(finished)
     thread = FakeThread(running=True)
-    worker = object()
+    worker = SimpleNamespace(cancel_calls=0)
+
+    def cancel():
+        worker.cancel_calls += 1
+
+    worker.cancel = cancel
     runner._generation = 3
     runner._thread = thread
     runner._worker = worker
@@ -499,8 +597,31 @@ def test_cancel_invalidates_late_results_and_cancels_current_thread():
     assert runner._worker is None
     assert runner._old_threads == [thread]
     assert runner._old_workers == [worker]
+    assert worker.cancel_calls == 1
     assert thread.quit_called == 1
     assert finished.calls == []
+
+
+def test_worker_cancel_kills_the_active_linter_process():
+    worker = LintWorker("x=1\n", "demo.py", "flake8")
+
+    class ActiveProcess:
+        def __init__(self):
+            self.killed = False
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            self.killed = True
+
+    process = ActiveProcess()
+    worker._process = process
+
+    worker.cancel()
+
+    assert worker._cancelled.is_set()
+    assert process.killed is True
 
 
 def test_error_generation_does_not_emit_a_followup_empty_success():

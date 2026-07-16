@@ -80,7 +80,7 @@ Large text files above the built-in safeguard are opened only after user
 confirmation. Large-file mode disables heavier analysis such as linting,
 symbol outline parsing, and full-file AI review.
 
-## Project Linter Trust
+## Linter Target Trust
 
 Linter configuration is not always passive. Pylint configuration can use
 initialization hooks and load plugins, and Flake8 can load local plugins. A
@@ -88,16 +88,18 @@ project-controlled Python environment can also contain executable linter
 extensions. Treat linting an unfamiliar project as running project-supplied
 code.
 
-MeadowPy therefore requires a project to be trusted before linting may use its
-Python interpreter, working directory, configuration files, hooks, or local
-plugins. For an untrusted project, MeadowPy uses its own interpreter, a safe
-working directory, and isolated/default linter configuration. Automatic
-configuration discovery stops at the trusted project boundary, and an
-explicit configuration file must resolve inside that boundary.
+MeadowPy therefore requires a lint target to be trusted before linting may use
+its Python interpreter, working directory, configuration files, hooks, or
+local plugins. For an untrusted target, MeadowPy uses its own interpreter, a
+safe working directory, and isolated/default linter configuration. Automatic
+configuration discovery stops at the trusted target boundary, and an explicit
+configuration file must resolve inside that boundary.
 
-Trust only projects whose contents and origin you understand. Project trust
-can be revoked from **File > Preferences > Linting**. Revoking trust returns
-future lint checks to the isolated behavior described above.
+MeadowPy infers a narrow target from the active file and nearby project markers
+instead of automatically trusting a broader explorer folder. Trust only
+targets whose contents and origin you understand. Target trust can be revoked
+from **File > Preferences > Linting**. Revoking trust returns future lint
+checks to the isolated behavior described above.
 
 ## Logs
 

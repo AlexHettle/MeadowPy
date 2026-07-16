@@ -6,6 +6,7 @@ from meadowpy.constants import DEFAULT_SETTINGS
 from meadowpy.core.lint_context import (
     LintContextError,
     resolve_lint_context,
+    resolve_lint_target_root,
 )
 
 
@@ -168,6 +169,32 @@ def test_file_outside_project_is_not_covered_by_project_trust(tmp_path):
 
     assert context.trusted is False
     assert context.cwd != str(project.resolve())
+
+
+def test_target_root_prefers_nearest_project_marker_inside_explorer_root(
+    tmp_path,
+):
+    explorer_root = tmp_path / "Documents"
+    project = explorer_root / "nested-project"
+    source = project / "src" / "main.py"
+    source.parent.mkdir(parents=True)
+    (project / ".git").mkdir()
+    source.write_text("print('hello')\n", encoding="utf-8")
+
+    target = resolve_lint_target_root(str(source), str(explorer_root))
+
+    assert target == str(project.resolve())
+
+
+def test_saved_file_without_explorer_uses_nearest_marked_project(tmp_path):
+    source = tmp_path / "standalone" / "main.py"
+    source.parent.mkdir()
+    source.write_text("print('hello')\n", encoding="utf-8")
+
+    target = resolve_lint_target_root(str(source), None)
+
+    repository_root = Path(__file__).resolve().parents[2]
+    assert target == str(repository_root)
 
 
 def test_trust_uses_path_boundaries_not_string_prefixes(tmp_path):

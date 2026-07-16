@@ -322,7 +322,7 @@ Preferences are under **File > Preferences > Linting**:
 - Run the linter while typing, on save, both ways, or manually only. Turn off
   both automatic triggers for manual-only linting.
 - Adjust how long MeadowPy waits after typing before starting a lint check.
-- Use the selected project interpreter, MeadowPy's interpreter, or a custom
+- Use the interpreter selected for Run, MeadowPy's interpreter, or a custom
   Python interpreter.
 - Run the linter from the open project folder or the current file's folder.
 - Let MeadowPy find the project's linter configuration, choose a specific
@@ -333,15 +333,20 @@ Preferences are under **File > Preferences > Linting**:
 The Effective Settings section shows the resolved interpreter, working
 folder, configuration, timeout, and trust behavior. Select **Test Linter** to
 check those pending choices without saving or freezing the Preferences window.
+Mouse-wheel gestures over dropdowns and number fields scroll the Linting page
+without changing their values; click a control when you intend to edit it.
 
 Run a check at any time with **Run > Run Linter** or `Ctrl+Alt+L`. This is
 useful when both automatic triggers are turned off.
 
 Project interpreters and linter configuration files are used only after you
-trust the project. Until then, MeadowPy uses its own interpreter, a safe
-working folder, and isolated linter defaults. Only trust projects you know:
+trust the current lint target. MeadowPy infers the narrowest useful target from
+the active file and nearby project markers, even when the file explorer is open
+to a broader folder. A standalone saved file can use its containing folder as
+the target. Until the target is trusted, MeadowPy uses its own interpreter, a
+safe working folder, and isolated linter defaults. Only trust targets you know:
 linter configuration can load project code through hooks or plugins. You can
-trust or revoke trust for the current project from the Linting preferences.
+trust or revoke the current target from the Linting preferences.
 
 Lint results appear in the Problems panel. Click a problem to jump to the
 reported line and column.

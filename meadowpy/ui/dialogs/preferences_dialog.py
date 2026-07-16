@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any
 
 from PyQt6.QtCore import QProcess, QTimer, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QFont
+from PyQt6.QtGui import QDesktopServices, QFont, QWheelEvent
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
+    QApplication, QAbstractScrollArea, QDialog, QVBoxLayout, QHBoxLayout,
+    QListWidget,
     QStackedWidget, QDialogButtonBox, QWidget, QFormLayout,
     QSpinBox, QCheckBox, QComboBox, QFontComboBox, QLineEdit,
     QPushButton, QRadioButton, QButtonGroup, QLabel, QFileDialog,
@@ -20,6 +21,7 @@ from meadowpy.core.lint_context import (
     LintContextError,
     LintExecutionContext,
     resolve_lint_context,
+    resolve_lint_target_root,
 )
 from meadowpy.core.linter import (
     LINTER_TEST_SOURCE,
@@ -41,6 +43,55 @@ class _SettingsOverlay:
         if key in self._overrides:
             return self._overrides[key]
         return self._settings.get(key, default)
+
+
+class _WheelSafeComboBox(QComboBox):
+    """Let a surrounding scroll area own wheel gestures."""
+
+    def wheelEvent(self, event) -> None:
+        _forward_wheel_to_scroll_area(self, event)
+
+
+class _WheelSafeSpinBox(QSpinBox):
+    """Prevent page scrolling from silently changing a numeric value."""
+
+    def wheelEvent(self, event) -> None:
+        _forward_wheel_to_scroll_area(self, event)
+
+
+def _forward_wheel_to_scroll_area(widget: QWidget, event: QWheelEvent) -> None:
+    """Forward a value control's wheel gesture to its enclosing page."""
+
+    parent = widget.parentWidget()
+    while parent is not None and not isinstance(parent, QAbstractScrollArea):
+        parent = parent.parentWidget()
+    if parent is None:
+        event.ignore()
+        return
+
+    pixel_delta = event.pixelDelta()
+    angle_delta = event.angleDelta()
+    use_horizontal = abs(pixel_delta.x()) > abs(pixel_delta.y())
+    if pixel_delta.isNull():
+        use_horizontal = abs(angle_delta.x()) > abs(angle_delta.y())
+    scroll_bar = (
+        parent.horizontalScrollBar()
+        if use_horizontal
+        else parent.verticalScrollBar()
+    )
+    pixel_distance = pixel_delta.x() if use_horizontal else pixel_delta.y()
+    if pixel_distance:
+        distance = pixel_distance
+    else:
+        angle_distance = angle_delta.x() if use_horizontal else angle_delta.y()
+        distance = (
+            angle_distance
+            / 120
+            * scroll_bar.singleStep()
+            * QApplication.wheelScrollLines()
+        )
+    scroll_bar.setValue(scroll_bar.value() - round(distance))
+    event.accept()
 
 
 class PreferencesDialog(QDialog):
@@ -359,7 +410,7 @@ class PreferencesDialog(QDialog):
         general_form.addRow("", self._linting_enabled)
 
         # Linter choice
-        self._linter_combo = QComboBox()
+        self._linter_combo = _WheelSafeComboBox()
         self._linter_combo.addItems(["flake8", "pylint"])
         current = self._settings.get("editor.linter", "flake8")
         idx = self._linter_combo.findText(current)
@@ -406,7 +457,7 @@ class PreferencesDialog(QDialog):
         )
         trigger_form.addRow("", self._lint_on_save)
 
-        self._lint_delay = QSpinBox()
+        self._lint_delay = _WheelSafeSpinBox()
         self._lint_delay.setRange(100, 5000)
         self._lint_delay.setSingleStep(100)
         self._lint_delay.setSuffix(" ms")
@@ -422,9 +473,9 @@ class PreferencesDialog(QDialog):
         environment_group = QGroupBox("Environment")
         environment_form = QFormLayout(environment_group)
 
-        self._lint_interpreter_mode_combo = QComboBox()
+        self._lint_interpreter_mode_combo = _WheelSafeComboBox()
         self._lint_interpreter_mode_combo.addItem(
-            "Selected project interpreter", "selected"
+            "Selected Run interpreter", "selected"
         )
         self._lint_interpreter_mode_combo.addItem(
             "MeadowPy interpreter", "meadowpy"
@@ -467,7 +518,7 @@ class PreferencesDialog(QDialog):
         interpreter_layout.addWidget(self._browse_lint_interpreter_btn)
         environment_form.addRow("Custom Path:", interpreter_row)
 
-        self._lint_working_directory_combo = QComboBox()
+        self._lint_working_directory_combo = _WheelSafeComboBox()
         self._lint_working_directory_combo.addItem("Project folder", "project")
         self._lint_working_directory_combo.addItem("File location", "file")
         self._set_combo_data(
@@ -486,7 +537,7 @@ class PreferencesDialog(QDialog):
         configuration_group = QGroupBox("Configuration")
         configuration_form = QFormLayout(configuration_group)
 
-        self._lint_config_mode_combo = QComboBox()
+        self._lint_config_mode_combo = _WheelSafeComboBox()
         self._lint_config_mode_combo.addItem(
             "Auto-detect project configuration", "auto"
         )
@@ -515,7 +566,7 @@ class PreferencesDialog(QDialog):
         config_layout.addWidget(self._browse_lint_config_btn)
         configuration_form.addRow("Config File:", config_row)
 
-        self._lint_timeout = QSpinBox()
+        self._lint_timeout = _WheelSafeSpinBox()
         self._lint_timeout.setRange(1, 120)
         self._lint_timeout.setSuffix(" seconds")
         self._lint_timeout.valueChanged.connect(self._on_lint_timeout_changed)
@@ -528,8 +579,10 @@ class PreferencesDialog(QDialog):
         self._lint_project_label.setWordWrap(True)
         self._lint_trust_status_label = QLabel()
         self._lint_trust_status_label.setWordWrap(True)
+        self._lint_trust_notice = QLabel()
+        self._lint_trust_notice.setWordWrap(True)
         trust_buttons = QHBoxLayout()
-        self._trust_lint_project_btn = QPushButton("Trust Current Project")
+        self._trust_lint_project_btn = QPushButton("Trust Current Target")
         self._trust_lint_project_btn.clicked.connect(self._trust_lint_project)
         self._revoke_lint_project_btn = QPushButton("Revoke Trust")
         self._revoke_lint_project_btn.clicked.connect(self._revoke_lint_project)
@@ -538,6 +591,7 @@ class PreferencesDialog(QDialog):
         trust_buttons.addStretch()
         trust_layout.addWidget(self._lint_project_label)
         trust_layout.addWidget(self._lint_trust_status_label)
+        trust_layout.addWidget(self._lint_trust_notice)
         trust_layout.addLayout(trust_buttons)
         layout.addWidget(trust_group)
 
@@ -818,13 +872,17 @@ class PreferencesDialog(QDialog):
 
     def _update_lint_interpreter_controls(self) -> None:
         custom = (
-            self._lint_interpreter_mode_combo.currentData() == "custom"
+            self._is_current_lint_project_trusted()
+            and self._lint_interpreter_mode_combo.currentData() == "custom"
         )
         self._lint_interpreter_path.setEnabled(custom)
         self._browse_lint_interpreter_btn.setEnabled(custom)
 
     def _update_lint_config_controls(self) -> None:
-        explicit = self._lint_config_mode_combo.currentData() == "explicit"
+        explicit = (
+            self._is_current_lint_project_trusted()
+            and self._lint_config_mode_combo.currentData() == "explicit"
+        )
         self._lint_config_path.setEnabled(explicit)
         self._browse_lint_config_btn.setEnabled(explicit)
 
@@ -870,13 +928,23 @@ class PreferencesDialog(QDialog):
         except (OSError, ValueError):
             return False
 
-    def _current_lint_project(self) -> str | None:
+    def _configured_lint_project(self) -> str | None:
         raw = self._effective_value("general.project_folder", "")
         if not isinstance(raw, str) or not raw.strip():
             return None
         try:
             return self._canonical_path(raw.strip())
         except (OSError, ValueError):
+            return None
+
+    def _current_lint_project(self) -> str | None:
+        """Return the active file's inferred project or standalone folder."""
+
+        file_path, project = self._lint_target_paths()
+        try:
+            target = resolve_lint_target_root(file_path, project)
+            return self._canonical_path(target) if target else None
+        except (LintContextError, OSError, ValueError):
             return None
 
     def _trusted_lint_roots(self) -> list[str]:
@@ -910,15 +978,10 @@ class PreferencesDialog(QDialog):
     ) -> str | None:
         """Match the runtime's deepest trusted root for the current target."""
         file_path, project = self._lint_target_paths()
-        effective_root = None
-        if file_path:
-            file_directory = str(Path(file_path).resolve(strict=False).parent)
-            if project and self._path_is_within(file_path, project):
-                effective_root = project
-            else:
-                effective_root = file_directory
-        elif project:
-            effective_root = project
+        try:
+            effective_root = resolve_lint_target_root(file_path, project)
+        except LintContextError:
+            effective_root = None
         if not effective_root:
             return None
 
@@ -938,19 +1001,19 @@ class PreferencesDialog(QDialog):
         if not project or not Path(project).is_dir():
             QMessageBox.warning(
                 self,
-                "No Project to Trust",
-                "Open and save a project folder before granting lint trust.",
+                "No Lint Target to Trust",
+                "Open or save a Python file before granting lint trust.",
             )
             return
         if self._is_current_lint_project_trusted():
             return
         reply = QMessageBox.question(
             self,
-            "Trust Project for Linting?",
-            "A trusted project's linter configuration, local plugins, and "
-            "Python environment may execute code. Trust this project only "
+            "Trust Target for Linting?",
+            "A trusted target's linter configuration, local plugins, and "
+            "Python environment may execute code. Trust this target only "
             "if you know where it came from.\n\n"
-            f"Project: {project}",
+            f"Target: {project}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -986,7 +1049,7 @@ class PreferencesDialog(QDialog):
         explorer = getattr(window, "_file_explorer", None)
         project = getattr(explorer, "root_path", None)
         if not project:
-            project = self._current_lint_project()
+            project = self._configured_lint_project()
         return (
             str(file_path) if file_path else None,
             str(project) if project else None,
@@ -1029,14 +1092,35 @@ class PreferencesDialog(QDialog):
         trusted = self._is_current_lint_project_trusted()
         project_exists = bool(project and Path(project).is_dir())
         if project:
-            self._lint_project_label.setText(f"Current project: {project}")
+            self._lint_project_label.setText(f"Current lint target: {project}")
             trust_text = "Trusted" if trusted else "Not trusted"
         else:
-            self._lint_project_label.setText("Current project: None saved")
-            trust_text = "No saved project"
+            self._lint_project_label.setText("Current lint target: None")
+            trust_text = "No saved Python target"
         self._lint_trust_status_label.setText(f"Lint trust: {trust_text}")
         self._trust_lint_project_btn.setEnabled(project_exists and not trusted)
         self._revoke_lint_project_btn.setEnabled(project_exists and trusted)
+        if trusted:
+            self._lint_trust_notice.setText(
+                "Interpreter, working-directory, and configuration choices "
+                "are active for this target."
+            )
+        elif project_exists:
+            self._lint_trust_notice.setText(
+                "Trust this target to activate its interpreter, working "
+                "directory, and configuration choices. Until then, linting "
+                "uses MeadowPy's isolated defaults."
+            )
+        else:
+            self._lint_trust_notice.setText(
+                "Open or save a Python file to configure project-dependent "
+                "lint settings."
+            )
+        self._lint_interpreter_mode_combo.setEnabled(trusted)
+        self._lint_working_directory_combo.setEnabled(trusted)
+        self._lint_config_mode_combo.setEnabled(trusted)
+        self._update_lint_interpreter_controls()
+        self._update_lint_config_controls()
 
         provider = self._active_lint_provider
         context, context_error = self._resolve_pending_lint_context()

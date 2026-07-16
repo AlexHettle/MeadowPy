@@ -54,7 +54,49 @@ class CodeQualityController(MainWindowController):
             and self._settings.get("editor.lint_on_save")
         ):
             self._stop_pending_lint_debounce()
-            self._do_lint()
+            # Save As emits before its caller assigns the editor's new path.
+            # Defer one event-loop turn, then route the check by saved path.
+            QTimer.singleShot(
+                0,
+                lambda saved_path=path: self._lint_saved_path(saved_path),
+            )
+
+    def _lint_saved_path(self, path: str) -> None:
+        """Lint the editor that owns *path*, never whichever tab is active."""
+
+        if (
+            not self._settings.get("editor.linting_enabled")
+            or not self._settings.get("editor.lint_on_save")
+        ):
+            return
+        editor = self._editor_for_file_path(path)
+        if editor is not None:
+            self._do_lint(editor)
+
+    def _editor_for_file_path(self, path: str):
+        tabs = self._tab_manager
+        count = getattr(tabs, "count", None)
+        widget = getattr(tabs, "widget", None)
+        if callable(count) and callable(widget):
+            for index in range(count()):
+                editor = widget(index)
+                if self._same_file_path(getattr(editor, "file_path", None), path):
+                    return editor
+        editor = tabs.current_editor()
+        if self._same_file_path(getattr(editor, "file_path", None), path):
+            return editor
+        return None
+
+    @staticmethod
+    def _same_file_path(first: str | None, second: str | None) -> bool:
+        if not first or not second:
+            return False
+        try:
+            return Path(first).resolve(strict=False) == Path(second).resolve(
+                strict=False
+            )
+        except (OSError, RuntimeError):
+            return first == second
 
     def _on_outline_navigate(self, line: int) -> None:
         """Navigate editor to line when outline item is clicked."""
@@ -99,9 +141,10 @@ class CodeQualityController(MainWindowController):
             editor.setCursorPosition(line, col)
             editor.setFocus()
 
-    def _do_lint(self) -> None:
+    def _do_lint(self, editor=None) -> None:
         """Actually run the linter (called after debounce or on save)."""
-        editor = self._tab_manager.current_editor()
+        if editor is None:
+            editor = self._tab_manager.current_editor()
         if self._is_large_file_editor(editor):
             self._clear_lint_state(editor)
             return
@@ -125,8 +168,11 @@ class CodeQualityController(MainWindowController):
                 project_root=project_root,
             )
         except LintContextError as exc:
-            self._clear_lint_state(editor)
-            self._on_lint_error(str(exc))
+            if editor is self._tab_manager.current_editor():
+                self._clear_lint_state(editor)
+                self._on_lint_error(str(exc))
+            else:
+                editor.clear_lint_markers()
             return
         self._last_lint_context = execution_context
         self._lint_target_editor = editor
@@ -159,7 +205,7 @@ class CodeQualityController(MainWindowController):
         editor = getattr(self, "_lint_target_editor", None)
         if editor is None:
             editor = current_editor
-        if editor is not current_editor:
+        if not self._editor_is_open(editor):
             self._lint_target_editor = None
             return
         if self._is_large_file_editor(editor):
@@ -170,6 +216,8 @@ class CodeQualityController(MainWindowController):
             return
         editor.set_lint_issues(issues)
         self._lint_target_editor = None
+        if editor is not current_editor:
+            return
         self._problems_panel.update_issues(issues)
 
         # Update status bar with counts
@@ -216,8 +264,17 @@ class CodeQualityController(MainWindowController):
                 if callable(set_issues):
                     set_issues([])
         self._lint_target_editor = None
-        self._problems_panel.clear_issues()
-        self._status_bar_manager.update_lint_counts(0, 0)
+        if editor is None or editor is self._tab_manager.current_editor():
+            self._problems_panel.clear_issues()
+            self._status_bar_manager.update_lint_counts(0, 0)
+
+    def _editor_is_open(self, editor) -> bool:
+        tabs = self._tab_manager
+        count = getattr(tabs, "count", None)
+        widget = getattr(tabs, "widget", None)
+        if callable(count) and callable(widget):
+            return any(widget(index) is editor for index in range(count()))
+        return editor is tabs.current_editor()
 
     @staticmethod
     def _is_large_file_editor(editor) -> bool:

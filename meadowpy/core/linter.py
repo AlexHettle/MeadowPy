@@ -3,6 +3,7 @@
 import re
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,10 @@ FLAKE8_OUTPUT_PATTERN = re.compile(
 )
 PYLINT_STYLE_WARNING_CODES = frozenset({"W0301", "W0311", "W0312", "W0313"})
 LINTER_TEST_SOURCE = '"""MeadowPy linter settings test."""\n'
+
+
+class _LintCancelled(Exception):
+    """Internal signal used when a stale lint subprocess is stopped."""
 
 
 def build_linter_config_args(
@@ -169,6 +174,9 @@ class LintWorker(QObject):
         self._linter = linter
         self._include_style_issues = include_style_issues
         self._execution_context = execution_context
+        self._cancelled = threading.Event()
+        self._process_lock = threading.Lock()
+        self._process: subprocess.Popen | None = None
 
     def run(self) -> None:
         """Execute the linter and emit results."""
@@ -184,6 +192,8 @@ class LintWorker(QObject):
                 )
         except FileNotFoundError:
             self.error_occurred.emit(self._missing_linter_message())
+        except _LintCancelled:
+            pass
         except subprocess.TimeoutExpired:
             self.error_occurred.emit(
                 f"'{self._linter}' timed out while analysing this file."
@@ -218,18 +228,76 @@ class LintWorker(QObject):
             self._linter, self._execution_context
         )
 
-    def _subprocess_kwargs(self, timeout: int) -> dict:
+    def _subprocess_kwargs(self) -> dict:
         kwargs = {
-            "input": self._source,
-            "capture_output": True,
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
             "text": True,
             "encoding": "utf-8",
-            "timeout": timeout,
         }
         cwd = self._working_directory()
         if cwd is not None:
             kwargs["cwd"] = cwd
         return kwargs
+
+    def _run_process(
+        self, args: list[str], timeout: int
+    ) -> subprocess.CompletedProcess:
+        """Run one cancellable lint subprocess and collect its output."""
+
+        if self._cancelled.is_set():
+            raise _LintCancelled
+        process = subprocess.Popen(args, **self._subprocess_kwargs())
+        with self._process_lock:
+            self._process = process
+        if self._cancelled.is_set():
+            self._kill_process(process)
+        try:
+            stdout, stderr = process.communicate(
+                input=self._source,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self._kill_process(process)
+            stdout, stderr = process.communicate()
+            if self._cancelled.is_set():
+                raise _LintCancelled from exc
+            raise subprocess.TimeoutExpired(
+                args,
+                timeout,
+                output=stdout,
+                stderr=stderr,
+            ) from exc
+        finally:
+            with self._process_lock:
+                if self._process is process:
+                    self._process = None
+        if self._cancelled.is_set():
+            raise _LintCancelled
+        return subprocess.CompletedProcess(
+            args,
+            process.returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    @staticmethod
+    def _kill_process(process: subprocess.Popen) -> None:
+        try:
+            if process.poll() is None:
+                process.kill()
+        except (OSError, RuntimeError):
+            pass
+
+    def cancel(self) -> None:
+        """Stop the active subprocess; late results are intentionally ignored."""
+
+        self._cancelled.set()
+        with self._process_lock:
+            process = self._process
+        if process is not None:
+            self._kill_process(process)
 
     def _missing_linter_message(self) -> str:
         interpreter = self._interpreter()
@@ -266,10 +334,7 @@ class LintWorker(QObject):
                 "flake8", context
             )
             args = [program, *command_args]
-        result = subprocess.run(
-            args,
-            **self._subprocess_kwargs(self._timeout(10)),
-        )
+        result = self._run_process(args, self._timeout(10))
         if _is_missing_linter(result.stderr, "flake8"):
             self.error_occurred.emit(self._missing_linter_message())
             return []
@@ -316,10 +381,7 @@ class LintWorker(QObject):
                 "pylint", context
             )
             args = [program, *command_args]
-        result = subprocess.run(
-            args,
-            **self._subprocess_kwargs(self._timeout(15)),
-        )
+        result = self._run_process(args, self._timeout(15))
         if _is_missing_linter(result.stderr, "pylint"):
             self.error_occurred.emit(self._missing_linter_message())
             return []
@@ -429,6 +491,9 @@ class LintRunner(QObject):
         if self._thread and self._thread.isRunning():
             old_thread = self._thread
             old_worker = self._worker
+            cancel = getattr(old_worker, "cancel", None)
+            if callable(cancel):
+                cancel()
             old_thread.quit()
             # Keep a reference so it isn't GC'd while still running
             self._old_threads.append(old_thread)

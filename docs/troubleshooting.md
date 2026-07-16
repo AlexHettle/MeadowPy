@@ -344,9 +344,9 @@ Symptoms:
 Fix:
 
 1. Open **File > Preferences > Linting**.
-2. Check that the current project is trusted. MeadowPy intentionally ignores
-   project interpreters, configurations, hooks, and local plugins until it is
-   trusted.
+2. Check that the current lint target is trusted. MeadowPy intentionally
+   ignores project interpreters, configurations, hooks, and local plugins
+   until it is trusted.
 3. Choose **Auto-detect** to search up to the trusted project root, or choose
    **Explicit file** and select the intended configuration file.
 4. Check whether the working folder is set to the project folder or the
@@ -354,8 +354,9 @@ Fix:
 5. Review the effective configuration displayed in Preferences, select
    **Test Linter**, then use `Ctrl+Alt+L` again.
 
-Only trust a project when you know its contents. Linter configuration can load
-project code through hooks or plugins.
+Only trust a target when you know its contents. Linter configuration can load
+project code through hooks or plugins. If the explorer is open to a broad
+folder, Preferences shows the narrower target inferred for the active file.
 
 ## Linting Times Out
 

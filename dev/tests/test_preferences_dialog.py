@@ -2,7 +2,9 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
-from PyQt6.QtWidgets import QMessageBox, QScrollArea
+from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtWidgets import QApplication, QMessageBox, QScrollArea, QWidget
 
 from meadowpy.core.settings import Settings
 from meadowpy.ui.dialogs import preferences_dialog as preferences_module
@@ -64,6 +66,95 @@ def test_lint_preferences_expose_context_controls_and_preserve_provider_drafts(
     assert dialog._pending_changes["editor.lint_pylint_timeout_seconds"] == 31
 
     dialog.deleteLater()
+
+
+def test_lint_page_value_controls_scroll_without_changing_values(
+    qapp, tmp_path
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    settings = Settings(tmp_path / "settings")
+    settings.set("editor.linting_enabled", True)
+    settings.set("general.project_folder", str(project))
+    settings.set("security.trusted_lint_roots", [str(project)])
+    dialog = PreferencesDialog(settings)
+    dialog._category_list.setCurrentRow(2)
+    dialog.show()
+    qapp.processEvents()
+    controls = [
+        dialog._linter_combo,
+        dialog._lint_delay,
+        dialog._lint_interpreter_mode_combo,
+        dialog._lint_working_directory_combo,
+        dialog._lint_config_mode_combo,
+        dialog._lint_timeout,
+    ]
+    before = [
+        control.value() if hasattr(control, "value") else control.currentIndex()
+        for control in controls
+    ]
+
+    lint_page = dialog._pages.widget(2)
+    scroll_bar = lint_page.verticalScrollBar()
+    assert scroll_bar.maximum() > 0
+    for control in controls:
+        scroll_bar.setValue(0)
+        global_position = control.mapToGlobal(QPoint(5, 5))
+        wheel_event = QWheelEvent(
+            QPointF(5, 5),
+            QPointF(global_position),
+            QPoint(),
+            QPoint(0, -120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.ScrollUpdate,
+            False,
+        )
+        QApplication.sendEvent(control, wheel_event)
+        qapp.processEvents()
+        assert scroll_bar.value() > 0
+
+    after = [
+        control.value() if hasattr(control, "value") else control.currentIndex()
+        for control in controls
+    ]
+    assert after == before
+    dialog.deleteLater()
+
+
+def test_lint_preferences_infer_narrow_target_from_active_file(
+    monkeypatch, qapp, tmp_path
+):
+    explorer_root = tmp_path / "Documents"
+    project = explorer_root / "nested-project"
+    source = project / "src" / "main.py"
+    source.parent.mkdir(parents=True)
+    (project / ".git").mkdir()
+    source.write_text("print('hello')\n", encoding="utf-8")
+
+    parent = QWidget()
+    parent._tab_manager = SimpleNamespace(
+        current_editor=lambda: SimpleNamespace(file_path=str(source))
+    )
+    parent._file_explorer = SimpleNamespace(root_path=str(explorer_root))
+    dialog = PreferencesDialog(Settings(tmp_path / "settings"), parent)
+    monkeypatch.setattr(
+        preferences_module.QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
+
+    canonical_project = PreferencesDialog._canonical_path(project)
+    assert dialog._current_lint_project() == canonical_project
+    assert canonical_project in dialog._lint_project_label.text()
+
+    dialog._trust_lint_project()
+
+    assert dialog._pending_changes["security.trusted_lint_roots"] == [
+        canonical_project
+    ]
+    dialog.deleteLater()
+    parent.deleteLater()
 
 
 def test_lint_preferences_validate_before_any_setting_is_persisted(

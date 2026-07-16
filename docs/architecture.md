@@ -382,7 +382,8 @@ Flow:
 Editor text changes (when while-typing lint is enabled)
   -> configured debounce timer starts
 File save (when lint-on-save is enabled)
-  -> lint starts immediately
+  -> saved path is associated with its editor
+  -> lint starts for that editor
 Run > Run Linter / Ctrl+Alt+L
   -> lint starts on demand
 Any lint trigger
@@ -390,6 +391,7 @@ Any lint trigger
   -> resolve interpreter, working directory, configuration, and trust state
   -> LintRunner.run_lint() with the resolved execution context and timeout
   -> background lint worker runs flake8 or pylint in that context
+  -> a replacement request terminates the stale linter subprocess
   -> results parsed into LintIssue objects
   -> editor markers updated
   -> Problems panel updated
@@ -407,13 +409,15 @@ applies the resolved configuration policy and working folder, and enforces the
 selected timeout without persisting the staged values.
 
 `lint_context.py` resolves the effective environment once per run. It supports
-the selected project interpreter, MeadowPy's interpreter, or an explicit
+the interpreter selected for Run, MeadowPy's interpreter, or an explicit
 interpreter; project-root or file-directory working folders; and automatic,
 explicit, or isolated-default configuration. Configuration discovery is a
-bounded scan that stops at the trusted project root. The selected timeout is
-passed to the worker rather than being fixed by the UI.
+bounded scan that stops at the trusted target root. The target resolver prefers
+the nearest project marker inside a broader explorer root and otherwise uses a
+saved file's folder. The selected timeout is passed to the worker rather than
+being fixed by the UI.
 
-Project trust is part of context resolution. An untrusted project cannot
+Target trust is part of context resolution. An untrusted target cannot
 automatically supply an interpreter, working directory, linter configuration,
 hook, or local plugin. MeadowPy instead uses its own interpreter, a safe
 working directory, and isolated/default configuration until the root is
