@@ -8,10 +8,344 @@ import socket
 import subprocess
 import sys
 import threading
+from types import SimpleNamespace
 
 import pytest
 
 from meadowpy.core import debug_helper
+
+
+def test_debug_helper_validation_and_protocol_failure_branches(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        debug_helper.os.path,
+        "commonpath",
+        lambda paths: (_ for _ in ()).throw(ValueError("different drives")),
+    )
+    assert debug_helper._path_is_within("A:/file", "B:/") is False
+
+    monkeypatch.setattr(
+        debug_helper.sysconfig,
+        "get_paths",
+        lambda: (_ for _ in ()).throw(KeyError("missing")),
+    )
+    assert debug_helper._interpreter_source_roots() == ((), ())
+
+    syntax_file = tmp_path / "syntax.py"
+    syntax_file.write_text("if True print('bad')\n", encoding="utf-8")
+    lines, error = debug_helper._collect_executable_lines(str(syntax_file))
+    assert lines == set()
+    assert "line 1" in error
+    lines, error = debug_helper._collect_executable_lines(str(tmp_path / "missing.py"))
+    assert lines == set()
+    assert "Cannot verify executable lines" in error
+
+    sock = SimpleNamespace()
+    debugger = debug_helper.MeadowPyDebugger(sock)
+    script = tmp_path / "demo.py"
+    script.write_text("value = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        debug_helper,
+        "_collect_executable_lines",
+        lambda path: ({1}, None),
+    )
+    monkeypatch.setattr(
+        debugger,
+        "set_break",
+        lambda path, line: (_ for _ in ()).throw(ValueError("bad break")),
+    )
+    monkeypatch.setattr(
+        debug_helper,
+        "_send",
+        lambda *args: (_ for _ in ()).throw(OSError("gone")),
+    )
+
+    accepted, rejected = debugger._update_breakpoints(
+        {str(script): ["bad", 0, 1]}
+    )
+    assert accepted[str(script)] == []
+    assert rejected[str(script)]["bad"] == "Line number must be a positive integer"
+    assert "Unable to set breakpoint" in rejected[str(script)][1]
+    assert debugger._socket_disconnected is True
+
+
+def test_debug_helper_pause_queue_and_disconnect_branches(monkeypatch):
+    sock = SimpleNamespace()
+    debugger = debug_helper.MeadowPyDebugger(sock)
+    detach_calls = []
+    monkeypatch.setattr(debugger, "_detach_debugger", lambda: detach_calls.append(True))
+    monkeypatch.setattr(
+        debug_helper,
+        "_send",
+        lambda *args: (_ for _ in ()).throw(OSError("gone")),
+    )
+    frame = SimpleNamespace(
+        f_code=SimpleNamespace(co_filename="demo.py", co_name="demo"),
+        f_lineno=4,
+        f_locals={},
+        f_globals={},
+        f_back=None,
+    )
+    assert debugger._send_pause(frame, "step") is False
+    assert detach_calls == [True]
+
+    debugger._socket_disconnected = False
+    debugger._command_queue.put({"cmd": "other", "value": 1})
+    assert debugger._drain_running_commands() is True
+    assert debugger._deferred_messages == [{"cmd": "other", "value": 1}]
+
+    debugger._command_queue.put(debug_helper._SOCKET_DISCONNECTED)
+    assert debugger._drain_running_commands() is False
+    assert debugger._socket_disconnected is True
+    assert len(detach_calls) == 2
+
+
+def test_debug_helper_frame_filtering_and_bdb_callback_branches(monkeypatch):
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    calls = []
+    monkeypatch.setattr(
+        debug_helper.bdb.Bdb,
+        "set_return",
+        lambda self, frame: calls.append(("return", frame)),
+    )
+    caller = SimpleNamespace(f_trace=None)
+    frame = SimpleNamespace(f_back=caller)
+    debugger.set_return(frame)
+    assert caller.f_trace == debugger.trace_dispatch
+    debugger.set_return(SimpleNamespace(f_back=None))
+    assert len(calls) == 2
+
+    monkeypatch.setattr(
+        debug_helper.bdb.Bdb,
+        "stop_here",
+        lambda self, frame: "super-result",
+    )
+    monkeypatch.setattr(
+        debug_helper,
+        "_is_runtime_internal_source",
+        lambda filename: filename == "stdlib.py",
+    )
+    library_frame = SimpleNamespace(
+        f_globals={"__name__": "library"},
+        f_code=SimpleNamespace(co_filename="stdlib.py"),
+    )
+    debugger.stopframe = None
+    assert debugger.stop_here(library_frame) is False
+    debugger.stopframe = library_frame
+    assert debugger.stop_here(library_frame) == "super-result"
+    main_frame = SimpleNamespace(
+        f_globals={"__name__": "__main__"},
+        f_code=SimpleNamespace(co_filename="stdlib.py"),
+    )
+    assert debugger.stop_here(main_frame) == "super-result"
+
+
+def test_debug_helper_line_and_exception_callbacks_cover_resume_paths(monkeypatch):
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    frame = SimpleNamespace(
+        f_code=SimpleNamespace(co_filename="demo.py", co_flags=0),
+        f_lineno=7,
+        f_globals={"__name__": "__main__"},
+    )
+    actions = []
+    monkeypatch.setattr(debug_helper, "_is_internal_frame", lambda path: False)
+    monkeypatch.setattr(debugger, "_has_breakpoint", lambda filename, line: False)
+    monkeypatch.setattr(
+        debugger,
+        "_set_continue_traced",
+        lambda: actions.append("continue"),
+    )
+    monkeypatch.setattr(
+        debugger,
+        "_send_pause",
+        lambda current_frame, reason: actions.append(reason) or False,
+    )
+    monkeypatch.setattr(
+        debugger,
+        "_command_loop",
+        lambda current_frame: actions.append("loop"),
+    )
+
+    debugger._initial_continue = True
+    debugger.user_line(frame)
+    assert actions == ["continue"]
+
+    debugger._initial_continue = False
+    debugger.user_line(frame)
+    assert actions[-1] == "step"
+    monkeypatch.setattr(debugger, "_has_breakpoint", lambda filename, line: True)
+    monkeypatch.setattr(
+        debugger,
+        "_send_pause",
+        lambda current_frame, reason: actions.append(reason) or True,
+    )
+    debugger.user_line(frame)
+    assert actions[-2:] == ["breakpoint", "loop"]
+
+    monkeypatch.setattr(debug_helper, "_is_internal_frame", lambda path: True)
+    before = list(actions)
+    debugger.user_line(frame)
+    assert actions == before
+
+    stopframe = SimpleNamespace(
+        f_code=SimpleNamespace(
+            co_flags=debug_helper.bdb.GENERATOR_AND_COROUTINE_FLAGS
+        )
+    )
+    debugger.stopframe = stopframe
+    monkeypatch.setattr(debug_helper, "_is_internal_frame", lambda path: False)
+    monkeypatch.setattr(
+        debugger,
+        "_send_pause",
+        lambda current_frame, reason: actions.append("exception") or True,
+    )
+    debugger.user_exception(frame, (StopIteration, StopIteration(), None))
+    assert actions[-2:] == ["exception", "loop"]
+    before = list(actions)
+    debugger.user_exception(frame, (ValueError, ValueError(), None))
+    assert actions == before
+
+
+def test_debug_helper_dispatch_receiver_and_protocol_parsing(monkeypatch):
+    class ChunkSocket:
+        def __init__(self):
+            self.chunks = iter((b"bad-json\n[]\n{\"cmd\": \"continue\"}\n", b""))
+
+        def recv(self, size):
+            return next(self.chunks)
+
+    debugger = debug_helper.MeadowPyDebugger(ChunkSocket())
+    debugger._receive_commands()
+    assert debugger._command_queue.get() == {"cmd": "continue"}
+    assert debugger._command_queue.get() is debug_helper._SOCKET_DISCONNECTED
+
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    debugger._receiver_thread = object()
+    debugger._start_command_receiver()
+    debugger._receiver_thread = None
+    debugger._socket_disconnected = True
+    debugger._start_command_receiver()
+
+    results = iter((False, True, True))
+    monkeypatch.setattr(debugger, "_drain_running_commands", lambda: next(results))
+    monkeypatch.setattr(
+        debug_helper.bdb.Bdb,
+        "dispatch_line",
+        lambda self, frame: "trace",
+    )
+    frame = SimpleNamespace()
+    assert debugger.dispatch_line(frame) is None
+    debugger._socket_disconnected = True
+    assert debugger.dispatch_line(frame) is None
+    debugger._socket_disconnected = False
+    assert debugger.dispatch_line(frame) == "trace"
+
+
+def test_debug_helper_command_loop_disconnect_breakpoints_and_evaluation(monkeypatch):
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    detached = []
+    monkeypatch.setattr(debugger, "_detach_debugger", lambda: detached.append(True))
+    monkeypatch.setattr(
+        debugger,
+        "_update_breakpoints",
+        lambda breaks: setattr(debugger, "_socket_disconnected", True),
+    )
+    debugger._deferred_messages = [{"cmd": "set_breakpoints", "breakpoints": {}}]
+    debugger._command_loop(SimpleNamespace())
+    assert detached == [True]
+
+    internal = SimpleNamespace(
+        f_code=SimpleNamespace(co_filename="internal.py"),
+        f_globals={},
+        f_locals={},
+        f_back=None,
+    )
+    outer = SimpleNamespace(
+        f_code=SimpleNamespace(co_filename="outer.py"),
+        f_globals={"value": 3},
+        f_locals={},
+        f_back=None,
+    )
+    internal.f_back = outer
+    frame = SimpleNamespace(
+        f_code=SimpleNamespace(co_filename="demo.py"),
+        f_globals={"value": 1},
+        f_locals={},
+        f_back=internal,
+    )
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    detached = []
+    monkeypatch.setattr(debugger, "_detach_debugger", lambda: detached.append(True))
+    monkeypatch.setattr(
+        debug_helper,
+        "_is_internal_frame",
+        lambda path: path.endswith("internal.py"),
+    )
+    monkeypatch.setattr(
+        debug_helper,
+        "_send",
+        lambda *args: (_ for _ in ()).throw(OSError("gone")),
+    )
+    debugger._deferred_messages = [
+        {"cmd": "evaluate", "expression": "value", "frame_index": 2}
+    ]
+    debugger._command_loop(frame)
+    assert debugger._socket_disconnected is True
+    assert detached == [True]
+
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    detached = []
+    monkeypatch.setattr(debugger, "_detach_debugger", lambda: detached.append(True))
+    debugger._receiver_thread = object()
+    debugger._command_queue.put(debug_helper._SOCKET_DISCONNECTED)
+    debugger._command_loop(frame)
+    assert detached == [True]
+
+    debugger = debug_helper.MeadowPyDebugger(SimpleNamespace())
+    detached = []
+    monkeypatch.setattr(debugger, "_detach_debugger", lambda: detached.append(True))
+    monkeypatch.setattr(debug_helper, "_recv_line", lambda sock, buf: None)
+    debugger._command_loop(frame)
+    assert detached == [True]
+
+
+def test_debug_helper_shutdown_receiver_handles_socket_errors_and_stubborn_thread(
+    monkeypatch,
+):
+    class Receiver:
+        def __init__(self, states):
+            self.states = iter(states)
+            self.joins = []
+
+        def is_alive(self):
+            return next(self.states)
+
+        def join(self, timeout):
+            self.joins.append(timeout)
+
+    class FailingSocket:
+        def shutdown(self, how):
+            raise OSError("already closed")
+
+        def close(self):
+            raise OSError("already closed")
+
+    debugger = debug_helper.MeadowPyDebugger(FailingSocket())
+    assert debugger.shutdown_receiver() is True
+
+    receiver = Receiver((True, True, False))
+    debugger._receiver_thread = receiver
+    debugger._command_queue.put({"cmd": "ignored"})
+    assert debugger.shutdown_receiver(0.25) is True
+    assert receiver.joins == [0.25, 0.25]
+    assert debugger._receiver_thread is None
+
+    stubborn = Receiver((True, True, True))
+    debugger._receiver_thread = stubborn
+    assert debugger.shutdown_receiver(0.1) is False
+    assert debugger._receiver_thread is stubborn
 
 
 class CapturingSocket:

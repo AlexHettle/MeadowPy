@@ -1,25 +1,41 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QEvent, QFileInfo, QPointF, Qt
-from PyQt6.QtGui import QAction, QColor, QIcon, QKeyEvent, QKeySequence, QMouseEvent
+from PyQt6.QtCore import QEvent, QFileInfo, QModelIndex, QPointF, Qt
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QIcon,
+    QKeyEvent,
+    QKeySequence,
+    QMouseEvent,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
+    QApplication,
     QFileIconProvider,
+    QMessageBox,
     QMenuBar,
     QPushButton,
+    QStyleOptionViewItem,
     QWidget,
 )
 
+import meadowpy.ui.file_explorer as file_explorer_module
 from meadowpy.ui.file_explorer import (
     _BLOCKED_FILE_TOOLTIP,
     FileExplorerPanel,
     _ClickableLabel,
     _ExplorerIconProvider,
+    _FileExplorerItemDelegate,
     _FilteredFileSystemModel,
     _MAX_PREFETCH_SUBDIRS,
+    _directory_has_visible_entries,
 )
 from meadowpy.ui.glow_painter import HeaderGlowPainter
+import meadowpy.ui.menu_bar as menu_bar_module
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
 from meadowpy.ui.tool_bar import RunFileButton, ToolBarBuilder
@@ -39,6 +55,378 @@ class FakeSettings:
 
     def get(self, key, default=None):
         return self.values.get(key, default)
+
+
+class _FakeFileInfo:
+    def __init__(self, path, *, is_dir=False, suffix=""):
+        self._path = path
+        self._is_dir = is_dir
+        self._suffix = suffix
+
+    def isDir(self):
+        return self._is_dir
+
+    def filePath(self):
+        return self._path
+
+    def suffix(self):
+        return self._suffix
+
+
+def test_file_explorer_icon_provider_accessors_and_file_kinds(monkeypatch, qapp):
+    icons = {}
+
+    def fake_icon(name, color):
+        pixmap = QPixmap(2, 2)
+        pixmap.fill(QColor(color))
+        icon = QIcon(pixmap)
+        icons[(name, color)] = icon
+        return icon
+
+    monkeypatch.setattr(file_explorer_module, "load_tinted_icon", fake_icon)
+    monkeypatch.setattr(
+        file_explorer_module,
+        "is_known_unsupported_editor_file",
+        lambda path: path.endswith(".docx"),
+    )
+    provider = _ExplorerIconProvider("#123456", True)
+
+    assert provider.empty_folder_icon().isNull() is False
+    assert provider.empty_text_color() == "#6F766B"
+    assert provider.blocked_file_icon().isNull() is False
+    assert provider.blocked_file_text_color() == "#6F766B"
+    assert provider.icon(QFileIconProvider.IconType.Folder).isNull() is False
+    assert provider.icon(QFileIconProvider.IconType.File).isNull() is False
+    assert provider.icon(_FakeFileInfo("folder", is_dir=True)).isNull() is False
+    assert provider.icon(_FakeFileInfo("report.docx")).isNull() is False
+    assert provider.icon(_FakeFileInfo("demo.py", suffix="PY")).isNull() is False
+    assert provider.icon(_FakeFileInfo("notes.txt", suffix="txt")).isNull() is False
+
+
+def test_file_explorer_delegate_applies_blocked_and_empty_visuals(qapp):
+    pixmap = QPixmap(2, 2)
+    pixmap.fill(QColor("#abcdef"))
+    icon = QIcon(pixmap)
+
+    class FakePanel:
+        blocked = True
+        empty = False
+
+        def _is_blocked_editor_file(self, index):
+            return self.blocked
+
+        def _blocked_file_text_color(self):
+            return "#123456"
+
+        def _blocked_file_icon(self):
+            return icon
+
+        def _is_known_empty_folder(self, index):
+            return self.empty
+
+        def _empty_folder_text_color(self):
+            return "#654321"
+
+        def _empty_folder_icon(self):
+            return icon
+
+    panel = FakePanel()
+    delegate = _FileExplorerItemDelegate(panel)
+    blocked_option = QStyleOptionViewItem()
+    delegate.initStyleOption(blocked_option, QModelIndex())
+    assert blocked_option.palette.color(blocked_option.palette.ColorRole.Text).name() == "#123456"
+    assert blocked_option.icon.isNull() is False
+
+    panel.blocked = False
+    panel.empty = True
+    empty_option = QStyleOptionViewItem()
+    delegate.initStyleOption(empty_option, QModelIndex())
+    assert empty_option.palette.color(empty_option.palette.ColorRole.Text).name() == "#654321"
+    assert empty_option.icon.isNull() is False
+    delegate.deleteLater()
+
+
+def test_file_explorer_context_menu_dispatches_every_action(monkeypatch, tmp_path):
+    action_calls = []
+    selected_action = {"value": None}
+
+    class FakeIndex:
+        def __init__(self, valid):
+            self.valid = valid
+
+        def isValid(self):
+            return self.valid
+
+    class FakeMenu:
+        def __init__(self, parent):
+            self.actions = []
+
+        def addAction(self, text):
+            action = SimpleNamespace(text=text)
+            self.actions.append(action)
+            return action
+
+        def addSeparator(self):
+            return None
+
+        def exec(self, position):
+            selected = selected_action["value"]
+            if selected is None:
+                return None
+            if selected == "file":
+                return self.actions[0]
+            if selected == "folder":
+                return self.actions[1]
+            if selected == "rename":
+                return self.actions[-2]
+            return self.actions[-1]
+
+    class FakeTree:
+        def __init__(self):
+            self.valid = True
+
+        def indexAt(self, pos):
+            return FakeIndex(self.valid)
+
+        def viewport(self):
+            return SimpleNamespace(mapToGlobal=lambda pos: pos)
+
+    tree = FakeTree()
+    panel = SimpleNamespace(
+        _root_path=str(tmp_path),
+        _tree=tree,
+        _resolve_target_dir=lambda index: (tmp_path, "source"),
+        _action_new_file=lambda path: action_calls.append(("file", path)),
+        _action_new_folder=lambda path: action_calls.append(("folder", path)),
+        _action_rename=lambda index: action_calls.append(("rename", index)),
+        _action_delete=lambda index: action_calls.append(("delete", index)),
+    )
+    monkeypatch.setattr(file_explorer_module, "QMenu", FakeMenu)
+
+    for action in ("file", "folder", "rename", "delete", None):
+        selected_action["value"] = action
+        FileExplorerPanel._on_context_menu(panel, object())
+
+    tree.valid = False
+    selected_action["value"] = "file"
+    FileExplorerPanel._on_context_menu(panel, object())
+    panel._root_path = None
+    FileExplorerPanel._on_context_menu(panel, object())
+
+    assert action_calls == [
+        ("file", tmp_path),
+        ("folder", tmp_path),
+        ("rename", "source"),
+        ("delete", "source"),
+        ("file", tmp_path),
+    ]
+
+
+def test_file_explorer_action_failures_warn_without_emitting(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    panel = FileExplorerPanel()
+    warnings = []
+    monkeypatch.setattr(
+        file_explorer_module.QMessageBox,
+        "warning",
+        lambda *args: warnings.append(("warning", args[-1])),
+    )
+    monkeypatch.setattr(
+        file_explorer_module.QMessageBox,
+        "critical",
+        lambda *args: warnings.append(("critical", args[-1])),
+    )
+    monkeypatch.setattr(
+        file_explorer_module.QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
+
+    existing = tmp_path / "existing.py"
+    existing.write_text("", encoding="utf-8")
+    responses = iter(
+        (
+            ("existing.py", True),
+            ("existing.py", True),
+            ("renamed.py", True),
+        )
+    )
+    monkeypatch.setattr(
+        file_explorer_module.QInputDialog,
+        "getText",
+        lambda *args, **kwargs: next(responses),
+    )
+    panel._action_new_file(tmp_path)
+    panel._action_new_folder(tmp_path)
+
+    panel._fs_model = SimpleNamespace(filePath=lambda index: str(existing))
+    (tmp_path / "renamed.py").write_text("", encoding="utf-8")
+    panel._action_rename(object())
+
+    monkeypatch.setattr(
+        file_explorer_module,
+        "shutil",
+        SimpleNamespace(
+            rmtree=lambda path: (_ for _ in ()).throw(OSError("locked"))
+        ),
+    )
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    panel._fs_model = SimpleNamespace(filePath=lambda index: str(folder))
+    panel._action_delete(object())
+
+    assert [kind for kind, _message in warnings] == [
+        "warning",
+        "warning",
+        "warning",
+        "critical",
+    ]
+    assert folder.exists()
+    panel.deleteLater()
+
+
+def test_file_explorer_filesystem_errors_and_panel_fallbacks(monkeypatch, qapp, tmp_path):
+    class FailingDirectory:
+        def __init__(self, value):
+            self.value = value
+
+        def iterdir(self):
+            raise OSError("denied")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(file_explorer_module, "Path", FailingDirectory)
+        assert _directory_has_visible_entries("blocked") is None
+
+    panel = FileExplorerPanel()
+    panel._icon_provider = None
+    assert panel._empty_folder_icon().isNull()
+    assert panel._empty_folder_text_color() == "#6F766B"
+    assert panel._blocked_file_icon().isNull()
+    assert panel._blocked_file_text_color() == "#6F766B"
+    panel._on_title_new_file()
+    panel._fs_model = None
+    panel._prefetch_subdirs(QModelIndex())
+
+    class BrokenProxy:
+        def rowCount(self, index):
+            raise RuntimeError("stale index")
+
+    panel._proxy = BrokenProxy()
+    panel._fs_model = SimpleNamespace(rowCount=lambda index: 4)
+    valid_index = SimpleNamespace(isValid=lambda: True)
+    assert panel._visible_child_count(valid_index, object()) == 4
+    panel.deleteLater()
+
+
+def test_file_explorer_create_and_rename_os_errors_are_reported(
+    monkeypatch,
+    qapp,
+):
+    class FailingPath:
+        def __init__(self, value="old.py"):
+            self.value = str(value)
+            self.name = Path(self.value).name
+            self.parent = self
+
+        def __truediv__(self, name):
+            return FailingPath(name)
+
+        def exists(self):
+            return False
+
+        def touch(self):
+            raise OSError("touch denied")
+
+        def mkdir(self, parents=False):
+            raise OSError("mkdir denied")
+
+        def rename(self, target):
+            raise OSError("rename denied")
+
+    panel = FileExplorerPanel()
+    messages = []
+    responses = iter((("new.py", True), ("folder", True), ("renamed.py", True)))
+    monkeypatch.setattr(file_explorer_module, "Path", FailingPath)
+    monkeypatch.setattr(
+        file_explorer_module.QInputDialog,
+        "getText",
+        lambda *args, **kwargs: next(responses),
+    )
+    monkeypatch.setattr(
+        file_explorer_module.QMessageBox,
+        "critical",
+        lambda *args: messages.append(args[-1]),
+    )
+    parent = FailingPath("parent")
+    panel._action_new_file(parent)
+    panel._action_new_folder(parent)
+    panel._fs_model = SimpleNamespace(filePath=lambda index: "old.py")
+    panel._action_rename(object())
+
+    assert messages == [
+        "Could not create file:\ntouch denied",
+        "Could not create folder:\nmkdir denied",
+        "Could not rename:\nrename denied",
+    ]
+    panel.deleteLater()
+
+
+def test_menu_bar_rebuilds_recent_files_and_routes_edit_commands(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    opened = []
+    cleared = []
+    recent_paths = [str(tmp_path / "demo.py"), "standalone.py"]
+    recent_files = SimpleNamespace(
+        get_files=lambda: recent_paths,
+        clear=lambda: cleared.append(True),
+    )
+    window = SimpleNamespace(
+        _recent_files=recent_files,
+        open_recent_file=opened.append,
+    )
+    builder = MenuBarBuilder(window)
+    builder._recent_files_menu = menu_bar_module.QMenu()
+
+    builder.rebuild_recent_files_menu()
+
+    actions = builder._recent_files_menu.actions()
+    assert actions[0].text() == f"{tmp_path.name}/demo.py"
+    assert actions[0].toolTip() == recent_paths[0]
+    assert actions[1].text() == "standalone.py"
+    actions[0].trigger()
+    actions[-1].trigger()
+    assert opened == [recent_paths[0]]
+    assert cleared == [True]
+
+    focus_calls = []
+    focus = SimpleNamespace(copy=lambda: focus_calls.append("focus"))
+    monkeypatch.setattr(
+        QApplication,
+        "focusWidget",
+        staticmethod(lambda: focus),
+    )
+    builder._focused_widget_call("copy")
+    assert focus_calls == ["focus"]
+
+    editor_calls = []
+    editor = SimpleNamespace(copy=lambda: editor_calls.append("editor"))
+    window._tab_manager = SimpleNamespace(current_editor=lambda: editor)
+    monkeypatch.setattr(
+        QApplication,
+        "focusWidget",
+        staticmethod(lambda: None),
+    )
+    builder._focused_widget_call("copy")
+    assert editor_calls == ["editor"]
+    window._tab_manager = SimpleNamespace(current_editor=lambda: None)
+    builder._editor_call("copy")
+    builder._recent_files_menu.deleteLater()
 
 
 class FakeToolbarWindow(QWidget):

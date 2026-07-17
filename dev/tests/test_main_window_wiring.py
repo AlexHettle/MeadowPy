@@ -1,11 +1,13 @@
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QElapsedTimer
+from PyQt6.QtGui import QIcon
 
 from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.file_manager import FileManager
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.settings import Settings
+import meadowpy.ui.main_window as main_window_module
 from meadowpy.ui.main_window import MainWindow
 from meadowpy.ui.welcome_widget import WelcomeWidget
 from helpers import DummySignal
@@ -17,6 +19,77 @@ def _wait_for_debug_state(qapp, manager, state, timeout_ms=5_000):
     while manager.state != state and timer.elapsed() < timeout_ms:
         qapp.processEvents()
     return manager.state == state
+
+
+def test_main_window_refreshes_theme_icons_and_shortcut_consumers(monkeypatch):
+    icon_calls = []
+    monkeypatch.setattr(
+        main_window_module,
+        "load_themed_icon",
+        lambda name, theme: icon_calls.append((name, theme)) or QIcon(),
+    )
+
+    class IconConsumer:
+        def __init__(self):
+            self.icons = []
+
+        def setIcon(self, icon):
+            self.icons.append(icon)
+
+    actions = [IconConsumer() for _ in range(4)]
+    restart_button = IconConsumer()
+    terminal_refreshes = []
+    window = SimpleNamespace(
+        _settings=SimpleNamespace(
+            get=lambda key, default=None: "default_dark"
+            if key == "editor.theme"
+            else default
+        ),
+        _run_action=actions[0],
+        _stop_action=actions[1],
+        _debug_action=actions[2],
+        _restart_console_action=actions[3],
+        _output_panel=SimpleNamespace(_restart_repl_btn=restart_button),
+        _terminal_panel=SimpleNamespace(
+            refresh_theme_icons=lambda: terminal_refreshes.append(True)
+        ),
+    )
+
+    MainWindow._refresh_themed_icons(window)
+
+    assert icon_calls == [
+        ("run", "default_dark"),
+        ("stop", "default_dark"),
+        ("debug", "default_dark"),
+        ("restart", "default_dark"),
+        ("restart", "default_dark"),
+    ]
+    assert all(len(action.icons) == 1 for action in actions)
+    assert len(restart_button.icons) == 1
+    assert terminal_refreshes == [True]
+
+    reapplied = []
+    toolbar_updates = []
+    debug_updates = []
+    window._shortcut_actions = {
+        "file.save": ("save-action", "Save{shortcut_suffix}"),
+        "file.open": ("open-action", None),
+    }
+    window._apply_shortcut_to_action = (
+        lambda shortcut_id, action, tooltip: reapplied.append(
+            (shortcut_id, action, tooltip)
+        )
+    )
+    window._toolbar_builder = SimpleNamespace(
+        update_shortcut_tooltips=lambda: toolbar_updates.append(True)
+    )
+    window._refresh_debug_shortcut_tooltips = lambda: debug_updates.append(True)
+
+    MainWindow._refresh_shortcut_actions(window)
+
+    assert [item[0] for item in reapplied] == ["file.save", "file.open"]
+    assert toolbar_updates == [True]
+    assert debug_updates == [True]
 
 
 def test_full_window_step_into_print_does_not_abort(qapp, tmp_path):

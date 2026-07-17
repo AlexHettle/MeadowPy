@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 from types import SimpleNamespace
 
 import meadowpy.app as app_module
@@ -177,6 +178,21 @@ class FakeEventFilter:
     def __init__(self, *args):
         self.args = args
         self.parent = args[-1] if args else None
+
+
+class _CallableWinApi:
+    def __init__(self, result=None, callback=None):
+        self.result = result
+        self.callback = callback
+        self.argtypes = None
+        self.restype = None
+        self.calls = []
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        if self.callback is not None:
+            return self.callback(*args)
+        return self.result
 
 
 def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
@@ -445,3 +461,80 @@ def test_wait_and_close_splash_are_noops_without_splash():
     MeadowPyApp._close_splash(app)
 
     assert app._splash is None
+
+
+def test_native_windows_icon_loads_both_sizes_and_sends_window_messages(
+    monkeypatch,
+    tmp_path,
+):
+    metrics = {11: 32, 12: 32, 49: 16, 50: 16}
+    load_results = iter((101, 202))
+    user32 = SimpleNamespace(
+        LoadImageW=_CallableWinApi(callback=lambda *args: next(load_results)),
+        SendMessageW=_CallableWinApi(result=1),
+        GetSystemMetrics=_CallableWinApi(callback=lambda metric: metrics[metric]),
+    )
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(user32=user32))
+    monkeypatch.setattr(app_module.sys, "platform", "win32")
+    controller = SimpleNamespace(_app_icon_path=tmp_path / "meadowpy.ico")
+    widget = SimpleNamespace(winId=lambda: 42)
+
+    MeadowPyApp._apply_native_app_icon(controller, widget)
+
+    assert [call[2:5] for call in user32.LoadImageW.calls] == [
+        (1, 32, 32),
+        (1, 16, 16),
+    ]
+    assert user32.SendMessageW.calls == [
+        (42, 0x0080, 1, 101),
+        (42, 0x0080, 0, 202),
+        (42, 0x0080, 2, 202),
+    ]
+
+    MeadowPyApp._apply_native_app_icon(controller, None)
+    monkeypatch.setattr(app_module.sys, "platform", "linux")
+    MeadowPyApp._apply_native_app_icon(controller, widget)
+    assert len(user32.LoadImageW.calls) == 2
+
+
+def test_native_icon_and_qt_logger_failures_are_nonfatal(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_module.sys, "platform", "win32")
+    controller = SimpleNamespace(_app_icon_path=tmp_path / "meadowpy.ico")
+    MeadowPyApp._apply_native_app_icon(
+        controller,
+        SimpleNamespace(winId=lambda: (_ for _ in ()).throw(RuntimeError("no hwnd"))),
+    )
+
+    installed = []
+    monkeypatch.setattr(app_module.Path, "home", lambda: tmp_path / "not-a-dir")
+    (tmp_path / "not-a-dir").write_text("occupied", encoding="utf-8")
+    monkeypatch.setattr(
+        app_module,
+        "qInstallMessageHandler",
+        lambda handler: installed.append(handler),
+    )
+    handler = app_module._install_qt_message_logger()
+    handler(app_module.QtMsgType.QtInfoMsg, None, "ignored write failure")
+    assert installed == [handler]
+
+
+def test_clipboard_filter_rejects_non_key_and_unsupported_focus(monkeypatch, qapp):
+    shortcut_filter = _ClipboardShortcutFilter()
+    monkeypatch.setattr(
+        app_module.QApplication,
+        "focusWidget",
+        staticmethod(lambda: object()),
+    )
+
+    assert shortcut_filter.eventFilter(object(), QEvent(QEvent.Type.Show)) is False
+    assert (
+        shortcut_filter.eventFilter(
+            object(),
+            QKeyEvent(
+                QEvent.Type.KeyPress,
+                Qt.Key.Key_C,
+                Qt.KeyboardModifier.ControlModifier,
+            ),
+        )
+        is False
+    )

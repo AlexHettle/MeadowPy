@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
@@ -21,7 +23,7 @@ import meadowpy.ui.ai_chat_panel as ai_chat_panel_module
 import meadowpy.ui.dialogs.shortcut_reference_dialog as shortcut_reference_module
 import meadowpy.ui.search_panel as search_panel_module
 from meadowpy.core.settings import Settings
-from meadowpy.core.shortcuts import get_shortcut, set_shortcut
+from meadowpy.core.shortcuts import ShortcutDefinition, get_shortcut, set_shortcut
 from meadowpy.resources.resource_loader import get_stylesheet
 from tests.helpers import DummySignal
 from meadowpy.ui.ai_chat_panel import AIChatPanel
@@ -69,6 +71,169 @@ class Recorder:
 
     def __call__(self, *args):
         self.calls.append(args)
+
+
+def test_shortcut_confirmation_dialogs_expose_choices_and_actions(qapp):
+    target = ShortcutDefinition(
+        "file.save",
+        "File",
+        "Save",
+        "Ctrl+S",
+        "Save the active file.",
+    )
+    conflict = ShortcutDefinition(
+        "file.open",
+        "File",
+        "Open",
+        "Ctrl+O",
+        "Open a file.",
+    )
+
+    use_dialog = shortcut_reference_module._ShortcutConflictDialog(
+        "Ctrl+O", target, conflict
+    )
+    assert use_dialog.choice() == "cancel"
+    assert "already used by Open" in use_dialog.findChildren(
+        shortcut_reference_module.QLabel
+    )[1].text()
+    use_dialog._choose_use()
+    assert use_dialog.choice() == "use"
+
+    pick_dialog = shortcut_reference_module._ShortcutConflictDialog(
+        "Ctrl+O", target, conflict
+    )
+    pick_dialog._choose_pick()
+    assert pick_dialog.choice() == "pick"
+
+    reset_dialog = shortcut_reference_module._ResetAllShortcutsDialog(17)
+    labels = [label.text() for label in reset_dialog.findChildren(
+        shortcut_reference_module.QLabel
+    )]
+    assert any("all 17 shortcuts" in label for label in labels)
+
+    use_dialog.deleteLater()
+    pick_dialog.deleteLater()
+    reset_dialog.deleteLater()
+
+
+def test_shortcut_capture_escape_clear_and_memory_settings(qapp):
+    definition = ShortcutDefinition(
+        "test.capture",
+        "Test",
+        "Capture",
+        "Ctrl+T",
+        "Capture a shortcut.",
+    )
+    escape_dialog = shortcut_reference_module._ShortcutCaptureDialog(
+        definition, "Ctrl+T"
+    )
+    escape_dialog.keyPressEvent(
+        QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
+    )
+    assert escape_dialog.result() == shortcut_reference_module.QDialog.DialogCode.Rejected
+
+    clear_dialog = shortcut_reference_module._ShortcutCaptureDialog(
+        definition, "Ctrl+T"
+    )
+    clear_dialog._clear_and_accept()
+    assert clear_dialog.shortcut() == ""
+    assert clear_dialog.result() == shortcut_reference_module.QDialog.DialogCode.Accepted
+
+    settings = shortcut_reference_module._MemorySettings()
+    settings.set("custom", 3)
+    settings.save()
+    assert settings.get("custom") == 3
+    assert settings.get("missing", "fallback") == "fallback"
+    escape_dialog.deleteLater()
+    clear_dialog.deleteLater()
+
+
+def test_search_panel_broad_root_resolution_and_confirmation(monkeypatch, tmp_path):
+    questions = []
+    monkeypatch.setattr(
+        search_panel_module.QMessageBox,
+        "question",
+        lambda *args, **kwargs: questions.append((args, kwargs))
+        or search_panel_module.QMessageBox.StandardButton.Yes,
+    )
+    assert SearchPanel._confirm_broad_search_root(object(), str(tmp_path)) is True
+    assert str(tmp_path) in questions[0][0][2]
+
+    monkeypatch.setattr(
+        SearchPanel,
+        "_resolved_path",
+        staticmethod(lambda value: None),
+    )
+    assert SearchPanel._is_broad_search_root("missing") is False
+
+    root = Path(tmp_path.anchor)
+    monkeypatch.setattr(
+        SearchPanel,
+        "_resolved_path",
+        staticmethod(lambda value: root),
+    )
+    assert SearchPanel._is_broad_search_root(str(root)) is True
+
+    child = tmp_path / "project"
+    monkeypatch.setattr(
+        SearchPanel,
+        "_resolved_path",
+        staticmethod(lambda value: child),
+    )
+    monkeypatch.setattr(
+        SearchPanel,
+        "_broad_search_roots",
+        classmethod(lambda cls: {child}),
+    )
+    assert SearchPanel._is_broad_search_root(str(child)) is True
+    assert SearchPanel._normalized_root_key(str(child)) == str(child)
+    assert SearchPanel._scope_display_name(tmp_path / "one" / "two") == str(
+        Path("one") / "two"
+    )
+
+
+def test_search_panel_collects_home_and_cloud_roots(monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    cloud = tmp_path / "cloud"
+    missing = tmp_path / "missing"
+    production_resolve = SearchPanel._resolved_path
+
+    def resolve(value):
+        path = Path(value)
+        return None if path == missing else path
+
+    monkeypatch.setattr(search_panel_module.Path, "home", lambda cls=None: home)
+    monkeypatch.setattr(SearchPanel, "_resolved_path", staticmethod(resolve))
+    monkeypatch.setenv("OneDrive", str(cloud))
+    monkeypatch.setenv("OneDriveCommercial", str(missing))
+    monkeypatch.delenv("OneDriveConsumer", raising=False)
+
+    roots = SearchPanel._broad_search_roots()
+
+    assert home in roots
+    assert home / "Desktop" in roots
+    assert home / "Documents" in roots
+    assert home / "Downloads" in roots
+    assert cloud in roots
+    assert missing not in roots
+
+    class BrokenPath:
+        def __init__(self, value):
+            self.value = value
+
+        def expanduser(self):
+            return self
+
+        def resolve(self):
+            raise OSError("unavailable")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(search_panel_module, "Path", BrokenPath)
+        assert production_resolve("broken") is None
 
 
 class FakeResponse:
