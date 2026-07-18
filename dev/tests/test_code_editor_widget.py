@@ -7,7 +7,7 @@ import meadowpy.editor.editor_fonts as editor_fonts
 import pytest
 from helpers import DummySignal
 from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QColor, QImage, QKeyEvent, QPainter, QWheelEvent
+from PyQt6.QtGui import QColor, QHelpEvent, QImage, QKeyEvent, QMouseEvent, QPainter, QWheelEvent
 from PyQt6.Qsci import (
     QsciLexerJSON,
     QsciLexerMarkdown,
@@ -1057,6 +1057,7 @@ class PhantomBreakpointHarness:
     _line_from_mouse_y = CodeEditor._line_from_mouse_y
     _set_phantom_breakpoint = CodeEditor._set_phantom_breakpoint
     _clear_phantom_breakpoint = CodeEditor._clear_phantom_breakpoint
+    _get_breakpoint_tooltip = CodeEditor._get_breakpoint_tooltip
 
     def __init__(self):
         self._phantom_breakpoint_line = None
@@ -1069,6 +1070,8 @@ class PhantomBreakpointHarness:
         self.deleted = []
         self.supports_breakpoints = True
         self.cursor = None
+        self.breakpoint_state = None
+        self.rejection_reason = None
 
     def _breakpoints_supported(self):
         return self.supports_breakpoints
@@ -1107,6 +1110,12 @@ class PhantomBreakpointHarness:
     def unsetCursor(self):
         self.cursor = None
 
+    def get_breakpoint_state(self, line):
+        return self.breakpoint_state
+
+    def get_breakpoint_rejection_reason(self, line):
+        return self.rejection_reason
+
 
 def test_breakpoint_hover_is_dedicated_lane_with_add_and_remove_states():
     add_marker = code_editor_module.MARKER_BREAKPOINT_HOVER_ADD
@@ -1144,6 +1153,54 @@ def test_phantom_breakpoint_hides_when_file_does_not_support_breakpoints():
 
     assert harness._phantom_breakpoint_line is None
     assert harness.deleted == [("all", code_editor_module.MARKER_PHANTOM_BREAKPOINT)]
+
+
+def test_breakpoint_tooltips_explain_every_lane_state():
+    harness = PhantomBreakpointHarness()
+
+    harness.supports_breakpoints = False
+    assert harness._get_breakpoint_tooltip(40, 12) is None
+    harness.supports_breakpoints = True
+    assert harness._get_breakpoint_tooltip(5, 12) is None
+
+    harness.line = None
+    harness.SendScintilla = lambda *args: -1
+    assert harness._get_breakpoint_tooltip(40, 12) is None
+    harness.SendScintilla = lambda *args: 40
+    harness.line = 1
+
+    harness.resolved_line = None
+    assert harness._get_breakpoint_tooltip(40, 12) == "No executable Python statement nearby"
+
+    harness.resolved_line = 2
+    harness.breakpoint_state = code_editor_module.BreakpointState.PENDING
+    assert "waiting for the debugger" in harness._get_breakpoint_tooltip(40, 12)
+
+    harness.breakpoint_state = code_editor_module.BreakpointState.REJECTED
+    harness.rejection_reason = "not executable"
+    assert "not executable" in harness._get_breakpoint_tooltip(40, 12)
+    harness.rejection_reason = None
+    assert "could not set" in harness._get_breakpoint_tooltip(40, 12)
+
+    harness.breakpoint_state = code_editor_module.BreakpointState.ACCEPTED
+    assert harness._get_breakpoint_tooltip(40, 12) == "Remove breakpoint from line 3"
+
+    harness.breakpoint_state = None
+    assert "next executable line" in harness._get_breakpoint_tooltip(40, 12)
+    harness.resolved_line = 1
+    assert harness._get_breakpoint_tooltip(40, 12) == "Add breakpoint on line 2"
+
+
+def test_breakable_lines_falls_back_to_nonblank_source_after_syntax_error(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("editor.auto_complete", False)
+    editor = CodeEditor(settings)
+    editor.file_path = str(tmp_path / "broken.py")
+    editor.setText("def broken(:\n# comment\nvalue = 1\n\n")
+    editor._breakable_lines_cache = None
+
+    assert editor._breakable_lines() == {0, 2}
+    editor.deleteLater()
 
 
 def test_lint_markers_use_high_contrast_indicator_colors(qapp, tmp_path):
@@ -1900,6 +1957,119 @@ def test_tooltip_event_shows_lint_message_or_hides_when_missing(monkeypatch):
     off_editor = TooltipHarness(pos_result=-1)
     assert CodeEditor.event(off_editor, FakeTooltipEvent()) is True
     assert tooltip_calls[-1] == ("hide",)
+
+
+def test_editor_event_prioritizes_folding_and_breakpoint_tooltips(
+    monkeypatch, qapp, tmp_path
+):
+    editor = make_editor(qapp, tmp_path)
+    calls = []
+    monkeypatch.setattr(
+        code_editor_module,
+        "QToolTip",
+        SimpleNamespace(
+            showText=lambda pos, text, widget: calls.append((text, widget)),
+            hideText=lambda: calls.append(("hide", None)),
+        ),
+    )
+    event = QHelpEvent(QEvent.Type.ToolTip, QPoint(2, 3), QPoint(20, 30))
+
+    editor._get_folding_tooltip = lambda x, y: "Collapse function"
+    editor._get_breakpoint_tooltip = lambda x, y: "breakpoint"
+    assert editor.event(event) is True
+    assert calls[-1] == ("Collapse function", editor)
+
+    editor._get_folding_tooltip = lambda x, y: None
+    assert editor.event(event) is True
+    assert calls[-1] == ("breakpoint", editor)
+
+    refreshes = []
+    editor._refresh_breakpoint_lane_artwork = lambda: refreshes.append("breakpoint")
+    editor._refresh_folding_lane_artwork = lambda: refreshes.append("fold")
+    dpr_type = getattr(QEvent.Type, "DevicePixelRatioChange", None)
+    if dpr_type is not None:
+        editor.event(QEvent(dpr_type))
+        assert refreshes == ["breakpoint", "fold"]
+    editor.deleteLater()
+
+
+def test_mouse_hover_press_release_and_leave_update_fold_feedback(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    calls = []
+    editor._update_phantom_breakpoint = lambda x, y: calls.append(("breakpoint", x, y))
+    editor._update_fold_hover = lambda x, y: calls.append(("fold", x, y))
+    editor._fold_header_from_point = lambda x, y: 2
+    editor._sync_fold_feedback_marker = lambda: calls.append("sync")
+    editor._clear_phantom_breakpoint = lambda: calls.append("clear_breakpoint")
+    editor._clear_fold_feedback = lambda *args: calls.append("clear_fold")
+
+    move = QMouseEvent(
+        QEvent.Type.MouseMove,
+        QPointF(4, 5),
+        QPointF(4, 5),
+        Qt.MouseButton.NoButton,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    press = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        QPointF(4, 5),
+        QPointF(4, 5),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    release = QMouseEvent(
+        QEvent.Type.MouseButtonRelease,
+        QPointF(4, 5),
+        QPointF(4, 5),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    editor.mouseMoveEvent(move)
+    editor.mousePressEvent(press)
+    editor.mouseReleaseEvent(release)
+    editor.leaveEvent(QEvent(QEvent.Type.Leave))
+
+    assert ("breakpoint", 4, 5) in calls
+    assert ("fold", 4, 5) in calls
+    assert "sync" in calls
+    assert "clear_breakpoint" in calls
+    assert "clear_fold" in calls
+    assert editor._fold_pressed_line is None
+    editor.deleteLater()
+
+
+def test_folding_helpers_cover_invalid_headers_state_changes_and_failures(qapp, tmp_path):
+    editor = make_editor(qapp, tmp_path)
+    assert editor._is_fold_header(-1) is False
+    assert editor._fold_block_kind("class Demo:") == "class"
+    assert editor._fold_block_kind("if ready:") == "code block"
+
+    editor._fold_pressed_line = 3
+    editor._fold_hover_line = 3
+    editor._fold_header_from_point = lambda x, y: 4
+    editor._sync_fold_feedback_marker = lambda: None
+    editor._update_fold_hover(1, 1)
+    assert editor._fold_pressed_line is None
+    assert editor._fold_hover_line == 4
+
+    editor._fold_pressed_line = None
+    editor._fold_hover_line = 4
+    syncs = []
+    editor._sync_fold_feedback_marker = lambda: syncs.append(True)
+    editor._update_fold_hover(1, 1)
+    assert syncs == [True]
+
+    class BrokenFoldHarness:
+        _fold_block_kind = staticmethod(CodeEditor._fold_block_kind)
+        text = lambda self, line: "def demo():"
+        _fold_header_from_point = lambda self, x, y: 1
+        SendScintilla = lambda self, *args: (_ for _ in ()).throw(RuntimeError("gone"))
+
+    assert CodeEditor._get_folding_tooltip(BrokenFoldHarness(), 1, 1) is None
+    editor.deleteLater()
 
 
 class FakeMimeData:

@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from meadowpy.constants import DEFAULT_SETTINGS
+from meadowpy.core import lint_context as lint_context_module
 from meadowpy.core.lint_context import (
     LintContextError,
     resolve_lint_context,
@@ -403,3 +404,169 @@ def test_unsupported_linter_has_actionable_error():
         resolve_lint_context(
             StubSettings(), StubInterpreterManager(), "ruff", None, None
         )
+
+
+def test_setting_reader_supports_legacy_getters_and_rejects_missing_getter():
+    class LegacySettings:
+        def get(self, key):
+            return None if key == "missing" else "configured"
+
+    assert lint_context_module._get_setting(LegacySettings(), "value", "fallback") == "configured"
+    assert lint_context_module._get_setting(LegacySettings(), "missing", "fallback") == "fallback"
+    with pytest.raises(LintContextError, match="settings are unavailable"):
+        lint_context_module._get_setting(object(), "value", "fallback")
+
+
+def test_path_helpers_cover_invalid_boundaries_and_files_without_projects(
+    monkeypatch, tmp_path
+):
+    source = tmp_path / "plain" / "main.py"
+    source.parent.mkdir()
+    source.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(lint_context_module, "_nearest_project_root", lambda *args: None)
+    assert lint_context_module._effective_root(source, None) == source.parent
+    assert lint_context_module._canonical_directory(str(source)) is None
+    assert lint_context_module._canonical_directory(str(tmp_path / "missing")) is None
+    assert lint_context_module._matching_trusted_root(
+        StubSettings(**{"security.trusted_lint_roots": "not-a-list"}), source.parent
+    ) is None
+    assert lint_context_module._matching_trusted_root(
+        StubSettings(**{"security.trusted_lint_roots": [None, "", tmp_path / "missing"]}),
+        source.parent,
+    ) is None
+
+    monkeypatch.setattr(
+        lint_context_module.os.path,
+        "commonpath",
+        lambda paths: (_ for _ in ()).throw(ValueError("different drives")),
+    )
+    assert lint_context_module._contains(tmp_path, source) is False
+
+
+def test_runtime_directory_falls_back_when_executable_path_cannot_resolve(monkeypatch):
+    original_path = lint_context_module.Path
+
+    class FailingExecutablePath:
+        def __init__(self, value):
+            if value == "broken-python":
+                raise OSError("unavailable")
+            self._path = original_path(value)
+
+        def resolve(self, *args, **kwargs):
+            return self._path.resolve(*args, **kwargs)
+
+    monkeypatch.setattr(lint_context_module.sys, "executable", "broken-python")
+    monkeypatch.setattr(lint_context_module, "Path", FailingExecutablePath)
+    assert lint_context_module._safe_runtime_directory() == original_path(
+        lint_context_module.__file__
+    ).resolve().parent
+
+
+@pytest.mark.parametrize(
+    ("manager", "message"),
+    [
+        (StubInterpreterManager(interpreter=None), "No selected Python interpreter"),
+        (
+            type(
+                "BrokenManager",
+                (),
+                {"get_interpreter": lambda self, *args: (_ for _ in ()).throw(OSError("boom"))},
+            )(),
+            "Could not resolve the selected Python interpreter",
+        ),
+    ],
+)
+def test_selected_interpreter_failures_are_wrapped(tmp_path, manager, message):
+    project, source, settings = trusted_project(tmp_path)
+    with pytest.raises(LintContextError, match=message):
+        resolve_lint_context(settings, manager, "flake8", str(source), str(project))
+
+
+def test_custom_interpreter_must_be_configured_as_a_file(tmp_path):
+    project, source, settings = trusted_project(
+        tmp_path,
+        **{
+            "editor.lint_interpreter_mode": "custom",
+            "editor.lint_interpreter_path": None,
+        },
+    )
+    with pytest.raises(LintContextError, match="Choose an existing Python executable"):
+        resolve_lint_context(
+            settings, StubInterpreterManager(), "flake8", str(source), str(project)
+        )
+
+    settings.values["editor.lint_interpreter_path"] = str(project)
+    with pytest.raises(LintContextError, match="is not a file"):
+        resolve_lint_context(
+            settings, StubInterpreterManager(), "flake8", str(source), str(project)
+        )
+
+
+@pytest.mark.parametrize("timeout", [True, "not-a-number"])
+def test_non_numeric_timeouts_are_rejected(tmp_path, timeout):
+    project, source, settings = trusted_project(
+        tmp_path, **{"editor.lint_flake8_timeout_seconds": timeout}
+    )
+    with pytest.raises(LintContextError, match="timeout"):
+        resolve_lint_context(
+            settings, StubInterpreterManager(), "flake8", str(source), str(project)
+        )
+
+
+def test_explicit_config_rejects_empty_relative_and_directory_paths(tmp_path):
+    project, source, settings = trusted_project(
+        tmp_path, **{"editor.lint_flake8_config_mode": "explicit"}
+    )
+    for configured, message in [
+        (None, "Choose an existing"),
+        ("relative.ini", "must be absolute"),
+        (str(project), "is not a file"),
+    ]:
+        settings.values["editor.lint_flake8_config_path"] = configured
+        with pytest.raises(LintContextError, match=message):
+            resolve_lint_context(
+                settings,
+                StubInterpreterManager(),
+                "flake8",
+                str(source),
+                str(project),
+            )
+
+
+def test_config_helpers_reject_outside_oversized_and_unreadable_candidates(
+    monkeypatch, tmp_path
+):
+    boundary = tmp_path / "project"
+    boundary.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    config = boundary / ".flake8"
+    config.write_text("[flake8]\n", encoding="utf-8")
+
+    assert lint_context_module._discover_config("flake8", outside, boundary) is None
+    assert lint_context_module._is_relevant_config("flake8", boundary, boundary) is False
+
+    monkeypatch.setattr(lint_context_module, "MAX_CONFIG_BYTES", 1)
+    assert lint_context_module._is_relevant_config("flake8", config, boundary) is False
+    monkeypatch.setattr(lint_context_module, "MAX_CONFIG_BYTES", 1024)
+    monkeypatch.setattr(
+        lint_context_module.Path,
+        "read_text",
+        lambda self, **kwargs: (_ for _ in ()).throw(UnicodeError("bad text")),
+    )
+    assert lint_context_module._is_relevant_config("flake8", config, boundary) is False
+
+
+def test_pylint_section_matching_and_display_name_fallback(monkeypatch, tmp_path):
+    assert lint_context_module._has_pylint_section("pylintrc", {"messages_control"})
+    assert lint_context_module._has_pylint_section("custom.cfg", {"tool.pylint.main"})
+
+    source = tmp_path / "main.py"
+    source.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        lint_context_module.Path,
+        "relative_to",
+        lambda self, other: (_ for _ in ()).throw(ValueError("not relative")),
+    )
+    assert lint_context_module._display_name(source, tmp_path) == str(source)

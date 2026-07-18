@@ -538,3 +538,117 @@ def test_clipboard_filter_rejects_non_key_and_unsupported_focus(monkeypatch, qap
         )
         is False
     )
+
+
+def test_menu_helpers_cover_associated_menubars_and_non_menu_events(qapp):
+    menubar = QMenuBar()
+    associated = SimpleNamespace(
+        associatedObjects=lambda: [object(), menubar]
+    )
+    menu_like = SimpleNamespace(parent=lambda: object(), menuAction=lambda: associated)
+    assert _is_menubar_menu(menu_like) is True
+
+    no_action = SimpleNamespace(parent=lambda: object(), menuAction=lambda: None)
+    assert _is_menubar_menu(no_action) is False
+
+    event_filter = _MenuRoundedMaskFilter()
+    assert event_filter.eventFilter(object(), QEvent(QEvent.Type.Show)) is False
+
+    floating = QMenu("Context")
+    floating.resize(120, 60)
+    assert event_filter.eventFilter(floating, QEvent(QEvent.Type.Polish)) is False
+    assert event_filter.eventFilter(floating, QEvent(QEvent.Type.Resize)) is False
+    floating.deleteLater()
+    menubar.deleteLater()
+
+
+def test_clipboard_filter_handles_non_key_keypress_and_reassigned_defaults(
+    monkeypatch, qapp
+):
+    text_widget = QLineEdit()
+    monkeypatch.setattr(
+        app_module.QApplication,
+        "focusWidget",
+        staticmethod(lambda: text_widget),
+    )
+    shortcut_filter = _ClipboardShortcutFilter()
+
+    fake_key_event = SimpleNamespace(type=lambda: QEvent.Type.KeyPress)
+    assert shortcut_filter.eventFilter(text_widget, fake_key_event) is False
+
+    modifier_only = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_Control,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    assert shortcut_filter.eventFilter(text_widget, modifier_only) is False
+
+    monkeypatch.setattr(app_module, "STANDARD_EDIT_SHORTCUTS", {"edit.copy": ("copy", object())})
+    monkeypatch.setattr(app_module, "get_default_shortcut", lambda shortcut_id: "Ctrl+C")
+    monkeypatch.setattr(app_module, "get_shortcut", lambda settings, shortcut_id: "Ctrl+Shift+C")
+    monkeypatch.setattr(
+        app_module,
+        "event_matches_shortcut",
+        lambda event, shortcut: shortcut == "Ctrl+C",
+    )
+    assert shortcut_filter._event_matches_reassigned_default(modifier_only) is True
+    text_widget.deleteLater()
+
+
+def test_app_font_and_native_icon_helpers_cover_noop_paths(monkeypatch, qapp):
+    fake_qapp = SimpleNamespace(fonts=[], setFont=lambda font: fake_qapp.fonts.append(font))
+    controller = SimpleNamespace(_qapp=fake_qapp)
+    MeadowPyApp._load_app_font(controller)
+    assert fake_qapp.fonts == [controller._app_font]
+
+    untouched = SimpleNamespace(_app_font=None, _window=SimpleNamespace(findChildren=lambda kind: []))
+    MeadowPyApp._apply_font_to_all(untouched)
+
+    monkeypatch.setattr(app_module.sys, "platform", "win32")
+    no_handle = SimpleNamespace(_app_icon_path="icon.ico")
+    MeadowPyApp._apply_native_app_icon(no_handle, SimpleNamespace(winId=lambda: 0))
+
+
+def test_teardown_tolerates_deleted_qt_objects(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "qInstallMessageHandler",
+        lambda handler: (_ for _ in ()).throw(RuntimeError("Qt gone")),
+    )
+
+    class Deleted:
+        def close(self):
+            raise RuntimeError("deleted")
+
+        def deleteLater(self):
+            raise RuntimeError("deleted")
+
+        def isVisible(self):
+            raise RuntimeError("deleted")
+
+    class DeletedApp:
+        def removeEventFilter(self, event_filter):
+            raise RuntimeError("deleted")
+
+        def sendPostedEvents(self, *args):
+            raise RuntimeError("deleted")
+
+        def processEvents(self):
+            raise AssertionError("send already failed")
+
+    controller = SimpleNamespace(
+        _qt_message_handler=object(),
+        _splash=Deleted(),
+        _window=Deleted(),
+        _menu_filter=object(),
+        _clipboard_filter=object(),
+        _qapp=DeletedApp(),
+    )
+
+    MeadowPyApp._teardown_qt_objects(controller)
+
+    assert controller._qt_message_handler is None
+    assert controller._splash is None
+    assert controller._window is None
+    assert controller._menu_filter is None
+    assert controller._clipboard_filter is None

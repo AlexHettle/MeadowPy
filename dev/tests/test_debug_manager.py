@@ -1,5 +1,6 @@
 import json
 import sys
+from types import SimpleNamespace
 
 from PyQt6.QtCore import QElapsedTimer, QEvent, QProcess as QtQProcess
 from PyQt6.QtNetwork import QTcpSocket
@@ -515,3 +516,168 @@ def test_native_qt_sessions_release_children_and_finish_exactly_once(
     assert started.calls == [("Debugging: debug_waiting.py",)]
     _flush_deferred_deletes(qapp)
     assert manager.children() == []
+
+
+def test_public_commands_are_safe_when_session_is_idle_or_already_active(monkeypatch):
+    manager = DebugManager()
+    manager.stop_debug()
+    manager.send_stdin("ignored")
+    manager.update_breakpoints({"demo.py": [1]})
+    assert manager._pending_breakpoints == {"demo.py": [1]}
+
+    manager._state = DebugState.RUNNING
+    monkeypatch.setattr(
+        "meadowpy.core.debug_manager.QTcpServer",
+        lambda parent: (_ for _ in ()).throw(AssertionError("must not start")),
+    )
+    manager.start_debug("demo.py", "python", ".")
+    assert manager.state == DebugState.RUNNING
+
+
+def test_stop_debug_tolerates_disconnect_errors_and_stopped_process():
+    manager = DebugManager()
+    manager._state = DebugState.RUNNING
+    manager._client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    manager._process = DebugProcess()
+    manager._process.state_value = QtQProcess.ProcessState.NotRunning
+    manager._send_command = lambda payload: (_ for _ in ()).throw(RuntimeError("gone"))
+    finished = SignalRecorder()
+    manager.debug_finished.connect(finished)
+
+    manager.stop_debug()
+
+    assert manager.state == DebugState.IDLE
+    assert manager._process is None
+    assert finished.calls == [(-1, "Debug process was terminated")]
+
+
+def test_new_connection_and_socket_reads_cover_missing_native_resources():
+    manager = DebugManager()
+    manager._server = None
+    manager._on_new_connection()
+
+    class BrokenServer:
+        def nextPendingConnection(self):
+            raise RuntimeError("deleted")
+
+    manager._server = BrokenServer()
+    manager._on_new_connection()
+
+    manager._server = FakeServer()
+    manager._server.next_connection = None
+    manager._on_new_connection()
+    assert manager._client is None
+
+    manager._on_socket_data()
+    manager._client = SimpleNamespace(
+        readAll=lambda: (_ for _ in ()).throw(RuntimeError("deleted"))
+    )
+    manager._on_socket_data()
+
+
+def test_socket_disconnect_noops_while_idle_and_handles_deleted_signals():
+    manager = DebugManager()
+    client = FakeSocket(QTcpSocket.SocketState.ConnectedState)
+    manager._client = client
+    manager._state = DebugState.IDLE
+    manager._on_socket_disconnected()
+    assert manager._client is client
+
+    manager._state = DebugState.RUNNING
+    client.readyRead.disconnect = lambda callback: (_ for _ in ()).throw(RuntimeError("gone"))
+    manager._server = FakeServer()
+    manager._on_socket_disconnected()
+    assert manager._client is None
+    assert manager._server is None
+
+
+def test_breakpoint_ack_skips_invalid_lines_and_empty_rejections():
+    manager = DebugManager()
+    acknowledged = SignalRecorder()
+    manager.breakpoint_update_acknowledged.connect(acknowledged)
+    manager._handle_message(json.dumps({
+        "event": "breakpoints_updated",
+        "accepted": {"demo.py": [1, True, "2"], "skip.py": "not-list"},
+        "rejected": {
+            "skip.py": [],
+            "demo.py": {"bad": "reason", "4": "valid"},
+            "empty.py": {"bad": "reason"},
+        },
+    }))
+
+    assert acknowledged.calls == [
+        ({"demo.py": [1]}, {"demo.py": {4: "valid"}})
+    ]
+
+
+def test_process_callbacks_ignore_missing_resources_and_empty_output():
+    manager = DebugManager()
+    manager._on_process_started(object())
+    manager._on_stdout()
+    manager._on_stderr()
+
+    process = DebugProcess()
+    manager._process = process
+    manager._pending_debug_description = None
+    manager._on_process_started(process)
+    manager._pending_debug_description = "debugging"
+    manager._state = DebugState.IDLE
+    manager._on_process_started(process)
+    manager._on_stdout()
+    manager._on_stderr()
+
+
+def test_process_callbacks_tolerate_deleted_process_and_unknown_error():
+    manager = DebugManager()
+    output = SignalRecorder()
+    manager.debug_output.connect(output)
+
+    class DeletedProcess:
+        def readAllStandardOutput(self):
+            raise RuntimeError("deleted")
+
+        def readAllStandardError(self):
+            raise RuntimeError("deleted")
+
+    manager._process = DeletedProcess()
+    manager._on_stdout()
+    manager._on_stderr()
+    manager._process = None
+    manager._on_process_error(999)
+    assert output.calls == [("Debug error (999)", "system")]
+
+
+def test_send_command_ignores_disconnected_client():
+    manager = DebugManager()
+    client = FakeSocket(QTcpSocket.SocketState.UnconnectedState)
+    manager._client = client
+    manager._send_command({"cmd": "continue"})
+    assert client.written == []
+
+
+def test_deferred_delete_handles_parent_ownership_and_deleted_objects():
+    parent = object()
+    owned = SimpleNamespace(parent=lambda: parent, deleteLater=lambda: (_ for _ in ()).throw(AssertionError("owned")))
+    DebugManager._defer_delete(owned, deleting_parent=parent)
+
+    broken_parent = SimpleNamespace(
+        parent=lambda: (_ for _ in ()).throw(RuntimeError("deleted")),
+        deleteLater=lambda: (_ for _ in ()).throw(AssertionError("deleted")),
+    )
+    DebugManager._defer_delete(broken_parent, deleting_parent=parent)
+
+    broken_delete = SimpleNamespace(
+        deleteLater=lambda: (_ for _ in ()).throw(RuntimeError("deleted"))
+    )
+    DebugManager._defer_delete(broken_delete)
+    DebugManager._defer_delete(None)
+
+
+def test_protocol_validators_reject_malformed_scope_entries_and_frames():
+    assert DebugManager._valid_variables({"locals": {1: "value"}, "globals": {}}) is False
+    assert DebugManager._valid_variables({"locals": {"name": 1}, "globals": {}}) is False
+    assert DebugManager._valid_call_stack("not-list") is False
+    assert DebugManager._valid_call_stack([{"file": 1, "function": "f", "line": 1}]) is False
+    assert DebugManager._valid_call_stack([{"file": "x", "function": 1, "line": 1}]) is False
+    assert DebugManager._valid_call_stack([{"file": "x", "function": "f", "line": True}]) is False
+    assert DebugManager._valid_call_stack([{"file": "x", "function": "f", "line": -1}]) is False

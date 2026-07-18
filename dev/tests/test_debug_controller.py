@@ -914,3 +914,136 @@ def test_debug_started_resumed_eval_and_finished_reset_ui(monkeypatch, tmp_path)
     assert ("answer", "42", "") in calls
     assert "clear_vars" in calls
     assert "hide_watches" in calls
+
+
+def test_create_debug_manager_supports_legacy_or_missing_ack_signal(monkeypatch):
+    class LegacyManager:
+        def __init__(self, parent):
+            self.state_changed = DummySignal()
+            self.paused = DummySignal()
+            self.resumed = DummySignal()
+            self.eval_result = DummySignal()
+            self.debug_output = DummySignal()
+            self.debug_started = DummySignal()
+            self.debug_finished = DummySignal()
+            self.breakpoints_updated = DummySignal()
+
+    monkeypatch.setattr(debug_module, "DebugManager", LegacyManager)
+    controller = DebugController(
+        MainWindowContext(SimpleNamespace(_on_process_output=lambda *args: None), None, None, None)
+    )
+    controller._create_debug_manager()
+    assert controller._debug_manager.breakpoints_updated._callbacks == [
+        controller._on_breakpoint_update_acknowledged
+    ]
+
+    controller._debug_manager.breakpoint_update_acknowledged = object()
+    controller._debug_manager.breakpoints_updated = object()
+    monkeypatch.setattr(debug_module, "DebugManager", lambda parent: controller._debug_manager)
+    controller._create_debug_manager()
+
+
+def test_breakpoint_helpers_ignore_non_editors_and_malformed_protocol_lines(monkeypatch):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("valid.py")
+    editor.mark_breakpoints_pending = None
+    editor.set_breakpoint_verification = None
+    tabs = FakeTabManager([object(), editor])
+    controller = DebugController(
+        MainWindowContext(SimpleNamespace(_tab_manager=tabs), None, None, None)
+    )
+
+    controller._wire_editor_breakpoints(object())
+    controller._mark_breakpoints_pending()
+    controller._reset_breakpoint_verification()
+    assert controller._protocol_lines_to_editor_lines([None, "bad", 0, -2, "3"]) == {2}
+
+    monkeypatch.setattr(
+        debug_module.Path,
+        "resolve",
+        lambda self: (_ for _ in ()).throw(OSError("bad path")),
+    )
+    assert controller._normalized_debug_path("valid.py").endswith("valid.py")
+
+
+def test_breakpoint_ack_handles_iterable_rejections_and_missing_editor_api(monkeypatch):
+    monkeypatch.setattr(debug_module, "CodeEditor", CursorBreakpointEditor)
+    editor = CursorBreakpointEditor("ack.py")
+    editor.set_breakpoint_verification = None
+    tabs = FakeTabManager([object(), editor])
+    controller = DebugController(
+        MainWindowContext(SimpleNamespace(_tab_manager=tabs), None, None, None)
+    )
+
+    controller._on_breakpoint_update_acknowledged(
+        {"ack.py": [1]},
+        {"ack.py": ["bad", 2]},
+    )
+
+
+def test_editor_closed_ignores_idle_or_missing_debug_manager():
+    controller = DebugController(MainWindowContext(SimpleNamespace(), None, None, None))
+    controller._on_editor_closed()
+    controller.window._debug_manager = SimpleNamespace(state=DebugState.IDLE)
+    controller._on_editor_closed()
+
+
+def test_debug_state_without_optional_run_selection_action():
+    window = SimpleNamespace(
+        action_run_file=lambda: None,
+        _run_action=FakeAction(),
+        _debug_action=FakeAction(),
+        _debug_separator=FakeAction(),
+        _step_over_action=FakeAction(),
+        _step_into_action=FakeAction(),
+        _step_out_action=FakeAction(),
+        _status_bar_manager=SimpleNamespace(update_debug_state=lambda state: None),
+    )
+    controller = DebugController(MainWindowContext(window, None, None, None))
+    controller._on_debug_state_changed(DebugState.RUNNING)
+    assert window._run_action.enabled is False
+
+
+def test_debug_pause_uses_string_reader_and_file_manager_fallback(monkeypatch, tmp_path):
+    monkeypatch.setattr(debug_module, "CodeEditor", StartDebugEditor)
+    script = tmp_path / "fallback.py"
+    script.write_text("answer = 42\n", encoding="utf-8")
+    calls = []
+
+    class OpeningTabs(FakeTabManager):
+        def open_file_in_tab(self, path, content, **kwargs):
+            calls.append((path, content, kwargs))
+            return StartDebugEditor(path)
+
+    panels = dict(
+        _variable_inspector=SimpleNamespace(
+            update_variables=lambda value: None,
+            show=lambda: None,
+            raise_=lambda: None,
+        ),
+        _call_stack_panel=SimpleNamespace(
+            update_call_stack=lambda value: None,
+            show=lambda: None,
+        ),
+        _watch_panel=SimpleNamespace(show=lambda: None, request_all_evaluations=lambda: None),
+    )
+    tabs = OpeningTabs([])
+    window = SimpleNamespace(
+        _tab_manager=tabs,
+        _read_editor_file=lambda path: "answer = 42\n",
+        **panels,
+    )
+    controller = DebugController(MainWindowContext(window, None, None, None))
+    controller._clear_debug_markers = lambda: None
+    controller._on_debug_paused(str(script), 0, {}, [])
+    assert calls == [(str(script), "answer = 42\n", {})]
+
+    del window._read_editor_file
+    window._file_manager = SimpleNamespace(read_file=lambda path: "fallback text")
+    controller._on_debug_paused(str(script), 0, {}, [])
+    assert calls[-1] == (str(script), "fallback text", {})
+
+    window._file_manager.read_file = lambda path: (_ for _ in ()).throw(OSError("no read"))
+    before = len(calls)
+    controller._on_debug_paused(str(script), 0, {}, [])
+    assert len(calls) == before

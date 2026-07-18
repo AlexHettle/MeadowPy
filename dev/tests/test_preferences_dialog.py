@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
+import pytest
 from PyQt6.QtCore import QPoint, QPointF, Qt
 from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtWidgets import QApplication, QMessageBox, QScrollArea, QWidget
@@ -474,4 +475,368 @@ def test_lint_preferences_test_effective_settings_without_blocking(
     assert dialog._lint_test_result.text().startswith(
         "Test result discarded because lint settings changed"
     )
+    dialog.deleteLater()
+
+
+def test_wheel_forwarding_handles_orphan_controls_and_pixel_deltas(qapp):
+    orphan = QWidget()
+    orphan_event = QWheelEvent(
+        QPointF(1, 1),
+        QPointF(1, 1),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    preferences_module._forward_wheel_to_scroll_area(orphan, orphan_event)
+    assert not orphan_event.isAccepted()
+
+    area = QScrollArea()
+    content = QWidget()
+    content.resize(800, 800)
+    control = QWidget(content)
+    area.setWidget(content)
+    area.resize(100, 100)
+    area.show()
+    qapp.processEvents()
+    pixel_event = QWheelEvent(
+        QPointF(1, 1),
+        QPointF(1, 1),
+        QPoint(-15, 0),
+        QPoint(),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    preferences_module._forward_wheel_to_scroll_area(control, pixel_event)
+    assert pixel_event.isAccepted()
+    assert area.horizontalScrollBar().value() == 15
+    area.deleteLater()
+    orphan.deleteLater()
+
+
+def test_lint_control_helpers_tolerate_corrupt_saved_values(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("editor.lint_delay_ms", True)
+    dialog = PreferencesDialog(settings)
+
+    assert dialog._bounded_int_setting("editor.lint_delay_ms", 750, 100, 5000) == 750
+    settings.set("editor.lint_delay_ms", "invalid")
+    assert dialog._bounded_int_setting("editor.lint_delay_ms", 750, 100, 5000) == 750
+    dialog._set_combo_data(dialog._lint_config_mode_combo, "unknown", "defaults")
+    assert dialog._lint_config_mode_combo.currentData() == "defaults"
+
+    before = dialog._active_lint_provider
+    dialog._on_linter_changed("ruff")
+    assert dialog._active_lint_provider == before
+    dialog._on_lint_working_directory_changed(-1)
+    assert dialog._pending_changes["editor.lint_working_directory"] == "project"
+
+    settings.set("editor.lint_flake8_config_mode", "broken")
+    settings.set("editor.lint_flake8_timeout_seconds", True)
+    dialog._load_lint_provider_controls("flake8")
+    assert dialog._lint_config_mode_combo.currentData() == "defaults"
+    assert dialog._lint_timeout.value() == 10
+    settings.set("editor.lint_flake8_timeout_seconds", "broken")
+    dialog._load_lint_provider_controls("flake8")
+    assert dialog._lint_timeout.value() == 10
+    dialog.deleteLater()
+
+
+def test_lint_browse_actions_use_current_parent_and_stage_selected_paths(
+    monkeypatch, qapp, tmp_path
+):
+    interpreter = tmp_path / "bin" / "python.exe"
+    interpreter.parent.mkdir()
+    interpreter.write_text("", encoding="utf-8")
+    config = tmp_path / "quality" / ".flake8"
+    config.parent.mkdir()
+    config.write_text("[flake8]\n", encoding="utf-8")
+    dialog = PreferencesDialog(Settings(tmp_path / "settings"))
+    dialog._lint_interpreter_path.setText(str(interpreter))
+    dialog._lint_config_path.setText(str(config))
+    calls = []
+
+    def choose(*args):
+        calls.append(args)
+        return (str(interpreter if len(calls) == 1 else config), "")
+
+    monkeypatch.setattr(preferences_module.QFileDialog, "getOpenFileName", choose)
+    dialog._browse_lint_interpreter()
+    dialog._browse_lint_config()
+
+    assert calls[0][2] == str(interpreter.parent)
+    assert calls[1][2] == str(config.parent)
+    assert dialog._lint_interpreter_path.text() == str(interpreter)
+    assert dialog._lint_config_path.text() == str(config)
+    dialog.deleteLater()
+
+
+def test_lint_trust_actions_handle_missing_and_already_trusted_targets(
+    monkeypatch, qapp, tmp_path
+):
+    dialog = PreferencesDialog(Settings(tmp_path))
+    warnings = []
+    monkeypatch.setattr(
+        preferences_module.QMessageBox,
+        "warning",
+        lambda *args: warnings.append(args),
+    )
+    dialog._trust_lint_project()
+    dialog._revoke_lint_project()
+    assert warnings and "No Lint Target" in warnings[0][1]
+
+    project = tmp_path / "project"
+    project.mkdir()
+    canonical = dialog._canonical_path(project)
+    dialog._stage("general.project_folder", str(project))
+    dialog._stage("security.trusted_lint_roots", [canonical])
+    monkeypatch.setattr(
+        preferences_module.QMessageBox,
+        "question",
+        lambda *args: (_ for _ in ()).throw(AssertionError("already trusted")),
+    )
+    dialog._trust_lint_project()
+    assert dialog._pending_changes["security.trusted_lint_roots"] == [canonical]
+    dialog.deleteLater()
+
+
+def test_lint_path_and_project_helpers_ignore_invalid_inputs(monkeypatch, qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("general.project_folder", 42)
+    settings.set("security.trusted_lint_roots", "invalid")
+    dialog = PreferencesDialog(settings)
+
+    assert dialog._configured_lint_project() is None
+    assert dialog._trusted_lint_roots() == []
+    assert dialog._path_is_within("a", "b") in {True, False}
+
+    original = PreferencesDialog._canonical_path
+    monkeypatch.setattr(
+        PreferencesDialog,
+        "_canonical_path",
+        staticmethod(lambda value: (_ for _ in ()).throw(OSError("bad path"))),
+    )
+    assert dialog._path_is_within("a", "b") is False
+    settings.set("general.project_folder", "project")
+    assert dialog._configured_lint_project() is None
+    settings.set("security.trusted_lint_roots", ["", 3, "project"])
+    assert dialog._trusted_lint_roots() == []
+
+    monkeypatch.setattr(PreferencesDialog, "_canonical_path", staticmethod(original))
+    repeated = str(tmp_path / "same")
+    settings.set("security.trusted_lint_roots", [repeated, repeated])
+    assert dialog._trusted_lint_roots() == [dialog._canonical_path(repeated)]
+    dialog.deleteLater()
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"editor.linter": "ruff"}, "Flake8 or Pylint"),
+        ({"editor.lint_delay_ms": True}, "whole number"),
+        ({"editor.lint_delay_ms": 99}, "between 100"),
+        ({"editor.lint_interpreter_mode": "invalid"}, "interpreter mode"),
+        ({"editor.lint_working_directory": "cwd"}, "working directory"),
+        ({"editor.lint_interpreter_path": 42}, "must be text"),
+        ({"security.trusted_lint_roots": "root"}, "list of folders"),
+        ({"security.trusted_lint_roots": [""]}, "invalid folder"),
+        ({"editor.lint_flake8_config_mode": "invalid"}, "config mode"),
+        ({"editor.lint_flake8_timeout_seconds": True}, "whole number"),
+        ({"editor.lint_flake8_timeout_seconds": 121}, "between 1"),
+        ({"editor.lint_flake8_config_path": 42}, "must be text"),
+    ],
+)
+def test_pending_lint_validation_rejects_each_malformed_value(
+    qapp, tmp_path, changes, message
+):
+    dialog = PreferencesDialog(Settings(tmp_path))
+    dialog._pending_changes = dict(changes)
+    validated, error = dialog._validate_pending_changes()
+    assert validated is None
+    assert message in error
+    dialog.deleteLater()
+
+
+def test_pending_lint_validation_normalizes_empty_and_duplicate_paths(qapp, tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    dialog = PreferencesDialog(Settings(tmp_path / "settings"))
+    dialog._pending_changes = {
+        "editor.lint_interpreter_path": "   ",
+        "editor.lint_flake8_config_path": "   ",
+        "security.trusted_lint_roots": [str(project), str(project)],
+    }
+
+    validated, error = dialog._validate_pending_changes()
+
+    assert error is None
+    assert validated["editor.lint_interpreter_path"] == ""
+    assert validated["editor.lint_flake8_config_path"] == ""
+    assert validated["security.trusted_lint_roots"] == [
+        dialog._canonical_path(project)
+    ]
+    dialog.deleteLater()
+
+
+def test_lint_test_guard_errors_timeout_and_open_config_failures(
+    monkeypatch, qapp, tmp_path
+):
+    dialog = PreferencesDialog(Settings(tmp_path))
+    dialog._lint_test_process = object()
+    dialog._test_linter_settings()
+
+    dialog._lint_test_process = None
+    monkeypatch.setattr(dialog, "_resolve_pending_lint_context", lambda: (None, "bad settings"))
+    dialog._test_linter_settings()
+    assert "bad settings" in dialog._lint_test_result.text()
+
+    monkeypatch.setattr(dialog, "_resolve_pending_lint_context", lambda: (SimpleNamespace(config_path=None), None))
+    infos = []
+    monkeypatch.setattr(preferences_module.QMessageBox, "information", lambda *args: infos.append(args))
+    dialog._open_effective_lint_config()
+    assert infos
+
+    class Process:
+        def __init__(self, output=b""):
+            self.output = output
+            self.killed = False
+            self.deleted = False
+
+        def readAllStandardOutput(self):
+            return self.output
+
+        def errorString(self):
+            return "launch failed"
+
+        def kill(self):
+            self.killed = True
+
+        def deleteLater(self):
+            self.deleted = True
+
+    process = Process()
+    dialog._lint_test_process = process
+    dialog._lint_test_stale = False
+    dialog._on_lint_test_timeout()
+    assert process.killed is True
+    assert "timed out" in dialog._lint_test_result.text()
+    dialog._on_lint_test_error(None)
+    assert dialog._lint_test_process is None
+
+    dialog._write_lint_test_source()
+    dialog._on_lint_test_finished(1, preferences_module.QProcess.ExitStatus.CrashExit)
+    dialog._on_lint_test_error(None)
+    dialog._on_lint_test_timeout()
+    dialog._finish_lint_test()
+    dialog.deleteLater()
+
+
+def test_lint_context_helpers_surface_resolution_failures(monkeypatch, qapp, tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    settings = Settings(tmp_path / "settings")
+    settings.set("general.project_folder", str(project))
+    dialog = PreferencesDialog(settings)
+
+    monkeypatch.setattr(
+        preferences_module,
+        "resolve_lint_target_root",
+        lambda *args: (_ for _ in ()).throw(preferences_module.LintContextError("bad target")),
+    )
+    assert dialog._current_lint_project() is None
+    assert dialog._matching_lint_trust_boundary([str(project)]) is None
+
+    monkeypatch.setattr(
+        preferences_module,
+        "resolve_lint_context",
+        lambda **kwargs: (_ for _ in ()).throw(preferences_module.LintContextError("bad context")),
+    )
+    context, error = dialog._resolve_pending_lint_context()
+    assert context is None
+    assert error == "bad context"
+    dialog.deleteLater()
+
+
+def test_open_effective_config_warns_when_desktop_service_rejects_url(
+    monkeypatch, qapp, tmp_path
+):
+    dialog = PreferencesDialog(Settings(tmp_path))
+    config = tmp_path / ".flake8"
+    config.write_text("[flake8]\n", encoding="utf-8")
+    monkeypatch.setattr(dialog, "_effective_lint_config_path", lambda: str(config))
+    monkeypatch.setattr(
+        preferences_module,
+        "QDesktopServices",
+        SimpleNamespace(openUrl=lambda url: False),
+    )
+    warnings = []
+    monkeypatch.setattr(preferences_module.QMessageBox, "warning", lambda *args: warnings.append(args))
+    dialog._open_effective_lint_config()
+    assert warnings and warnings[0][1] == "Could Not Open Configuration"
+    dialog.deleteLater()
+
+
+def test_linter_test_reports_command_build_and_process_outcome_variants(
+    monkeypatch, qapp, tmp_path
+):
+    dialog = PreferencesDialog(Settings(tmp_path))
+    context = SimpleNamespace(config_path=None, timeout_seconds=1)
+    monkeypatch.setattr(dialog, "_resolve_pending_lint_context", lambda: (context, None))
+    monkeypatch.setattr(
+        preferences_module,
+        "build_linter_stdin_command",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad command")),
+    )
+    dialog._test_linter_settings()
+    assert "bad command" in dialog._lint_test_result.text()
+
+    class Process:
+        def __init__(self, output=b""):
+            self.output = output
+            self.deleted = False
+
+        def readAllStandardOutput(self):
+            return self.output
+
+        def errorString(self):
+            return "launch failed"
+
+        def deleteLater(self):
+            self.deleted = True
+
+        def kill(self):
+            self.killed = True
+
+    process = Process()
+    dialog._lint_test_process = process
+    dialog._lint_test_provider = "flake8"
+    dialog._lint_test_stale = False
+    dialog._lint_test_timed_out = False
+    dialog._on_lint_test_finished(0, preferences_module.QProcess.ExitStatus.NormalExit)
+    assert dialog._lint_test_result.text() == "Test passed: flake8 loaded the effective settings."
+
+    process = Process(b"plugin failed")
+    dialog._lint_test_process = process
+    dialog._lint_test_stale = False
+    dialog._lint_test_timed_out = False
+    dialog._on_lint_test_error(None)
+    assert dialog._lint_test_result.text() == "Test failed: plugin failed"
+
+    process = Process()
+    dialog._lint_test_process = process
+    dialog._lint_test_stale = True
+    dialog._lint_test_timed_out = False
+    dialog._on_lint_test_error(None)
+    assert "discarded" in dialog._lint_test_result.text()
+
+    process = Process()
+    dialog._lint_test_process = process
+    dialog._lint_test_stale = True
+    dialog._on_lint_test_timeout()
+    assert "discarded" in dialog._lint_test_result.text()
+    assert process.killed is True
     dialog.deleteLater()

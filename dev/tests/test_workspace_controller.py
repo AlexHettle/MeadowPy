@@ -1215,3 +1215,372 @@ def test_lint_setting_changes_are_coalesced_before_refresh(monkeypatch):
     assert editor.cleared_lint == 1
     assert problems.cleared == 1
     assert calls == ["lint"]
+
+
+def test_initial_refresh_handles_disabled_and_cached_lint_modes():
+    editor = WorkspaceEditor("demo.py")
+    settings = MutableSettings({
+        "editor.linting_enabled": False,
+        "repl.auto_start": False,
+    })
+    runner = SimpleNamespace(cancels=0)
+    runner.cancel = lambda: setattr(runner, "cancels", runner.cancels + 1)
+    ollama = SimpleNamespace(starts=0)
+    ollama.start = lambda: setattr(ollama, "starts", ollama.starts + 1)
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=WorkspaceTabs([editor]),
+        _lint_runner=runner,
+        _ollama_client=ollama,
+    )
+    controller = WorkspaceController(MainWindowContext(window, settings, None, None))
+    calls = []
+    controller._refresh_symbol_outline = lambda value: calls.append(("outline", value))
+    controller._clear_lint_state = lambda value: calls.append(("clear", value))
+    controller._show_cached_lint_state = lambda value: calls.append(("cached", value))
+    controller._update_interpreter_label = lambda: calls.append("interpreter")
+
+    controller._initial_refresh()
+    settings.values.update({
+        "editor.linting_enabled": True,
+        "editor.lint_while_typing": False,
+    })
+    controller._initial_refresh()
+
+    assert calls == [
+        ("outline", editor),
+        ("clear", editor),
+        "interpreter",
+        ("outline", editor),
+        ("cached", editor),
+        "interpreter",
+    ]
+    assert runner.cancels == 1
+    assert ollama.starts == 2
+
+
+def test_editor_actions_are_noops_without_a_current_tab():
+    tabs = WorkspaceTabs([])
+    tabs.currentIndex = lambda: -1
+    tabs.close_tab = lambda index: (_ for _ in ()).throw(AssertionError("no tab"))
+    file_manager = SimpleNamespace()
+    window = SimpleNamespace(_tab_manager=tabs, _file_manager=file_manager)
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), file_manager, None)
+    )
+
+    assert controller.action_save() is False
+    assert controller.action_save_as() is False
+    controller.action_close_tab()
+    controller.action_goto_line()
+    controller.action_zoom(1)
+    controller.action_toggle_word_wrap()
+
+
+def test_save_as_failure_reports_only_real_errors(monkeypatch, tmp_path):
+    editor = WorkspaceEditor(None)
+    tabs = WorkspaceTabs([editor])
+    manager = SimpleNamespace(
+        last_save_error=OSError("disk full"),
+        last_save_error_path=str(tmp_path / "failed.py"),
+        save_file_as=lambda *args, **kwargs: None,
+    )
+    window = SimpleNamespace(_tab_manager=tabs, _file_manager=manager)
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), manager, None)
+    )
+    failed = []
+    controller._show_save_failed = failed.append
+
+    assert controller.action_save_as() is False
+    assert failed == [str(tmp_path / "failed.py")]
+    manager.last_save_error = None
+    assert controller.action_save_as() is False
+    assert len(failed) == 1
+
+
+def test_explorer_rename_and_delete_skip_non_editors_and_use_fallback_removal(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
+    old = tmp_path / "folder" / "old.py"
+    new = tmp_path / "folder" / "new.py"
+    child = tmp_path / "folder" / "child.py"
+    editors = [object(), WorkspaceEditor(None), WorkspaceEditor(str(old)), WorkspaceEditor(str(child))]
+    tabs = WorkspaceTabs(editors)
+    tabs.currentIndex = lambda: 2
+    run_updates = []
+    window = SimpleNamespace(_tab_manager=tabs)
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), None, None)
+    )
+    controller._update_run_file_button = run_updates.append
+
+    controller._on_explorer_file_renamed(str(old), str(new))
+    controller._on_explorer_file_deleted(str(tmp_path / "folder"))
+
+    assert editors[2].file_path == str(new)
+    assert tabs.tab_text == [(2, "new.py")]
+    assert run_updates == [editors[2]]
+    assert tabs.removed == [3, 2]
+    assert editors[2].deleted_later is True
+    assert editors[3].deleted_later is True
+
+
+def test_read_editor_file_suppresses_optional_errors_and_reports_retry_failure(tmp_path):
+    path = str(tmp_path / "large.txt")
+    large_error = LargeFileError(path, 20_000_000)
+    calls = []
+
+    def read_file(file_path, allow_large=False):
+        if not allow_large:
+            raise large_error
+        raise OSError("retry failed")
+
+    manager = SimpleNamespace(read_file=read_file)
+    window = SimpleNamespace(_file_manager=manager)
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), manager, None)
+    )
+    controller._confirm_large_file_open = lambda error: True
+    controller._show_open_failed = lambda *args: calls.append(args)
+
+    assert controller._read_editor_file(path, show_error=False) is None
+    assert controller._read_editor_file(path) is None
+    assert calls and str(calls[0][1]) == "retry failed"
+
+    manager.read_file = lambda file_path: (_ for _ in ()).throw(OSError("unreadable"))
+    assert controller._read_editor_file(path, show_error=False) is None
+    assert len(calls) == 1
+
+
+def test_status_message_supports_legacy_status_bar_signature():
+    messages = []
+    status = SimpleNamespace(show_message=lambda message: messages.append(message))
+    window = SimpleNamespace(_status_bar_manager=status)
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), None, None)
+    )
+
+    controller._show_status_message("legacy", 7000)
+    controller._show_large_file_cancelled(None)
+
+    assert messages == ["legacy", "Large file not opened: file"]
+
+
+def test_run_action_state_respects_running_work_and_optional_actions(monkeypatch):
+    monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
+    editor = WorkspaceEditor("demo.py")
+    run = FakeAction()
+    selection = FakeAction()
+    debug = FakeAction()
+    lint = FakeAction()
+    review = FakeAction()
+    process = SimpleNamespace(is_running=lambda: True)
+    settings = MutableSettings({"editor.linting_enabled": True})
+    window = SimpleNamespace(
+        _settings=settings,
+        _tab_manager=WorkspaceTabs([editor]),
+        _run_action=run,
+        _run_selection_action=selection,
+        _debug_action=debug,
+        _run_linter_action=lint,
+        _ai_review_file_action=review,
+        _process_runner=process,
+    )
+    controller = WorkspaceController(MainWindowContext(window, settings, None, None))
+
+    controller._update_run_action_enabled()
+    controller._update_ai_review_action_enabled()
+
+    assert lint.enabled is True
+    assert run.enabled is None
+    assert selection.enabled is None
+    assert debug.enabled is None
+    assert review.enabled is True
+
+
+def test_editor_refresh_uses_editor_api_and_repaints_theme_colors(monkeypatch):
+    calls = []
+    viewport = SimpleNamespace(update=lambda: calls.append("viewport"))
+    editor = SimpleNamespace(
+        apply_settings=lambda settings: calls.append(("settings", settings)),
+        refresh_lint_colors=lambda: calls.append("lint_colors"),
+        refresh_marker_colors=lambda: calls.append("marker_colors"),
+        viewport=lambda: viewport,
+        update=lambda: calls.append("editor"),
+    )
+    settings = MutableSettings()
+    controller = WorkspaceController(
+        MainWindowContext(SimpleNamespace(_settings=settings), settings, None, None)
+    )
+
+    controller._refresh_editor_settings(editor, refresh_theme_dependent_colors=True)
+
+    assert calls == [
+        ("settings", settings),
+        "lint_colors",
+        "marker_colors",
+        "viewport",
+        "editor",
+    ]
+
+
+def test_lint_delay_refresh_clamps_invalid_value_without_running_linter():
+    settings = MutableSettings({"editor.lint_delay_ms": "bad"})
+    intervals = []
+    window = SimpleNamespace(
+        _settings=settings,
+        _lint_timer=SimpleNamespace(setInterval=intervals.append),
+    )
+    controller = WorkspaceController(MainWindowContext(window, settings, None, None))
+    controller._pending_lint_setting_keys = {"editor.lint_delay_ms"}
+
+    controller._flush_lint_settings_refresh()
+    controller._flush_lint_settings_refresh()
+
+    assert intervals == [1500]
+
+
+def test_show_welcome_reuses_existing_tab_and_welcome_new_file(monkeypatch):
+    from meadowpy.ui import welcome_widget
+
+    class ExistingWelcome:
+        def __init__(self):
+            self.themes = []
+
+        def apply_theme(self, *args):
+            self.themes.append(args)
+
+    monkeypatch.setattr(welcome_widget, "WelcomeWidget", ExistingWelcome)
+    existing = ExistingWelcome()
+    tabs = WorkspaceTabs([object(), existing])
+    selected = []
+    tabs.setCurrentIndex = selected.append
+    tabs.new_tab = lambda: selected.append("new")
+    tabs.close_welcome_tab = lambda: selected.append("closed")
+    settings = FakeSettings()
+    controller = WorkspaceController(
+        MainWindowContext(SimpleNamespace(_settings=settings, _tab_manager=tabs), settings, None, None)
+    )
+
+    controller._show_welcome()
+    controller._welcome_new_file()
+
+    assert selected == [1, "closed", "new"]
+    assert existing.themes == [("default_dark", "dark", "#2F7A44")]
+
+
+def test_large_file_confirmation_builds_warning_and_returns_clicked_choice(
+    monkeypatch, tmp_path
+):
+    class FakeBox:
+        next_accept = True
+
+        class Icon:
+            Warning = object()
+
+        class ButtonRole:
+            AcceptRole = object()
+
+        class StandardButton:
+            Cancel = object()
+
+        def __init__(self, parent):
+            self.open_button = object()
+
+        def setIcon(self, value):
+            self.icon = value
+
+        def setWindowTitle(self, value):
+            self.title = value
+
+        def setText(self, value):
+            self.text = value
+
+        def setInformativeText(self, value):
+            self.info = value
+
+        def addButton(self, value, role=None):
+            return self.open_button if role is self.ButtonRole.AcceptRole else object()
+
+        def setDefaultButton(self, value):
+            self.default = value
+
+        def setEscapeButton(self, value):
+            self.escape = value
+
+        def exec(self):
+            return None
+
+        def clickedButton(self):
+            return self.open_button if self.next_accept else object()
+
+    monkeypatch.setattr(workspace_module, "QMessageBox", FakeBox)
+    controller = WorkspaceController(MainWindowContext(SimpleNamespace(), None, None, None))
+    error = LargeFileError(str(tmp_path / "huge.py"), 12_000_000)
+    assert controller._confirm_large_file_open(error) is True
+    FakeBox.next_accept = False
+    assert controller._confirm_large_file_open(error) is False
+
+
+def test_open_action_reports_cancelled_large_file_and_retry_error(tmp_path):
+    path = str(tmp_path / "huge.py")
+    error = LargeFileError(path, 12_000_000)
+    manager = SimpleNamespace(last_open_error=error, last_open_error_path=path)
+    manager.open_file = lambda *args, **kwargs: None
+    window = SimpleNamespace(_file_manager=manager, _tab_manager=WorkspaceTabs([]))
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), manager, None)
+    )
+    calls = []
+    controller._confirm_large_file_open = lambda exc: False
+    controller._show_large_file_cancelled = calls.append
+    controller.action_open_file()
+    assert calls == [path]
+
+    controller._confirm_large_file_open = lambda exc: True
+    controller._show_open_failed = lambda *args: calls.append(args)
+    manager.last_open_error = error
+    controller.action_open_file()
+    assert calls[-1] == (path, error)
+
+
+def test_reset_layout_covers_success_callback_and_failure_messages():
+    settings = MutableSettings()
+    status = SimpleNamespace(messages=[], show_message=lambda message: status.messages.append(message))
+    callbacks = []
+    window = SimpleNamespace(
+        _settings=settings,
+        _status_bar_manager=status,
+        restoreState=lambda state: True,
+        _refresh_dock_tab_bars=lambda: callbacks.append("refresh"),
+    )
+    controller = WorkspaceController(MainWindowContext(window, settings, None, None))
+    controller.action_reset_layout()
+    window.restoreState = lambda state: False
+    controller.action_reset_layout()
+    assert callbacks == ["refresh"]
+    assert status.messages == ["Layout reset to default", "Could not reset layout"]
+
+
+def test_navigation_and_open_failure_paths_handle_missing_results(monkeypatch, tmp_path):
+    existing = tmp_path / "demo.py"
+    existing.write_text("print('x')", encoding="utf-8")
+    warnings = []
+    monkeypatch.setattr(workspace_module.QMessageBox, "warning", lambda *args: warnings.append(args))
+    tabs = WorkspaceTabs([])
+    tabs.currentIndex = lambda: 0
+    tabs.close_tab = lambda index: setattr(tabs, "closed", index)
+    window = SimpleNamespace(_tab_manager=tabs)
+    controller = WorkspaceController(
+        MainWindowContext(window, MutableSettings(), None, None)
+    )
+    controller._read_editor_file = lambda path: None
+    controller._on_explorer_file_selected(str(existing))
+    controller._on_traceback_navigate(str(existing), 2)
+    controller._on_search_navigate(str(existing), 2)
+    controller.action_close_tab()
+    controller._show_open_failed(None, OSError("bad file"))
+    assert tabs.closed == 0
+    assert warnings and "selected file" in warnings[-1][2]
