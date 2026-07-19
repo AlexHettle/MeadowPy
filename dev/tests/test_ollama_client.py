@@ -3,6 +3,7 @@ import json
 import socket
 import urllib.error
 
+import meadowpy.core.ollama_client as ollama_module
 from meadowpy.core.ollama_client import ChatWorker, OllamaClient, OllamaWorker
 from meadowpy.core.settings import Settings
 from tests.helpers import DummySignal, FakeThread, SignalRecorder
@@ -723,3 +724,193 @@ def test_current_chat_thread_finish_clears_current_thread(tmp_path):
 
     assert client._chat_thread is None
     assert client._chat_worker is None
+
+
+def test_chat_response_cleanup_handles_missing_different_and_nested_sockets():
+    worker = ChatWorker("http://localhost:11434", "model", [])
+    worker._close_response()
+
+    class BrokenSocket:
+        def __init__(self):
+            self.shutdowns = 0
+            self.closes = 0
+
+        def shutdown(self, how):
+            self.shutdowns += 1
+            raise OSError("already closed")
+
+        def close(self):
+            self.closes += 1
+            raise OSError("already closed")
+
+    socket = BrokenSocket()
+    response = FakeResponse()
+    response.fp = type("FP", (), {"raw": type("Raw", (), {"_sock": socket})()})()
+    current = FakeResponse()
+    worker._response = current
+
+    worker._close_response(response)
+
+    assert socket.shutdowns == 1
+    assert socket.closes == 1
+    assert response.closed is True
+    assert worker._response is current
+    worker._close_response(current)
+    assert worker._response is None
+
+
+def test_chat_worker_reports_read_failure_and_generic_exception(monkeypatch):
+    worker = ChatWorker("http://localhost:11434", "model", [])
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    worker.chat_error.connect(errors)
+    worker.finished.connect(finished)
+    monkeypatch.setattr(
+        ollama_module.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(lines=[OSError("stream failed")]),
+    )
+    worker.run()
+    assert errors.calls == [("stream failed",)]
+    assert finished.calls == [()]
+
+    errors.calls.clear()
+    monkeypatch.setattr(
+        ollama_module.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("unexpected")),
+    )
+    worker = ChatWorker("http://localhost:11434", "model", [])
+    worker.chat_error.connect(errors)
+    worker.run()
+    assert errors.calls == [("unexpected",)]
+
+
+def test_chat_worker_breaks_on_eof_and_cancellation_after_read(monkeypatch):
+    eof = FakeResponse(lines=[])
+    worker = ChatWorker("http://localhost:11434", "model", [])
+    monkeypatch.setattr(ollama_module.urllib.request, "urlopen", lambda *args, **kwargs: eof)
+    worker.run()
+    assert eof.closed is True
+
+    response = FakeResponse(lines=[b'{"message":{"content":"ignored"}}\n'])
+    worker = ChatWorker("http://localhost:11434", "model", [])
+    original_readline = response.readline
+
+    def cancel_then_read():
+        line = original_readline()
+        worker._cancelled = True
+        return line
+
+    response.readline = cancel_then_read
+    tokens = SignalRecorder()
+    worker.chat_token.connect(tokens)
+    monkeypatch.setattr(ollama_module.urllib.request, "urlopen", lambda *args, **kwargs: response)
+    worker.run()
+    assert tokens.calls == []
+
+
+def test_client_start_properties_and_normal_slots(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("ollama.auto_connect", True)
+    settings.set("ollama.api_url", "")
+    client = OllamaClient(settings)
+    checks = []
+    client.check_connection = lambda: checks.append("check")
+    client.start()
+
+    assert checks == ["check"]
+    assert client._auto_check_timer.isActive() is True
+    assert client.api_url == "http://localhost:11434"
+    assert client.selected_model == ""
+    assert client.is_chatting is False
+
+    thread = FakeThread(running=True)
+    client._chat_thread = thread
+    assert client.is_chatting is True
+
+    connection = SignalRecorder()
+    models = SignalRecorder()
+    tokens = SignalRecorder()
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    client.connection_changed.connect(connection)
+    client.models_updated.connect(models)
+    client.chat_token.connect(tokens)
+    client.chat_error.connect(errors)
+    client.chat_finished.connect(finished)
+    client._on_health_result(True, "online")
+    client._on_models_result(["model"])
+    client._on_chat_token("token")
+    client._on_chat_error("error")
+    client._on_chat_worker_finished()
+
+    assert connection.calls == [(True, "online")]
+    assert models.calls == [(["model"],)]
+    assert tokens.calls == [("token",)]
+    assert errors.calls == [("error",)]
+    assert finished.calls == [()]
+
+
+def test_client_slots_ignore_results_and_settings_during_shutdown(tmp_path):
+    settings = Settings(tmp_path)
+    client = OllamaClient(settings)
+    client._shutting_down = True
+    client._models = ["kept"]
+    calls = []
+    client.check_connection = lambda: calls.append("check")
+    client._on_health_result(False, "offline")
+    client._on_models_result([])
+    client._on_setting_changed("ollama.api_url", "changed")
+    client._on_setting_changed("ollama.auto_connect", True)
+    client._on_chat_token("late")
+    client._on_chat_error("late")
+    client._on_chat_worker_finished()
+    assert client._models == ["kept"]
+    assert calls == []
+
+
+def test_worker_shutdown_helpers_cover_partial_workers_and_cancel_failures(tmp_path):
+    client = OllamaClient(Settings(tmp_path))
+    client._prepare_old_worker_for_shutdown(None, None)
+
+    class PartialChat:
+        def cancel(self):
+            raise RuntimeError("deleted")
+
+    partial = PartialChat()
+    assert client._looks_like_chat_worker(partial) is True
+    client._prepare_old_worker_for_shutdown(partial, None)
+
+    health = FakeWorker()
+    client._prepare_old_worker_for_shutdown(health, None)
+    client._disconnect_chat_worker_signals(FakeWorker(), None)
+    client._disconnect_health_worker_signals(FakeWorker(), None)
+
+
+def test_cancel_and_cleanup_thread_edge_cases(tmp_path):
+    client = OllamaClient(Settings(tmp_path))
+    running = FakeThread(running=True)
+    worker = object()
+    client._thread = running
+    client._worker = worker
+    client._cancel_current()
+    assert running.quit_called == 1
+    assert client._old_threads == [running]
+    assert client._old_workers == [worker]
+
+    absent_thread = FakeThread(running=False)
+    absent_worker = object()
+    client._cleanup_thread(absent_thread, absent_worker)
+    assert client._old_threads == [running]
+    assert client._old_workers == [worker]
+
+
+def test_cancel_chat_keeps_running_thread_without_missing_worker(tmp_path):
+    client = OllamaClient(Settings(tmp_path))
+    thread = FakeThread(running=True)
+    client._chat_thread = thread
+    client._chat_worker = None
+    client.cancel_chat()
+    assert client._old_threads == [thread]
+    assert client._old_workers == []

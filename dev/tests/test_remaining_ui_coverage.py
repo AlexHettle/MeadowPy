@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QMenuBar,
     QPushButton,
     QStyleOptionViewItem,
+    QToolBar,
     QWidget,
 )
 
@@ -38,7 +39,7 @@ from meadowpy.ui.glow_painter import HeaderGlowPainter
 import meadowpy.ui.menu_bar as menu_bar_module
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
-from meadowpy.ui.tool_bar import RunFileButton, ToolBarBuilder
+from meadowpy.ui.tool_bar import CompactRunControlButton, RunFileButton, ToolBarBuilder
 
 
 class Recorder:
@@ -634,6 +635,89 @@ def test_run_file_button_sanitizes_target_and_accent_color(qapp):
     button.deleteLater()
 
 
+def test_toolbar_buttons_cover_theme_state_and_missing_action_edges(qapp):
+    action = QAction("Run")
+    run_button = RunFileButton(action)
+    run_button.setDefaultAction(None)
+    run_button._sync_from_action()
+
+    class StatefulControl(CompactRunControlButton):
+        hovered = False
+        pressed = False
+        focused = False
+
+        def underMouse(self):
+            return self.hovered
+
+        def isDown(self):
+            return self.pressed
+
+        def hasFocus(self):
+            return self.focused
+
+    control_action = QAction("Stop")
+    control = StatefulControl(control_action, "A very long control label", "stop", 40)
+    control.setFixedWidth(50)
+    assert control.displayed_text() != "A very long control label"
+    control.event(QEvent(QEvent.Type.FontChange))
+
+    control.apply_theme("default_high_contrast")
+    control.focused = True
+    background, foreground, border = control._colors()
+    assert background.name() == "#000000"
+    assert foreground.name() == "#ffffff"
+    assert border is not None
+    assert control.grab().isNull() is False
+
+    control.focused = False
+    control.apply_theme("default_light", "light")
+    control.pressed = True
+    pressed_background, _foreground, pressed_border = control._colors()
+    assert pressed_background.name() == "#4e555c"
+    assert pressed_border is not None
+    control.pressed = False
+    control.hovered = True
+    hover_background, _foreground, hover_border = control._colors()
+    assert hover_background.name() == "#687079"
+    assert hover_border is not None
+
+    control.setDefaultAction(None)
+    control._sync_from_action()
+    run_button.deleteLater()
+    control.deleteLater()
+
+
+def test_toolbar_builder_helpers_without_optional_controls(qapp):
+    window = QWidget()
+    window._settings = FakeSettings({"editor.theme": "default_dark"})
+    window._tab_manager = SimpleNamespace(current_editor=lambda: None)
+    builder = ToolBarBuilder(window)
+    builder.update_accent_color("#abcdef")
+    builder.update_run_file_label(SimpleNamespace(display_name="demo.py"))
+
+    toolbar = QToolBar(window)
+    calls = []
+    builder._add(toolbar, "new", "New", lambda: calls.append("new"))
+    plain_action = toolbar.actions()[0]
+    assert plain_action.toolTip() == "New"
+    window._settings = None
+    assert builder._active_shortcut("file.save")
+
+    tracked = QAction("Tracked", window)
+    builder._tooltip_actions = [(tracked, "Save", "file.save")]
+    builder.update_shortcut_tooltips()
+    assert tracked.toolTip().startswith("Save")
+
+    editor = SimpleNamespace(run=lambda: calls.append("run"))
+    window._tab_manager = SimpleNamespace(current_editor=lambda: editor)
+    builder._editor_call("run")
+    builder._editor_call("missing")
+    assert calls == ["run"]
+
+    toolbar.deleteLater()
+    window.deleteLater()
+
+
 def test_menu_and_toolbar_save_actions_route_to_action_save(qapp):
     toolbar_window = FakeToolbarWindow()
     toolbar = ToolBarBuilder(toolbar_window).build()
@@ -1179,3 +1263,296 @@ def test_file_explorer_proxy_hides_expander_for_known_empty_dirs(qapp, tmp_path)
     )
 
     proxy.deleteLater()
+
+
+def test_file_explorer_click_and_delegate_noop_visual_branches(qapp):
+    label = _ClickableLabel("Open")
+    label.resize(80, 24)
+    clicked = Recorder()
+    label.clicked.connect(clicked)
+
+    for button, position in (
+        (Qt.MouseButton.RightButton, QPointF(label.rect().center())),
+        (Qt.MouseButton.LeftButton, QPointF(-1, -1)),
+    ):
+        event = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            position,
+            button,
+            button,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        label.mouseReleaseEvent(event)
+    assert clicked.calls == []
+
+    class Panel:
+        blocked = True
+        empty = False
+
+        def _is_blocked_editor_file(self, index):
+            return self.blocked
+
+        def _blocked_file_text_color(self):
+            return "#123456"
+
+        def _blocked_file_icon(self):
+            return QIcon()
+
+        def _is_known_empty_folder(self, index):
+            return self.empty
+
+        def _empty_folder_text_color(self):
+            return "#654321"
+
+        def _empty_folder_icon(self):
+            return QIcon()
+
+    panel = Panel()
+    delegate = _FileExplorerItemDelegate(panel)
+    delegate.initStyleOption(QStyleOptionViewItem(), QModelIndex())
+    panel.blocked = False
+    delegate.initStyleOption(QStyleOptionViewItem(), QModelIndex())
+    panel.empty = True
+    delegate.initStyleOption(QStyleOptionViewItem(), QModelIndex())
+
+    delegate.deleteLater()
+    label.deleteLater()
+
+
+def test_file_explorer_model_and_panel_helper_boundaries(monkeypatch, qapp, tmp_path):
+    raw_proxy = _FilteredFileSystemModel()
+    assert raw_proxy._is_known_unsupported_file(QModelIndex()) is False
+    assert raw_proxy.canFetchMore(QModelIndex()) is False
+    assert raw_proxy.hasChildren(QModelIndex()) is False
+    assert raw_proxy.data(QModelIndex(), Qt.ItemDataRole.DisplayRole) is None
+
+    panel = FileExplorerPanel()
+    invalid = FakeModelIndex(False, "invalid")
+    assert panel._is_known_empty_folder(invalid) is False
+    assert panel._is_blocked_editor_file(invalid) is False
+    assert panel._select_file_if_openable(invalid) is False
+
+    class Model:
+        def __init__(self):
+            self.fetchable = {"unknown-fetch"}
+            self.counts = {"unknown-many": 2}
+
+        def isDir(self, index):
+            return index.key.startswith(("empty", "full", "unknown", "folder"))
+
+        def filePath(self, index):
+            return {
+                "empty": str(tmp_path / "empty"),
+                "full": str(tmp_path / "full"),
+                "blocked": str(tmp_path / "review.docx"),
+                "file": str(tmp_path / "demo.py"),
+                "folder": str(tmp_path),
+            }.get(index.key, index.key)
+
+        def canFetchMore(self, index):
+            return index.key in self.fetchable
+
+        def rowCount(self, index):
+            return self.counts.get(index.key, 0)
+
+        def index(self, path):
+            return FakeModelIndex(True, "loaded")
+
+    class Proxy:
+        def mapToSource(self, index):
+            if index.key == "bad-source":
+                return FakeModelIndex(False, "bad")
+            return FakeModelIndex(True, index.key.removeprefix("proxy-"))
+
+        def mapFromSource(self, index):
+            return FakeModelIndex(index.key != "loaded-invalid", f"proxy-{index.key}")
+
+        def rowCount(self, index):
+            if index.key == "proxy-error":
+                raise RuntimeError("stale")
+            return 3
+
+    model = Model()
+    proxy = Proxy()
+    panel._fs_model = model
+    panel._proxy = proxy
+    monkeypatch.setattr(
+        file_explorer_module,
+        "_directory_has_visible_entries",
+        lambda path: False if Path(path).name == "empty" else (
+            True if Path(path).name == "full" else None
+        ),
+    )
+    monkeypatch.setattr(
+        file_explorer_module,
+        "is_known_unsupported_editor_file",
+        lambda path: str(path).endswith(".docx"),
+    )
+
+    assert panel._is_known_empty_folder(FakeModelIndex(True, "bad-source")) is False
+    assert panel._is_known_empty_folder(FakeModelIndex(True, "proxy-file")) is False
+    assert panel._is_known_empty_folder(FakeModelIndex(True, "proxy-empty")) is True
+    assert panel._is_known_empty_folder(FakeModelIndex(True, "proxy-full")) is False
+    assert panel._is_known_empty_folder(
+        FakeModelIndex(True, "proxy-unknown-fetch")
+    ) is False
+    assert panel._is_known_empty_folder(
+        FakeModelIndex(True, "proxy-unknown-empty")
+    ) is False
+    model.counts["unknown-empty"] = 0
+    proxy.rowCount = lambda index: 0
+    assert panel._is_known_empty_folder(
+        FakeModelIndex(True, "proxy-unknown-empty")
+    ) is True
+
+    assert panel._is_blocked_editor_file(FakeModelIndex(True, "bad-source")) is False
+    assert panel._is_blocked_editor_file(FakeModelIndex(True, "proxy-folder")) is False
+    assert panel._is_blocked_editor_file(FakeModelIndex(True, "proxy-blocked")) is True
+    assert panel._select_file_if_openable(FakeModelIndex(True, "bad-source")) is False
+    assert panel._select_file_if_openable(FakeModelIndex(True, "proxy-folder")) is False
+    assert panel._select_file_if_openable(FakeModelIndex(True, "proxy-blocked")) is False
+    selected = Recorder()
+    panel.file_selected.connect(selected)
+    assert panel._select_file_if_openable(FakeModelIndex(True, "proxy-file")) is True
+    assert selected.calls == [(str(tmp_path / "demo.py"),)]
+
+    panel._icon_provider = _ExplorerIconProvider("#123456", True)
+    assert panel._empty_folder_icon().isNull() is False
+    assert panel._empty_folder_text_color()
+    assert panel._blocked_file_icon().isNull() is False
+    assert panel._blocked_file_text_color()
+    assert panel._visible_child_count(invalid, FakeModelIndex(True, "unknown-many")) == 2
+
+    raw_proxy.deleteLater()
+    panel.deleteLater()
+
+
+def test_file_explorer_refresh_animation_and_resolution_edges(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    panel = FileExplorerPanel()
+    calls = []
+    invalid = FakeModelIndex(False, "invalid")
+
+    FileExplorerPanel._refresh_title_icons(
+        SimpleNamespace(_title_icon_color="#123456")
+    )
+    panel._root_path = str(tmp_path)
+    monkeypatch.setattr(
+        panel,
+        "_action_new_file",
+        lambda path: calls.append(("new", path)),
+    )
+    panel._on_title_new_file()
+    assert calls == [("new", tmp_path)]
+
+    class MinimalTree:
+        def collapse(self, index):
+            calls.append(("collapse", index.key))
+
+        def viewport(self):
+            return SimpleNamespace(update=lambda: calls.append(("update",)))
+
+    panel._tree = MinimalTree()
+    panel._collapse_without_animation(FakeModelIndex(True, "plain"))
+    assert panel._suppress_expand_handler is False
+
+    panel._suppress_expand_handler = True
+    panel._on_item_expanded(FakeModelIndex(True, "ignored"))
+    panel._suppress_expand_handler = False
+    panel._fs_model = None
+    panel._on_item_expanded(FakeModelIndex(True, "ignored"))
+
+    class Model:
+        def __init__(self):
+            self.fetch = False
+            self.deleted = False
+
+        def canFetchMore(self, index):
+            return self.fetch
+
+        def filePath(self, index):
+            return str(tmp_path if index.key == "folder" else tmp_path / "demo.py")
+
+        def isDir(self, index):
+            return index.key == "folder"
+
+        def rowCount(self, index):
+            return 0
+
+        def index(self, path):
+            return FakeModelIndex(True, "loaded-invalid")
+
+        def deleteLater(self):
+            self.deleted = True
+
+        def setIconProvider(self, provider):
+            self.provider = provider
+
+    class Proxy:
+        def __init__(self):
+            self.deleted = False
+
+        def mapToSource(self, index):
+            return FakeModelIndex(True, index.key.removeprefix("proxy-"))
+
+        def mapFromSource(self, index):
+            return FakeModelIndex(False, "invalid")
+
+        def rowCount(self, index):
+            return 0
+
+        def deleteLater(self):
+            self.deleted = True
+
+    model = Model()
+    proxy = Proxy()
+    panel._fs_model = model
+    panel._proxy = proxy
+    monkeypatch.setattr(
+        panel,
+        "_collapse_without_animation",
+        lambda index: calls.append(("empty-collapse", index.key)),
+    )
+    monkeypatch.setattr(
+        panel,
+        "_prefetch_subdirs",
+        lambda index: calls.append(("prefetch", index.key)),
+    )
+    panel._on_item_expanded(FakeModelIndex(True, "proxy-folder"))
+    assert ("empty-collapse", "proxy-folder") in calls
+
+    panel._pending_anim_paths = {"pending"}
+    panel._root_path = str(tmp_path)
+    panel._on_directory_loaded("pending")
+    panel._on_directory_loaded(str(tmp_path))
+    assert ("prefetch", "loaded-invalid") in calls
+
+    invalid_dir, invalid_source = panel._resolve_target_dir(invalid)
+    assert invalid_dir == tmp_path
+    assert invalid_source is None
+    folder_dir, _ = panel._resolve_target_dir(FakeModelIndex(True, "proxy-folder"))
+    file_dir, _ = panel._resolve_target_dir(FakeModelIndex(True, "proxy-file"))
+    assert folder_dir == tmp_path
+    assert file_dir == tmp_path
+
+    panel._tree = SimpleNamespace(
+        viewport=lambda: SimpleNamespace(update=lambda: calls.append(("theme-update",))),
+        rootIndex=lambda: FakeModelIndex(True, "root"),
+    )
+    panel.apply_icon_theme("#abcdef", False)
+    assert ("theme-update",) in calls
+
+    monkeypatch.setattr(
+        panel,
+        "set_root_folder",
+        lambda path: calls.append(("reset", path)),
+    )
+    panel.refresh()
+    assert model.deleted is True
+    assert proxy.deleted is True
+    assert ("reset", str(tmp_path)) in calls
+
+    panel.deleteLater()

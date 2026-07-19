@@ -89,3 +89,23 @@ def test_recv_line_reads_buffered_and_streamed_data():
 
 def test_recv_line_returns_none_on_disconnect():
     assert debug_helper._recv_line(FakeSocket([], fail=True), bytearray()) is None
+    assert debug_helper._recv_line(FakeSocket([]), bytearray()) is None
+
+
+def test_internal_frame_detection_and_dunder_local_filtering():
+    frame = type(
+        "Frame",
+        (),
+        {
+            "f_locals": {"__hidden__": 1, "visible": 2},
+            "f_globals": {},
+        },
+    )()
+
+    assert debug_helper._collect_variables(frame)["locals"] == {"visible": "2"}
+    assert debug_helper._is_internal_frame(debug_helper._normalise_source_path(
+        debug_helper.__file__
+    )) is True
+    assert debug_helper._is_internal_frame(debug_helper._normalise_source_path(
+        debug_helper.bdb.__file__
+    )) is True

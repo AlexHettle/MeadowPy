@@ -1,7 +1,9 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QElapsedTimer
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QColor, QIcon, QPixmap
+from PyQt6.QtWidgets import QWidget
 
 from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.file_manager import FileManager
@@ -622,3 +624,187 @@ def test_restore_state_reopens_files_with_default_settings(tmp_path):
 
     assert opened == [(str(script), "print('remember me')")]
     assert ("welcome",) not in calls
+
+
+def test_main_window_builds_optional_project_state_and_window_icon(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("general.restore_tabs_on_startup", False)
+    settings.set("general.project_folder", str(tmp_path))
+    settings.set("explorer.show_file_explorer", False)
+    settings.set("editor.show_symbol_outline", False)
+    settings.set("editor.linting_enabled", False)
+    settings.set("ollama.auto_connect", False)
+    settings.set("repl.auto_start", False)
+    recent_files = RecentFilesManager(settings)
+    file_manager = FileManager(settings, recent_files)
+    pixmap = QPixmap(2, 2)
+    pixmap.fill(QColor("#123456"))
+
+    window = MainWindow(settings, file_manager, recent_files, QIcon(pixmap))
+    try:
+        assert window.windowIcon().isNull() is False
+        assert window._file_explorer.root_path == str(tmp_path)
+        assert window._search_panel._root_path == str(tmp_path)
+        assert window._terminal_panel._working_directory == str(tmp_path)
+
+        window._initial_refresh_pending = False
+        window.show()
+        qapp.processEvents()
+    finally:
+        window._shutdown_background_work()
+        window.deleteLater()
+
+
+def test_main_window_optional_icon_action_and_shortcut_helpers(monkeypatch, qapp):
+    icon_calls = []
+    monkeypatch.setattr(
+        main_window_module,
+        "load_themed_icon",
+        lambda name, theme: icon_calls.append((name, theme)) or QIcon(),
+    )
+    settings = SimpleNamespace(
+        get=lambda key, default=None: "default_dark"
+        if key == "editor.theme"
+        else default
+    )
+    minimal = SimpleNamespace(_settings=settings, _shortcut_actions={})
+
+    MainWindow._refresh_themed_icons(minimal)
+    MainWindow._refresh_shortcut_actions(minimal)
+    MainWindow._refresh_dock_tab_bars(minimal)
+    MainWindow._apply_explorer_icon_theme(minimal)
+    assert icon_calls == []
+
+    parent = QWidget()
+    triggered = []
+    path_action = MainWindow._make_action(
+        parent,
+        "missing-icon.svg",
+        "Path action",
+        lambda: triggered.append("path"),
+        shortcut="Ctrl+P",
+    )
+    empty_action = MainWindow._make_action(
+        parent,
+        None,
+        "Empty action",
+        lambda: triggered.append("empty"),
+    )
+    path_action.trigger()
+    empty_action.trigger()
+    assert triggered == ["path", "empty"]
+    assert path_action.toolTip() == "Path action (Ctrl+P)"
+    assert empty_action.toolTip() == "Empty action"
+
+    tooltip_window = SimpleNamespace(
+        _shortcut_suffix=lambda shortcut_id: " (Ctrl+K)"
+    )
+    assert MainWindow._shortcut_tooltip(tooltip_window, "Command", "id") == (
+        "Command (Ctrl+K)"
+    )
+    parent.deleteLater()
+
+
+def test_main_window_signal_fallbacks_drop_reader_and_restore_errors(
+    monkeypatch,
+    tmp_path,
+):
+    tab_changed = DummySignal()
+    recent_changed = DummySignal()
+    file_saved = DummySignal()
+    settings_changed = DummySignal()
+    signal_window = SimpleNamespace(
+        _tab_manager=SimpleNamespace(
+            tab_changed=tab_changed,
+            count=lambda: 0,
+            widget=lambda index: None,
+        ),
+        _on_tab_changed=lambda editor: None,
+        _wire_editor_breakpoints=lambda editor: None,
+        _on_editor_closed=lambda editor: None,
+        _recent_files=SimpleNamespace(recent_files_changed=recent_changed),
+        _menu_builder=SimpleNamespace(rebuild_recent_files_menu=lambda: None),
+        _file_manager=SimpleNamespace(file_saved=file_saved),
+        _on_file_saved=lambda path: None,
+        _settings=SimpleNamespace(settings_changed=settings_changed),
+        _on_settings_changed=lambda key, value: None,
+    )
+    MainWindow._connect_signals(signal_window)
+
+    script = tmp_path / "drop.py"
+    script.write_text("print('drop')\n", encoding="utf-8")
+    opens = []
+    drop_window = SimpleNamespace(
+        _read_editor_file=lambda path: ("content", True),
+        _tab_manager=SimpleNamespace(
+            open_file_in_tab=lambda path, content, large_file_mode=False: opens.append(
+                (path, content, large_file_mode)
+            )
+        ),
+        _recent_files=SimpleNamespace(add=lambda path: opens.append(("recent", path))),
+    )
+    event = FakeDragEvent(urls=[FakeUrl(script)])
+    MainWindow.dropEvent(drop_window, event)
+    assert opens[0] == (str(script), "content", True)
+    drop_window._read_editor_file = lambda path: None
+    MainWindow.dropEvent(drop_window, FakeDragEvent(urls=[FakeUrl(script)]))
+    assert len(opens) == 2
+
+    second_script = tmp_path / "skip.py"
+    second_script.write_text("print('skip')\n", encoding="utf-8")
+    restored = []
+
+    def get_setting(key, default=None):
+        return {
+            "window.geometry": "invalid",
+            "window.state": "invalid",
+            "general.restore_tabs_on_startup": True,
+            "general.open_files": [str(script), str(second_script)],
+        }.get(key, default)
+
+    restore_window = SimpleNamespace(
+        restoreGeometry=lambda payload: (_ for _ in ()).throw(ValueError("geometry")),
+        restoreState=lambda payload: (_ for _ in ()).throw(ValueError("state")),
+        _settings=SimpleNamespace(get=get_setting),
+        _read_editor_file=lambda path, show_error=False: (
+            ("restored", True) if path == str(script) else None
+        ),
+        _tab_manager=SimpleNamespace(
+            open_file_in_tab=lambda path, content, large_file_mode=False: restored.append(
+                (path, content, large_file_mode)
+            ),
+            count=lambda: len(restored),
+        ),
+        _show_welcome=lambda: restored.append(("welcome",)),
+    )
+    MainWindow._restore_state(restore_window)
+    assert restored == [(str(script), "restored", True)]
+
+
+def test_shutdown_error_logging_uses_fallback_path_and_suppresses_io_errors(
+    monkeypatch,
+    tmp_path,
+):
+    real_path = Path
+
+    class PathProxy:
+        @classmethod
+        def home(cls):
+            return tmp_path
+
+        def __new__(cls, value):
+            return real_path(value)
+
+    monkeypatch.setattr(main_window_module, "Path", PathProxy)
+    window = SimpleNamespace(_settings=None)
+    error = RuntimeError("cleanup")
+    MainWindow._log_shutdown_error(window, "fallback", error)
+    assert (tmp_path / ".meadowpy" / "meadowpy.log").exists()
+
+    monkeypatch.setattr(
+        main_window_module,
+        "open",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("read only")),
+        raising=False,
+    )
+    MainWindow._log_shutdown_error(window, "suppressed", error)

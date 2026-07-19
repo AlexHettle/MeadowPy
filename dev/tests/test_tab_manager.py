@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QCoreApplication, QEvent
-from PyQt6.QtWidgets import QMessageBox, QWidget
+from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, Qt
+from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtWidgets import QMessageBox, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
 from meadowpy.resources.resource_loader import run_button_accent_hex
@@ -316,3 +317,134 @@ def test_deferred_close_button_closes_editor_on_next_event_loop(monkeypatch, qap
     assert tabs.indexOf(editor) == -1
     tabs.deleteLater()
     parent.deleteLater()
+
+
+def test_tab_right_widget_and_close_styles_cover_optional_dot_variants(qapp, tmp_path):
+    button = QToolButton()
+    side = tab_module._TabRightWidget(button, None)
+    side.set_modified(True)
+    side.refresh_dot_color()
+
+    settings = make_settings(tmp_path)
+    tabs = TabManager(settings)
+    high_contrast = tabs._close_btn_stylesheet(False, True)
+    light = tabs._close_btn_stylesheet(False, False)
+    assert "#FFFFFF" in high_contrast
+    assert "#60656D" in light
+    side.deleteLater()
+    tabs.deleteLater()
+
+
+def test_editor_tab_bar_pointer_release_leave_and_deactivation(qapp, tmp_path):
+    settings = make_settings(tmp_path)
+    tabs = TabManager(settings)
+    tabs.new_tab(content="print('tab')\n")
+    bar = tabs.tabBar()
+    inside = QPointF(bar.tabRect(0).center())
+    outside = QPointF(-10, -10)
+
+    def mouse_event(kind, position, button=Qt.MouseButton.NoButton, buttons=Qt.MouseButton.NoButton):
+        return QMouseEvent(
+            kind,
+            position,
+            position,
+            button,
+            buttons,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+    bar.mouseMoveEvent(mouse_event(QEvent.Type.MouseMove, inside))
+    assert bar.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    bar.mouseMoveEvent(mouse_event(QEvent.Type.MouseMove, outside))
+    bar._set_visual_state("editorPressed", True)
+    bar.mouseReleaseEvent(
+        mouse_event(QEvent.Type.MouseButtonRelease, inside, Qt.MouseButton.LeftButton)
+    )
+    assert bar.property("editorPressed") is False
+    bar._set_visual_state("editorPressed", True)
+    bar.leaveEvent(QEvent(QEvent.Type.Leave))
+    assert bar.property("editorPressed") is False
+    bar._set_visual_state("editorPressed", True)
+    bar.event(QEvent(QEvent.Type.WindowDeactivate))
+    assert bar.property("editorPressed") is False
+    tabs.deleteLater()
+
+
+def test_tab_metadata_and_close_helpers_ignore_missing_or_non_editor_tabs(
+    monkeypatch, qapp, tmp_path
+):
+    monkeypatch.setattr(tab_module, "CodeEditor", FakeTabEditor)
+    settings = make_settings(tmp_path)
+    tabs = TabManager(settings)
+    editor = tabs.new_tab(content="print('inside')\n")
+    outsider = FakeTabEditor(settings)
+    tabs._refresh_tab_metadata(-1, editor)
+    tabs._refresh_tab_metadata(tabs.count(), editor)
+    tabs._update_modified_indicator(outsider, True)
+
+    monkeypatch.setattr(tab_module.QTimer, "singleShot", lambda delay, callback: callback())
+    tabs._close_editor_tab(outsider)
+    assert tabs.count() == 1
+
+    widget = QWidget()
+    index = tabs.addTab(widget, "plain")
+    tabs.update_tab_title(index)
+    tabs._remove_tab_and_delete(index)
+    assert tabs.count() == 1
+    outsider.deleteLater()
+    tabs.deleteLater()
+
+
+def test_save_prompt_without_manager_and_failed_save_as_error(
+    monkeypatch, qapp, tmp_path
+):
+    monkeypatch.setattr(tab_module, "CodeEditor", FakeTabEditor)
+    settings = make_settings(tmp_path)
+    editor = FakeTabEditor(settings)
+    tabs = TabManager(settings)
+    assert tabs._save_editor_for_prompt(editor) is True
+    tabs.deleteLater()
+
+    manager = FakeFileManager()
+    manager.save_file_as = lambda content, parent=None: None
+    manager.last_save_error = OSError("disk full")
+    manager.last_save_error_path = str(tmp_path / "failed.py")
+    dialogs = []
+    monkeypatch.setattr(
+        tab_module.QMessageBox,
+        "critical",
+        lambda parent, title, body: dialogs.append((title, body)),
+    )
+    tabs = TabManager(settings, manager)
+    editor = tabs.new_tab(content="dirty")
+    assert tabs._save_editor_for_prompt(editor) is False
+    assert dialogs and "disk full" in dialogs[0][1]
+    tabs.deleteLater()
+
+
+def test_close_all_stops_after_cancelled_tab(monkeypatch, qapp, tmp_path):
+    monkeypatch.setattr(tab_module, "CodeEditor", FakeTabEditor)
+    tabs = TabManager(make_settings(tmp_path))
+    tabs.new_tab(content="dirty")
+    tabs.close_tab = lambda index: False
+    assert tabs.close_all_tabs() is False
+    assert tabs.count() == 1
+    tabs.deleteLater()
+
+
+def test_update_theme_handles_plain_tool_button_and_non_editor_tabs(qapp, tmp_path):
+    settings = make_settings(tmp_path)
+    tabs = TabManager(settings)
+    plain = QWidget()
+    index = tabs.addTab(plain, "plain")
+    button = QToolButton()
+    tabs.tabBar().setTabButton(
+        index,
+        tab_module.QTabBar.ButtonPosition.RightSide,
+        button,
+    )
+    tabs.update_theme()
+    assert button.styleSheet()
+    tabs._on_tab_changed(index)
+    assert tabs.current_editor() is None
+    tabs.deleteLater()

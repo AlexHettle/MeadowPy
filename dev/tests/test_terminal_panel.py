@@ -538,3 +538,244 @@ def test_terminal_lifecycle_completion_and_theme_edge_branches(monkeypatch, qapp
     assert panel._current_theme_name() == ""
     assert panel._is_high_contrast() is False
     panel.deleteLater()
+
+
+def test_terminal_view_preserves_pending_input_and_routes_modified_keys(qapp):
+    base = QTextCharFormat()
+    assert list(
+        terminal_panel_module._ansi_segments(
+            "\x1b[31m",
+            base,
+            high_contrast=False,
+        )
+    ) == []
+    osc_segments = list(
+        terminal_panel_module._ansi_segments(
+            "before\x1b]0;title\x07after",
+            base,
+            high_contrast=False,
+        )
+    )
+    assert [text for text, _format in osc_segments] == ["before", "after"]
+
+    view = _TerminalView()
+    view.resize(300, 100)
+    view.show()
+    view.append_output("line\n" * 100, base, high_contrast=False)
+    view.set_current_input("pending")
+    view.verticalScrollBar().setValue(0)
+    view.append_output("output\n", base, high_contrast=False)
+    assert view.current_input() == "pending"
+
+    completions = []
+    view.completion_requested.connect(lambda *args: completions.append(args))
+    view.keyPressEvent(
+        _key_event(
+            Qt.Key.Key_Tab,
+            Qt.KeyboardModifier.ControlModifier,
+            "\t",
+        )
+    )
+    assert completions == []
+
+    view.set_current_input("editable")
+    cursor = view.textCursor()
+    cursor.setPosition(view._input_start)
+    cursor.setPosition(view._input_start + 2, QTextCursor.MoveMode.KeepAnchor)
+    view.setTextCursor(cursor)
+    view.keyPressEvent(_key_event(Qt.Key.Key_Left))
+
+    view.set_current_input("editable")
+    cursor = view.textCursor()
+    cursor.setPosition(view._input_start)
+    cursor.setPosition(view._input_start + 2, QTextCursor.MoveMode.KeepAnchor)
+    view.setTextCursor(cursor)
+    view.keyPressEvent(_key_event(Qt.Key.Key_Backspace))
+    assert view.current_input() == "itable"
+    view.deleteLater()
+
+
+def test_terminal_panel_lifecycle_output_and_shell_fallbacks(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    FakeProcess.instances.clear()
+    monkeypatch.setattr(terminal_panel_module, "QProcess", FakeProcess)
+    panel = TerminalPanel(
+        settings=FakeSettings({"editor.theme": "default_dark"}),
+        auto_start_on_show=False,
+    )
+
+    panel.set_working_directory(str(tmp_path / "missing"))
+    original_directory = panel._working_directory
+    panel.interrupt_process()
+    panel.clear_terminal()
+    panel.copy_terminal()
+    assert qapp.clipboard().text() != ""
+
+    panel.start_shell(str(tmp_path))
+    process = panel._process
+    assert process.working_directory == str(tmp_path)
+    process.state_value = QProcess.ProcessState.NotRunning
+    panel.stop()
+    assert process.killed is False
+
+    calls = []
+    monkeypatch.setattr(panel, "show", lambda: calls.append("show"))
+    monkeypatch.setattr(panel, "raise_", lambda: calls.append("raise"))
+    monkeypatch.setattr(panel, "start_shell", lambda *args: calls.append("start"))
+    monkeypatch.setattr(panel._terminal_view, "setFocus", lambda: calls.append("focus"))
+    panel.focus_terminal()
+    assert calls == ["show", "raise", "start", "focus"]
+
+    panel._process = None
+    panel.send_command("cannot run")
+    assert panel._process is None
+    running = FakeProcess()
+    running.state_value = QProcess.ProcessState.Running
+    panel._process = running
+    panel.send_command("   ")
+    assert running.writes == [b"   \n"]
+
+    icons = []
+    monkeypatch.setattr(
+        terminal_panel_module,
+        "load_themed_icon",
+        lambda name, theme: icons.append((name, theme)) or panel._clear_btn.icon(),
+    )
+    panel.refresh_theme_icons()
+    panel.update_font("Courier New", 13)
+    assert icons == [("clear_output", "default_dark")]
+    assert panel._terminal_view.font().pointSize() == 13
+
+    monkeypatch.setattr(terminal_panel_module.os, "name", "posix")
+    monkeypatch.delenv("SHELL", raising=False)
+    assert panel._default_shell_command() == ("/bin/sh", ["-i"])
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+    assert panel._default_shell_command() == ("/bin/zsh", ["-i"])
+    monkeypatch.setattr(terminal_panel_module.os, "name", "nt")
+
+    panel._process = None
+    panel._disconnect_process_signals()
+
+    class BrokenSignal:
+        def disconnect(self, slot):
+            raise RuntimeError("already disconnected")
+
+    panel._process = SimpleNamespace(
+        readyReadStandardOutput=BrokenSignal(),
+        readyReadStandardError=BrokenSignal(),
+        finished=BrokenSignal(),
+        errorOccurred=BrokenSignal(),
+    )
+    panel._disconnect_process_signals()
+
+    appended = []
+    monkeypatch.setattr(
+        panel._terminal_view,
+        "append_output",
+        lambda *args, **kwargs: appended.append(args[0]),
+    )
+    panel._last_submitted_command = None
+    panel._append_process_output(b"", "stdout")
+    assert appended == []
+    assert panel._filter_echoed_command("unchanged") == "unchanged"
+    panel._last_submitted_command = "echo hi"
+    assert panel._filter_echoed_command("other output") == "other output"
+    assert panel._filter_echoed_command("echo hi") == ""
+
+    panel._last_prompt = ""
+    panel._remember_prompt("PS Z:\\missing> ")
+    assert panel._working_directory == str(tmp_path)
+    panel.deleteLater()
+
+
+def test_terminal_completion_path_history_and_visibility_edges(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    panel = TerminalPanel(settings=FakeSettings(), auto_start_on_show=False)
+    panel.set_working_directory(str(tmp_path))
+
+    monkeypatch.setattr(
+        panel,
+        "_completion_result",
+        lambda line, column: terminal_panel_module._CompletionResult(0, 1, ["one"]),
+    )
+    monkeypatch.setattr(panel, "_unique_completion_candidates", lambda values: [])
+    panel._on_completion_requested("o", 1, 1)
+    assert panel._completion_candidates == []
+    monkeypatch.setattr(
+        panel,
+        "_unique_completion_candidates",
+        lambda values: TerminalPanel._unique_completion_candidates(panel, values),
+    )
+
+    monkeypatch.setattr(terminal_panel_module.os, "name", "posix")
+    assert panel._powershell_completion_result("echo", 4) is None
+    monkeypatch.setattr(panel, "_command_completion_candidates", lambda token: [])
+    monkeypatch.setattr(panel, "_path_completion_candidates", lambda token: ["tool"])
+    assert panel._fallback_completion_result("to", 2).candidates == ["tool"]
+    monkeypatch.setattr(panel, "_path_completion_candidates", lambda token: [])
+    assert panel._fallback_completion_result("to", 2) is None
+    assert TerminalPanel._command_completion_candidates(panel, "g")
+    monkeypatch.setattr(terminal_panel_module.os, "name", "nt")
+
+    (tmp_path / "folder").mkdir()
+    (tmp_path / "plain.py").write_text("", encoding="utf-8")
+    assert panel._completion_search_dir("folder/") == tmp_path / "folder"
+    assert panel._path_completion_separator("folder/") == "/"
+
+    original_path_candidates = TerminalPanel._path_completion_candidates
+    assert original_path_candidates(panel, "zzz") == []
+    assert original_path_candidates(panel, "plain") == ["plain.py"]
+
+    class BadDirectory:
+        def __init__(self, path):
+            self.path = path
+
+        def iterdir(self):
+            raise OSError("denied")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(terminal_panel_module, "Path", BadDirectory)
+        assert original_path_candidates(panel, "") == []
+
+    class BadChild:
+        name = "broken"
+
+        def is_dir(self):
+            raise OSError("gone")
+
+    monkeypatch.setattr(
+        panel,
+        "_completion_search_dir",
+        lambda base: SimpleNamespace(iterdir=lambda: [BadChild()]),
+    )
+    assert original_path_candidates(panel, "bro") == ["broken"]
+
+    monkeypatch.setattr(
+        terminal_panel_module,
+        "theme_is_high_contrast",
+        lambda theme: True,
+    )
+    assert panel._stream_format("stdout").foreground().color().name() == "#ffffff"
+
+    panel._history = ["first", "second"]
+    panel._history_index = 0
+    panel._on_history_previous()
+    assert panel._terminal_view.current_input() == "first"
+    panel._history_index = 0
+    panel._on_history_next()
+    assert panel._terminal_view.current_input() == "second"
+    panel._on_history_next()
+    assert panel._terminal_view.current_input() == ""
+
+    starts = []
+    panel._auto_start_on_show = True
+    monkeypatch.setattr(panel, "start_shell", lambda: starts.append(True))
+    panel._on_visibility_changed(True)
+    assert starts == [True]
+    panel.deleteLater()

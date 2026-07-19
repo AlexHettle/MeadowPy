@@ -1452,3 +1452,87 @@ def test_main_sets_breakpoints_runs_script_and_sends_finished(monkeypatch, tmp_p
     assert debugger_records[2] == ("run", "__main__", str(script), True)
     assert debugger_records[3] == ("shutdown_receiver",)
     assert fake_socket.closed is True
+
+
+@pytest.mark.parametrize(
+    ("initial_line", "outcome", "expected_reason", "expected_code"),
+    (
+        (
+            json.dumps({"cmd": "continue"}),
+            debug_helper.bdb.BdbQuit(),
+            "debugger_quit",
+            0,
+        ),
+        ("not-json", SystemExit(None), "system_exit", 0),
+        (None, SystemExit(7), "system_exit", 7),
+        (json.dumps({"cmd": "continue"}), SystemExit("goodbye"), "system_exit", 1),
+        (None, RuntimeError("target failed"), "exception", 1),
+    ),
+)
+def test_main_reports_target_exit_variants_and_tolerates_cleanup_errors(
+    monkeypatch,
+    tmp_path,
+    capsys,
+    initial_line,
+    outcome,
+    expected_reason,
+    expected_code,
+):
+    script = tmp_path / "variant.py"
+    script.write_text("value = 1\n", encoding="utf-8")
+    sent = []
+
+    class CleanupSocket:
+        def connect(self, address):
+            self.address = address
+
+        def close(self):
+            if isinstance(outcome, debug_helper.bdb.BdbQuit):
+                raise OSError("already closed")
+
+    class OutcomeDebugger:
+        def __init__(self, sock):
+            self._buf = None
+
+        def _update_breakpoints(self, breakpoints):
+            self.breakpoints = breakpoints
+
+        def run(self, code, globals_dict):
+            raise outcome
+
+        def shutdown_receiver(self):
+            return True
+
+    def record_send(sock, payload):
+        sent.append(payload)
+        if payload["event"] == "finished" and isinstance(
+            outcome, debug_helper.bdb.BdbQuit
+        ):
+            raise OSError("peer disconnected")
+
+    monkeypatch.setattr(
+        debug_helper.sys,
+        "argv",
+        ["debug_helper.py", "7654", str(script)],
+    )
+    monkeypatch.setattr(debug_helper.sys, "path", [])
+    monkeypatch.setattr(debug_helper.socket, "socket", lambda *args: CleanupSocket())
+    monkeypatch.setattr(debug_helper, "_recv_line", lambda sock, buf: initial_line)
+    monkeypatch.setattr(debug_helper, "_send", record_send)
+    monkeypatch.setattr(debug_helper, "MeadowPyDebugger", OutcomeDebugger)
+
+    if expected_code:
+        with pytest.raises(SystemExit, match=str(expected_code)):
+            debug_helper.main()
+    else:
+        debug_helper.main()
+
+    assert sent[-1] == {
+        "event": "finished",
+        "reason": expected_reason,
+        "exit_code": expected_code,
+    }
+    if isinstance(outcome, SystemExit) and outcome.code == "goodbye":
+        assert "goodbye" in capsys.readouterr().err
+    elif isinstance(outcome, RuntimeError):
+        assert "target failed" in capsys.readouterr().err
