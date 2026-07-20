@@ -198,16 +198,18 @@ class WorkspaceController(MainWindowController):
 
     def _on_explorer_file_deleted(self, deleted_path: str) -> None:
         """Close any open tab whose file was deleted in the explorer."""
-        deleted_resolved = str(Path(deleted_path).resolve())
+        deleted_resolved = Path(deleted_path).resolve()
         # Iterate in reverse so indices stay valid after removal
         for i in range(self._tab_manager.count() - 1, -1, -1):
             editor = self._tab_manager.widget(i)
             if not isinstance(editor, CodeEditor) or not editor.file_path:
                 continue
-            editor_resolved = str(Path(editor.file_path).resolve())
+            editor_resolved = Path(editor.file_path).resolve()
             # Match exact file or any file inside a deleted folder
-            if (editor_resolved == deleted_resolved
-                    or editor_resolved.startswith(deleted_resolved + "\\")):
+            if (
+                editor_resolved == deleted_resolved
+                or editor_resolved.is_relative_to(deleted_resolved)
+            ):
                 remove_editor = getattr(
                     self._tab_manager,
                     "_remove_tab_and_delete",

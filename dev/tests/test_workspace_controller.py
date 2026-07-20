@@ -1,3 +1,4 @@
+from pathlib import PurePosixPath
 from types import SimpleNamespace
 
 import meadowpy.ui.controllers.workspace_controller as workspace_module
@@ -548,6 +549,36 @@ def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path
     assert editors[1].deleted_later is True
     assert editors[0].deleted_later is False
     assert editors[2].deleted_later is False
+
+
+def test_explorer_folder_delete_closes_descendant_tabs_with_posix_paths(monkeypatch):
+    monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
+
+    class PosixPath:
+        def __init__(self, value):
+            self._path = PurePosixPath(value)
+
+        def resolve(self):
+            return self._path
+
+    monkeypatch.setattr(workspace_module, "Path", PosixPath)
+    nested = WorkspaceEditor("/project/package/nested.py")
+    sibling = WorkspaceEditor("/project/package-extra/keep.py")
+    tabs = WorkspaceTabs([nested, sibling])
+    controller = WorkspaceController(
+        MainWindowContext(
+            SimpleNamespace(_tab_manager=tabs),
+            MutableSettings(),
+            None,
+            None,
+        )
+    )
+
+    controller._on_explorer_file_deleted("/project/package")
+
+    assert tabs.removed == [0]
+    assert nested.deleted_later is True
+    assert sibling.deleted_later is False
 
 
 def test_run_action_follows_active_editor_file_type(monkeypatch, tmp_path):
