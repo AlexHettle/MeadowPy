@@ -132,10 +132,14 @@ class InterpreterManager:
                 text=True,
                 timeout=5,
             )
-            # Output is "Python 3.11.5\n"
-            parts = result.stdout.strip().split()
-            if len(parts) >= 2:
-                return parts[1]
+            # Most interpreters write this to stdout, while some versions and
+            # wrappers use stderr. Ignore unrelated wrapper messages and use
+            # the first actual ``Python <version>`` line from either stream.
+            for output in (result.stdout, result.stderr):
+                for line in (output or "").splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 2 and parts[0].lower() == "python":
+                        return parts[1]
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             pass
         return "unknown"

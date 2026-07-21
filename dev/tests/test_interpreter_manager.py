@@ -126,6 +126,20 @@ def test_get_version_parses_python_version_stdout(monkeypatch):
     assert InterpreterManager._get_version("python.exe") == "3.12.5"
 
 
+def test_get_version_parses_python_version_stderr(monkeypatch):
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="launcher warning\n",
+            stderr="Python 3.11.9\n",
+        )
+
+    monkeypatch.setattr("meadowpy.core.interpreter_manager.subprocess.run", fake_run)
+
+    assert InterpreterManager._get_version("python.exe") == "3.11.9"
+
+
 def test_relative_label_uses_relative_path_when_possible(tmp_path):
     file_path = tmp_path / "pkg" / "main.py"
     venv_dir = file_path.parent / ".venv"
