@@ -2,13 +2,21 @@ from PyQt6.QtCore import QProcess
 
 import meadowpy.core.repl_manager as repl_module
 from meadowpy.core.repl_manager import ReplManager
-from tests.helpers import FakeProcess, SignalRecorder
+from tests.helpers import DummySignal, FakeProcess, SignalRecorder
 
 
 class FakeQProcess(FakeProcess):
     ProcessChannelMode = QProcess.ProcessChannelMode
     ProcessError = QProcess.ProcessError
     ProcessState = QProcess.ProcessState
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.started = DummySignal()
+        self.delete_later_called = False
+
+    def deleteLater(self):
+        self.delete_later_called = True
 
 
 def test_start_configures_interactive_process_and_emits_started(monkeypatch):
@@ -31,7 +39,37 @@ def test_start_configures_interactive_process_and_emits_started(monkeypatch):
     assert process.working_directory == "C:/work"
     assert process.channel_mode == QProcess.ProcessChannelMode.SeparateChannels
     assert process.start_args == ("python.exe", ["-u", "-i"])
+    assert started.calls == []
+
+    process.started.emit()
+
     assert started.calls == [()]
+
+
+def test_failed_start_does_not_report_ready_and_releases_process(monkeypatch):
+    created = []
+
+    class ProcessFactory(FakeQProcess):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            created.append(self)
+
+    monkeypatch.setattr(repl_module, "QProcess", ProcessFactory)
+    manager = ReplManager()
+    started = SignalRecorder()
+    output = SignalRecorder()
+    manager.repl_started.connect(started)
+    manager.output_received.connect(output)
+
+    manager.start("missing-python.exe", "C:/work")
+    created[0].errorOccurred.emit(QProcess.ProcessError.FailedToStart)
+
+    assert started.calls == []
+    assert manager._process is None
+    assert created[0].delete_later_called is True
+    assert len(output.calls) == 1
+    assert "Python console failed to start" in output.calls[0][0]
+    assert output.calls[0][1] == "system"
 
 
 def test_start_noops_when_repl_is_already_running(monkeypatch):
@@ -48,6 +86,7 @@ def test_start_noops_when_repl_is_already_running(monkeypatch):
     manager.repl_started.connect(started)
 
     manager.start("python.exe", "C:/one")
+    created[0].started.emit()
     manager.start("python.exe", "C:/two")
 
     assert len(created) == 1
@@ -211,7 +250,7 @@ def test_stop_kills_running_process_and_emits_signal():
     manager = ReplManager()
     stopped = SignalRecorder()
     manager.repl_stopped.connect(stopped)
-    process = FakeProcess()
+    process = FakeQProcess()
     process.state_value = QProcess.ProcessState.Running
     manager._process = process
 

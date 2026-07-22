@@ -64,7 +64,6 @@ class ReplManager(QObject):
         self._connect_signals()
         # -u: unbuffered stdout/stderr, -i: interactive mode
         self._process.start(interpreter, ["-u", "-i"])
-        self.repl_started.emit()
 
     def stop(self) -> None:
         """Terminate the REPL process."""
@@ -132,6 +131,7 @@ class ReplManager(QObject):
 
     def _connect_signals(self) -> None:
         p = self._process
+        p.started.connect(self._on_started)
         p.readyReadStandardOutput.connect(self._on_stdout)
         p.readyReadStandardError.connect(self._on_stderr)
         p.finished.connect(self._on_finished)
@@ -142,6 +142,7 @@ class ReplManager(QObject):
             return
         try:
             p = self._process
+            p.started.disconnect(self._on_started)
             p.readyReadStandardOutput.disconnect(self._on_stdout)
             p.readyReadStandardError.disconnect(self._on_stderr)
             p.finished.disconnect(self._on_finished)
@@ -150,6 +151,14 @@ class ReplManager(QObject):
             pass
 
     # ── Slots ───────────────────────────────────────────────────────
+
+    def _on_started(self) -> None:
+        sender = self.sender()
+        if self._process is None or (
+            sender is not None and sender is not self._process
+        ):
+            return
+        self.repl_started.emit()
 
     def _on_stdout(self) -> None:
         data = self._process.readAllStandardOutput().data()
@@ -212,3 +221,11 @@ class ReplManager(QObject):
         msg = error_map.get(error)
         if msg:
             self.output_received.emit(msg, "system")
+
+        if error == QProcess.ProcessError.FailedToStart and self._process is not None:
+            process = self._process
+            self._disconnect_signals()
+            self._process = None
+            delete_later = getattr(process, "deleteLater", None)
+            if callable(delete_later):
+                delete_later()
