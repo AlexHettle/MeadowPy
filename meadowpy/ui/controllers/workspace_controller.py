@@ -181,20 +181,24 @@ class WorkspaceController(MainWindowController):
         self._recent_files.add(file_path)
 
     def _on_explorer_file_renamed(self, old_path: str, new_path: str) -> None:
-        """Update any open tab whose file was renamed in the explorer."""
-        old_resolved = str(Path(old_path).resolve())
+        """Update open tabs affected by a file or folder rename."""
+        old_resolved = Path(old_path).resolve()
+        new_resolved = Path(new_path).resolve()
         for i in range(self._tab_manager.count()):
             editor = self._tab_manager.widget(i)
             if not isinstance(editor, CodeEditor) or not editor.file_path:
                 continue
-            if str(Path(editor.file_path).resolve()) == old_resolved:
-                editor.file_path = new_path
-                editor._is_modified = False
-                self._tab_manager.setTabText(i, Path(new_path).name)
-                self._tab_manager.setTabToolTip(i, new_path)
-                if i == self._tab_manager.currentIndex():
-                    self._update_run_file_button(editor)
-                break
+            editor_resolved = Path(editor.file_path).resolve()
+            try:
+                relative_path = editor_resolved.relative_to(old_resolved)
+            except ValueError:
+                continue
+            renamed_path = str(new_resolved / relative_path)
+            editor.file_path = renamed_path
+            self._tab_manager.setTabText(i, Path(renamed_path).name)
+            self._tab_manager.setTabToolTip(i, renamed_path)
+            if i == self._tab_manager.currentIndex():
+                self._update_run_file_button(editor)
 
     def _on_explorer_file_deleted(self, deleted_path: str) -> None:
         """Close any open tab whose file was deleted in the explorer."""

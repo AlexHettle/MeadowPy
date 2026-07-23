@@ -551,6 +551,35 @@ def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path
     assert editors[2].deleted_later is False
 
 
+def test_explorer_folder_rename_updates_descendant_tab_paths(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
+    old_folder = tmp_path / "package"
+    new_folder = tmp_path / "renamed_package"
+    nested = WorkspaceEditor(str(old_folder / "child.py"))
+    deeper = WorkspaceEditor(str(old_folder / "subfolder" / "other.py"))
+    sibling = WorkspaceEditor(str(tmp_path / "package-extra" / "keep.py"))
+    tabs = WorkspaceTabs([nested, deeper, sibling])
+    controller = WorkspaceController(
+        MainWindowContext(
+            SimpleNamespace(_tab_manager=tabs),
+            MutableSettings(),
+            None,
+            None,
+        )
+    )
+
+    controller._on_explorer_file_renamed(str(old_folder), str(new_folder))
+
+    assert nested.file_path == str(new_folder / "child.py")
+    assert deeper.file_path == str(new_folder / "subfolder" / "other.py")
+    assert sibling.file_path == str(tmp_path / "package-extra" / "keep.py")
+    assert tabs.tab_text == [(0, "child.py"), (1, "other.py")]
+    assert tabs.tooltips == [
+        (0, str(new_folder / "child.py")),
+        (1, str(new_folder / "subfolder" / "other.py")),
+    ]
+
+
 def test_explorer_folder_delete_closes_descendant_tabs_with_posix_paths(monkeypatch):
     monkeypatch.setattr(workspace_module, "CodeEditor", WorkspaceEditor)
 
