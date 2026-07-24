@@ -59,6 +59,23 @@ def test_handle_return_dedents_after_return_keyword(tmp_path):
     assert editor.getCursorPosition() == (1, 0)
 
 
+def test_handle_return_dedents_parenthesized_return_expression(tmp_path):
+    text = "    return(value)"
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(text)))
+
+    assert handler.handle_return() is True
+    assert editor.all_text() == f"{text}\n"
+    assert editor.getCursorPosition() == (1, 0)
+
+
+def test_handle_return_preserves_incomplete_parenthesized_expression(tmp_path):
+    text = "    return("
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(text)))
+
+    assert handler.handle_return() is False
+    assert editor.all_text() == text
+
+
 def test_handle_return_dedents_unindented_keyword_to_empty_indent(tmp_path):
     editor, handler = make_handler(tmp_path, text="return value", cursor=(0, 12))
 

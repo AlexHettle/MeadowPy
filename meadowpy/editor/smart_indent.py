@@ -55,8 +55,7 @@ class SmartIndentHandler:
             return True
 
         # Case 2: Line starts with a dedent keyword -> next line should dedent
-        first_word = stripped.split()[0] if stripped.split() else ""
-        if first_word in self.DEDENT_KEYWORDS:
+        if self._starts_with_dedent_keyword(text_before_cursor):
             if len(current_indent) >= len(indent_str):
                 new_indent = current_indent[: -len(indent_str)]
             else:
@@ -92,6 +91,24 @@ class SmartIndentHandler:
             last_token is not None
             and last_token.type == tokenize.OP
             and last_token.string == ":"
+        )
+
+    def _starts_with_dedent_keyword(self, text: str) -> bool:
+        """Return True when a complete line starts with a block-ending keyword."""
+        first_token = None
+        try:
+            for token in tokenize.generate_tokens(StringIO(text).readline):
+                if token.type in _IGNORED_TOKEN_TYPES:
+                    continue
+                if first_token is None:
+                    first_token = token
+        except (IndentationError, tokenize.TokenError):
+            return False
+
+        return (
+            first_token is not None
+            and first_token.type == tokenize.NAME
+            and first_token.string in self.DEDENT_KEYWORDS
         )
 
     def _insert_newline_with_indent(self, indent: str) -> None:
