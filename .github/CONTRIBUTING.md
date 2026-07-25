@@ -6,11 +6,11 @@ experience.
 
 Useful docs:
 
-- [Development Guide](docs/development.md)
-- [Testing](docs/testing.md)
-- [Architecture](docs/architecture.md)
-- [User Guide](docs/user-guide.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- [Development Guide](../MeadowPy/docs/development.md)
+- [Testing](../MeadowPy/docs/testing.md)
+- [Architecture](../MeadowPy/docs/architecture.md)
+- [User Guide](../MeadowPy/docs/user-guide.md)
+- [Troubleshooting](../MeadowPy/docs/troubleshooting.md)
 - [Security](SECURITY.md)
 
 ## Ways To Contribute
@@ -28,15 +28,21 @@ Good contribution areas include:
 
 ## Before Changing Code
 
-1. Read [Development Guide](docs/development.md).
-2. Read [Architecture](docs/architecture.md) for the area you are changing.
-3. Set up development dependencies:
+1. Read [Development Guide](../MeadowPy/docs/development.md).
+2. Read [Architecture](../MeadowPy/docs/architecture.md) for the area you are changing.
+3. From the repository root, enter the application directory:
+
+```bat
+cd MeadowPy
+```
+
+4. Set up development dependencies:
 
 ```bat
 dev\setup-dev.bat
 ```
 
-4. Run the full test suite once:
+5. Run the full test suite once:
 
 ```bat
 dev\Run Tests.bat
@@ -46,7 +52,7 @@ This confirms your environment is working before you start editing.
 
 ## Development Setup
 
-From the project root:
+From the `MeadowPy` application directory:
 
 ```bat
 dev\setup-dev.bat
@@ -55,7 +61,7 @@ dev\setup-dev.bat
 This calls:
 
 ```bat
-setup.bat --dev
+..\setup.bat --dev
 ```
 
 It creates or repairs `.venv`, installs app dependencies, and installs test
@@ -63,7 +69,7 @@ dependencies.
 
 ## Running MeadowPy From Source
 
-From the project root:
+From the `MeadowPy` application directory:
 
 ```bat
 .venv\Scripts\python.exe -m meadowpy
@@ -83,7 +89,7 @@ Run a targeted test without coverage:
 .venv\Scripts\python.exe -m pytest -c dev\pytest.ini --no-cov dev\tests\test_settings.py -q
 ```
 
-See [Testing](docs/testing.md) for the full testing workflow.
+See [Testing](../MeadowPy/docs/testing.md) for the full testing workflow.
 
 ## Pull Request Expectations
 
@@ -155,8 +161,8 @@ When editing docs:
 - Prefer short sections with clear headings.
 - Link to related docs instead of repeating large sections.
 - Keep beginner-facing instructions concrete.
-- Update [Shortcuts](docs/shortcuts.md) when shortcuts change.
-- Update [Architecture](docs/architecture.md) when ownership or flow changes.
+- Update [Shortcuts](../MeadowPy/docs/shortcuts.md) when shortcuts change.
+- Update [Architecture](../MeadowPy/docs/architecture.md) when ownership or flow changes.
 
 If this repository is hosted on GitHub, use the documentation issue template
 for stale, missing, confusing, or incorrect docs.

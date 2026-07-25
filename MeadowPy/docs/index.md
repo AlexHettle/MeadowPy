@@ -28,18 +28,19 @@ Maintainer docs:
 - [Release Process](release-process.md): prepare, verify, document, tag, and
   follow up on releases.
 
-Root project docs:
+Repository-level project docs:
 
-- [Contributing](../CONTRIBUTING.md)
-- [Security Policy](../SECURITY.md)
+- [Project Overview](../../.github/README.md)
+- [Contributing](../../.github/CONTRIBUTING.md)
+- [Security Policy](../../.github/SECURITY.md)
 - [License](../LICENSE)
 
 Repository workflow templates:
 
-- [Bug Report Template](../.github/ISSUE_TEMPLATE/bug_report.md)
-- [Feature Request Template](../.github/ISSUE_TEMPLATE/feature_request.md)
-- [Documentation Issue Template](../.github/ISSUE_TEMPLATE/documentation.md)
-- [Pull Request Template](../.github/pull_request_template.md)
+- [Bug Report Template](../../.github/ISSUE_TEMPLATE/bug_report.md)
+- [Feature Request Template](../../.github/ISSUE_TEMPLATE/feature_request.md)
+- [Documentation Issue Template](../../.github/ISSUE_TEMPLATE/documentation.md)
+- [Pull Request Template](../../.github/pull_request_template.md)
 
 ## Audience Map
 
@@ -51,7 +52,7 @@ Repository workflow templates:
 | Looking for a key command | [Shortcuts](shortcuts.md) |
 | Contributing code | [Development Guide](development.md), [Testing](testing.md), [Architecture](architecture.md) |
 | Preparing a release | [Release Process](release-process.md) |
-| Reporting a security issue | [Security Policy](../SECURITY.md) |
+| Reporting a security issue | [Security Policy](../../.github/SECURITY.md) |
 | Checking project license terms | [License](../LICENSE) |
 
 ## Documentation Maintenance

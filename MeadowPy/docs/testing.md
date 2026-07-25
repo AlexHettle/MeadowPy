@@ -6,7 +6,7 @@ Related docs:
 
 - [Development Guide](development.md)
 - [Architecture](architecture.md)
-- [Contributing](../CONTRIBUTING.md)
+- [Contributing](../../.github/CONTRIBUTING.md)
 
 ## Test Location
 
@@ -39,14 +39,14 @@ dev\setup-dev.bat
 or:
 
 ```bat
-setup.bat --dev
+..\setup.bat --dev
 ```
 
 This installs the normal app dependencies plus `pytest` and `pytest-cov`.
 
 ## Run All Tests
 
-From the project root:
+From the `MeadowPy` application directory:
 
 ```bat
 dev\Run Tests.bat

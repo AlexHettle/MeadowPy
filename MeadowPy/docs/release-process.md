@@ -22,6 +22,9 @@ A MeadowPy release should be:
 
 Before preparing a release:
 
+Run the application commands in this checklist from the `MeadowPy` application
+directory.
+
 1. Confirm the working tree is clean except intentional release edits.
 2. Run development setup if dependencies may be stale:
 
@@ -101,27 +104,28 @@ Keep the summary concise and include setup or migration notes when needed.
 
 When possible, test setup in a clean copy of the project.
 
-Minimum setup verification:
+Run this section from the repository root. Minimum setup verification:
 
-1. Remove or rename `.venv` in the clean copy.
+1. Remove or rename `MeadowPy\.venv` in the clean copy.
 2. Run:
 
 ```bat
 setup.bat
 ```
 
-3. Confirm setup creates `.venv`.
+3. Confirm setup creates `MeadowPy\.venv`.
 4. Confirm dependencies install.
 5. Confirm `MeadowPy.lnk` is created when Windows allows it.
 6. Launch:
 
 ```text
-Run MeadowPy.bat
+MeadowPy\Run MeadowPy.bat
 ```
 
 or:
 
 ```bat
+cd MeadowPy
 .venv\Scripts\python.exe -m meadowpy
 ```
 
@@ -130,7 +134,7 @@ in a disposable copy.
 
 ## Verify Developer Setup
 
-In a clean or disposable copy:
+From the `MeadowPy` application directory in a clean or disposable copy:
 
 ```bat
 dev\setup-dev.bat
@@ -162,11 +166,11 @@ Before release, verify the docs still match the app:
 - [Development Guide](development.md): repo layout and development workflow.
 - [Testing](testing.md): test commands and coverage paths.
 - [Architecture](architecture.md): module ownership and flows.
-- [Contributing](../CONTRIBUTING.md): contribution expectations.
-- [Security](../SECURITY.md): reporting and local AI notes.
-- `.github/ISSUE_TEMPLATE/`: issue templates still match project support
+- [Contributing](../../.github/CONTRIBUTING.md): contribution expectations.
+- [Security](../../.github/SECURITY.md): reporting and local AI notes.
+- The repository's `.github/ISSUE_TEMPLATE/`: issue templates still match project support
   needs.
-- `.github/pull_request_template.md`: pull request checklist still matches
+- The repository's `.github/pull_request_template.md`: pull request checklist still matches
   development expectations.
 
 ## Manual Release Notes Pass
@@ -184,7 +188,7 @@ release notes for the current release.
 
 ## Git Checklist
 
-If using Git tags:
+Run this section from the repository root. If using Git tags:
 
 1. Confirm status:
 
@@ -201,7 +205,7 @@ git diff
 3. Commit release changes:
 
 ```bat
-git add meadowpy\constants.py CONTRIBUTING.md SECURITY.md docs .github
+git add MeadowPy\meadowpy\constants.py MeadowPy\docs .github
 git commit -m "Release vX.Y.Z"
 ```
 

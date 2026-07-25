@@ -7,7 +7,7 @@ cd /d "%PROJECT_ROOT%"
 if not exist ".venv\Scripts\python.exe" (
     echo.
     echo  MeadowPy has not been set up for development yet.
-    echo  Please run "dev\setup-dev.bat" or "setup.bat --dev" first.
+    echo  Please run "dev\setup-dev.bat" or "..\setup.bat --dev" first.
     echo.
     pause
     exit /b 1
@@ -17,7 +17,7 @@ if not exist ".venv\Scripts\python.exe" (
 if %errorlevel% neq 0 (
     echo.
     echo  Test dependencies are missing.
-    echo  Please run "dev\setup-dev.bat" or "setup.bat --dev" first.
+    echo  Please run "dev\setup-dev.bat" or "..\setup.bat --dev" first.
     echo.
     pause
     exit /b 1

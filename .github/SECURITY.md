@@ -5,8 +5,8 @@ about MeadowPy's local AI behavior.
 
 Related docs:
 
-- [AI Setup](docs/ai-setup.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- [AI Setup](../MeadowPy/docs/ai-setup.md)
+- [Troubleshooting](../MeadowPy/docs/troubleshooting.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## Supported Versions
@@ -114,16 +114,16 @@ or shutdown errors. Review logs before sharing them publicly.
 
 ## Dependency Security
 
-MeadowPy installs dependencies from:
+From the repository root, MeadowPy's application dependencies are listed in:
 
 ```text
-meadowpy\requirements.txt
+MeadowPy\meadowpy\requirements.txt
 ```
 
 Development setup also installs:
 
 ```text
-dev\requirements-dev.txt
+MeadowPy\dev\requirements-dev.txt
 ```
 
 Users and contributors should install dependencies in the project virtual

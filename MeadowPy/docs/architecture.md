@@ -572,4 +572,4 @@ When behavior changes, update the matching docs:
 - Commands and tests: [Testing](testing.md)
 - Internal structure: this architecture document
 - Release workflow: [Release Process](release-process.md)
-- Contribution expectations: [Contributing](../CONTRIBUTING.md)
+- Contribution expectations: [Contributing](../../.github/CONTRIBUTING.md)

@@ -1,6 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
-cd /d "%~dp0"
+
+for %%I in ("%~dp0.") do set "PROJECT_ROOT=%%~fI"
+set "APP_DIR=%PROJECT_ROOT%\MeadowPy"
+
+if not exist "%APP_DIR%\meadowpy\__init__.py" (
+    echo.
+    echo  [ERROR] The MeadowPy application folder was not found.
+    echo  Keep setup.bat next to the MeadowPy folder and try again.
+    echo.
+    pause
+    exit /b 1
+)
+
+cd /d "%APP_DIR%"
 
 set "INSTALL_DEV=0"
 if /I "%~1"=="--dev" (
@@ -146,10 +159,8 @@ if %errorlevel% neq 0 (
 :: 6. Create desktop-style shortcut with icon
 :: -----------------------------------------------------------
 echo  Creating MeadowPy shortcut...
-set "SCRIPT_DIR=%~dp0"
-if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
-set "GUI_PYTHON=%SCRIPT_DIR%\.venv\Scripts\pythonw.exe"
-set "SHORTCUT_TARGET=%SCRIPT_DIR%\meadowpy\resources\launch.vbs"
+set "GUI_PYTHON=%APP_DIR%\.venv\Scripts\pythonw.exe"
+set "SHORTCUT_TARGET=%APP_DIR%\meadowpy\resources\launch.vbs"
 set "SHORTCUT_ARGS="
 
 if exist "%GUI_PYTHON%" (
@@ -159,18 +170,18 @@ if exist "%GUI_PYTHON%" (
 
 powershell -NoProfile -Command ^
   "$ws = New-Object -ComObject WScript.Shell;" ^
-  "$s = $ws.CreateShortcut('%SCRIPT_DIR%\MeadowPy.lnk');" ^
+  "$s = $ws.CreateShortcut('%PROJECT_ROOT%\MeadowPy.lnk');" ^
   "$s.TargetPath = '%SHORTCUT_TARGET%';" ^
   "$s.Arguments = '%SHORTCUT_ARGS%';" ^
-  "$s.WorkingDirectory = '%SCRIPT_DIR%';" ^
-  "$s.IconLocation = '%SCRIPT_DIR%\meadowpy\resources\icons\meadowpy.ico,0';" ^
+  "$s.WorkingDirectory = '%APP_DIR%';" ^
+  "$s.IconLocation = '%APP_DIR%\meadowpy\resources\icons\meadowpy.ico,0';" ^
   "$s.Description = 'Launch MeadowPy IDE';" ^
   "$s.Save()"
 
-if exist "MeadowPy.lnk" (
+if exist "%PROJECT_ROOT%\MeadowPy.lnk" (
     echo  Shortcut created successfully.
 ) else (
-    echo  [WARNING] Could not create shortcut. You can still use "Run MeadowPy.bat".
+    echo  [WARNING] Could not create shortcut. You can still use "MeadowPy\Run MeadowPy.bat".
 )
 
 :: -----------------------------------------------------------
@@ -181,7 +192,7 @@ echo  =============================================
 echo     Setup complete!
 echo.
 echo     Double-click "MeadowPy" to start.
-if "%INSTALL_DEV%"=="1" echo     Use "dev\Run Tests.bat" to run the test suite.
+if "%INSTALL_DEV%"=="1" echo     Use "MeadowPy\dev\Run Tests.bat" to run the test suite.
 echo  =============================================
 echo.
 pause

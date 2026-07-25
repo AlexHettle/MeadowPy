@@ -7,7 +7,7 @@ Related docs:
 - [Testing](testing.md)
 - [Architecture](architecture.md)
 - [Release Process](release-process.md)
-- [Contributing](../CONTRIBUTING.md)
+- [Contributing](../../.github/CONTRIBUTING.md)
 
 ## Supported Development Environment
 
@@ -28,26 +28,41 @@ first.
 
 ```text
 .
-|-- meadowpy/
-|   |-- app.py
-|   |-- __main__.py
-|   |-- constants.py
-|   |-- requirements.txt
-|   |-- core/
-|   |-- editor/
-|   |-- resources/
-|   |-- ui/
-|-- dev/
-|   |-- setup-dev.bat
-|   |-- Run Tests.bat
-|   |-- pytest.ini
-|   |-- requirements-dev.txt
-|   |-- tests/
-|-- docs/
+|-- .agents/
+|-- .git/
+|-- .github/
+|   |-- README.md
+|   |-- CONTRIBUTING.md
+|   |-- SECURITY.md
+|-- .gitignore
+|-- MeadowPy.lnk
 |-- setup.bat
-|-- Run MeadowPy.bat
-|-- LICENSE
+|-- MeadowPy/
+|   |-- LICENSE
+|   |-- meadowpy/
+|   |   |-- app.py
+|   |   |-- __main__.py
+|   |   |-- constants.py
+|   |   |-- requirements.txt
+|   |   |-- core/
+|   |   |-- editor/
+|   |   |-- resources/
+|   |   |-- ui/
+|   |-- dev/
+|   |   |-- setup-dev.bat
+|   |   |-- Run Tests.bat
+|   |   |-- pytest.ini
+|   |   |-- requirements-dev.txt
+|   |   |-- tests/
+|   |-- docs/
+|   |-- Run MeadowPy.bat
 ```
+
+The `.agents/` folder is managed by the local development workspace and may be
+absent in other checkouts.
+
+The repository's runnable application is contained in `MeadowPy/`. All paths
+below are relative to that application directory.
 
 Important areas:
 
@@ -87,7 +102,7 @@ Tests should avoid relying on the user's real runtime state.
 
 ## Development Setup
 
-From the project root, run:
+From the `MeadowPy` application directory, run:
 
 ```bat
 dev\setup-dev.bat
@@ -96,7 +111,7 @@ dev\setup-dev.bat
 This calls:
 
 ```bat
-setup.bat --dev
+..\setup.bat --dev
 ```
 
 Development setup installs:
@@ -111,7 +126,7 @@ The development dependency file currently adds:
 
 ## Launch From Source
 
-After setup, launch MeadowPy from the project root:
+After setup, launch MeadowPy from the `MeadowPy` application directory:
 
 ```bat
 .venv\Scripts\python.exe -m meadowpy

@@ -4,7 +4,7 @@ cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
     echo.
     echo  MeadowPy has not been set up yet.
-    echo  Please double-click "setup.bat" first.
+    echo  Please double-click "setup.bat" in the project folder first.
     echo.
     pause
     exit /b 1
@@ -14,7 +14,7 @@ if not exist ".venv\Scripts\python.exe" (
 if %errorlevel% neq 0 (
     echo.
     echo  MeadowPy's virtual environment looks broken.
-    echo  Please run "setup.bat" again to recreate it.
+    echo  Please run the project folder's "setup.bat" again to recreate it.
     echo.
     pause
     exit /b 1

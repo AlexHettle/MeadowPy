@@ -10,16 +10,16 @@ assignees: ""
 
 Link or name the page, such as:
 
-- `docs/getting-started.md`
-- `docs/index.md`
-- `docs/user-guide.md`
-- `docs/ai-setup.md`
-- `docs/troubleshooting.md`
-- `docs/shortcuts.md`
-- `docs/development.md`
-- `docs/testing.md`
-- `docs/architecture.md`
-- `docs/release-process.md`
+- `MeadowPy/docs/getting-started.md`
+- `MeadowPy/docs/index.md`
+- `MeadowPy/docs/user-guide.md`
+- `MeadowPy/docs/ai-setup.md`
+- `MeadowPy/docs/troubleshooting.md`
+- `MeadowPy/docs/shortcuts.md`
+- `MeadowPy/docs/development.md`
+- `MeadowPy/docs/testing.md`
+- `MeadowPy/docs/architecture.md`
+- `MeadowPy/docs/release-process.md`
 
 ## What is wrong or missing?
 

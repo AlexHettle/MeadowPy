@@ -10,6 +10,10 @@ Related docs:
 - [AI Setup](ai-setup.md)
 - [Testing](testing.md)
 
+Unless a section says otherwise, run terminal commands from the `MeadowPy`
+application folder. The installer and shortcut are one level above it in the
+project folder, so the installer is `..\setup.bat`.
+
 ## Where To Find Logs
 
 MeadowPy writes startup, Qt, and shutdown errors to:
@@ -50,7 +54,7 @@ or:
 py -3 --version
 ```
 
-Then run `setup.bat` again.
+Then run `..\setup.bat` again.
 
 ## Python Version Too Old
 
@@ -67,7 +71,7 @@ Fix:
 py -3 --version
 ```
 
-3. Run `setup.bat` again.
+3. Run `..\setup.bat` again.
 
 ## Setup Fails While Creating The Virtual Environment
 
@@ -85,7 +89,7 @@ py -3 -c "import sys; print(sys.version)"
 ```
 
 2. Make sure the MeadowPy folder is in a writable location.
-3. Run `setup.bat` again.
+3. Run `..\setup.bat` again.
 
 If the folder is in a protected location, move it somewhere like Documents and
 retry.
@@ -110,7 +114,7 @@ Fix:
 4. Run setup again:
 
 ```bat
-setup.bat
+..\setup.bat
 ```
 
 If the problem continues, try installing dependencies manually to see the full
@@ -134,7 +138,7 @@ Fix:
 Run:
 
 ```bat
-setup.bat
+..\setup.bat
 ```
 
 The setup script checks `.venv\Scripts\python.exe` and recreates `.venv` if it
@@ -144,7 +148,7 @@ cannot import `sys`.
 
 Symptoms:
 
-- `MeadowPy.lnk` is missing after setup.
+- `..\MeadowPy.lnk` is missing after setup.
 - Setup reports that shortcut creation failed.
 
 Fix:
@@ -174,7 +178,7 @@ Symptoms:
 
 Fix:
 
-1. Open Command Prompt or PowerShell in the project folder.
+1. Open Command Prompt or PowerShell in the `MeadowPy` application folder.
 2. Run:
 
 ```bat
@@ -188,7 +192,7 @@ Fix:
 %USERPROFILE%\.meadowpy\meadowpy.log
 ```
 
-5. Run `setup.bat` again if dependencies appear missing.
+5. Run `..\setup.bat` again if dependencies appear missing.
 
 ## Window Opens But Looks Wrong
 
@@ -310,7 +314,7 @@ Fix:
 1. Run setup again:
 
 ```bat
-setup.bat
+..\setup.bat
 ```
 
 2. Confirm dependencies:
@@ -511,7 +515,7 @@ dev\setup-dev.bat
 or:
 
 ```bat
-setup.bat --dev
+..\setup.bat --dev
 ```
 
 Then run:

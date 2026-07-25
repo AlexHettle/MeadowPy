@@ -194,7 +194,11 @@ def test_saved_file_without_explorer_uses_nearest_marked_project(tmp_path):
 
     target = resolve_lint_target_root(str(source), None)
 
-    repository_root = Path(__file__).resolve().parents[2]
+    repository_root = next(
+        parent
+        for parent in Path(__file__).resolve().parents
+        if (parent / ".git").exists()
+    )
     assert target == str(repository_root)
 
 

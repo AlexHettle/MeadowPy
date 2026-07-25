@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy logo" width="300"><br>
-  <img src="meadowpy/resources/icons/meadowpy_wordmark.svg" alt="MeadowPy" width="280">
+  <img src="../MeadowPy/meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy logo" width="300"><br>
+  <img src="../MeadowPy/meadowpy/resources/icons/meadowpy_wordmark.svg" alt="MeadowPy" width="280">
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
 
-![MeadowPy main interface showing the code editor, file explorer, and output panel](meadowpy/resources/Images/full%20screenshot.png)
+![MeadowPy main interface showing the code editor, file explorer, and output panel](../MeadowPy/meadowpy/resources/Images/full%20screenshot.png)
 
 
 ## In 30 seconds after setup, you can:
@@ -91,8 +91,8 @@ If you're just starting out, MeadowPy removes the friction so you can focus on l
 
 1. **Download** — Click the green **Code** button on GitHub, then **Download ZIP**.
 2. **Extract** — Right-click the ZIP and choose **Extract All**. Pick any folder you like.
-3. **Setup** — Open the extracted folder and double-click **`setup.bat`**. This creates a virtual environment and installs everything MeadowPy needs. You only need to do this once.
-4. **Launch** — Double-click the **MeadowPy** shortcut created by setup, or use **`Run MeadowPy.bat`** if shortcut creation was blocked.
+3. **Setup** — Open the extracted project folder and double-click **`setup.bat`**. This creates a virtual environment inside `MeadowPy` and installs everything the app needs. You only need to do this once.
+4. **Launch** — Double-click the **MeadowPy** shortcut in the project folder, or use **`MeadowPy\Run MeadowPy.bat`** if shortcut creation was blocked.
 
 ## AI Assistant
 
@@ -100,20 +100,20 @@ MeadowPy has a built-in AI assistant powered by [Ollama](https://ollama.com) tha
 
 **AI Chat Panel** — Open the chat sidebar and ask questions in plain English. The AI knows which file you're editing and what function you're in, so it gives relevant answers. Responses stream in token-by-token so you don't have to wait.
 
-![AI chat panel showing a conversation about a Python function](meadowpy/resources/Images/AI%20chat.png)
+![AI chat panel showing a conversation about a Python function](../MeadowPy/meadowpy/resources/Images/AI%20chat.png)
 
 **Right-click any code** to:
 - **Explain this code** — Get a plain-English breakdown of what selected code does
 - **Review & improve** — Get suggestions for cleaner, better code
 - **Generate docstring** — Automatically write a docstring for any function or class
 
-![Right-click context menu showing the Explain, Review, and Generate Docstring options](meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
+![Right-click context menu showing the Explain, Review, and Generate Docstring options](../MeadowPy/meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
 
 **Review Current File** (Ctrl+Shift+R) — The AI reviews your entire file and gives feedback on structure, readability, naming, potential bugs, and performance.
 
 Works with any model you have installed in Ollama — Llama, CodeLlama, DeepSeek Coder, and more. MeadowPy auto-connects when Ollama is running and lets you switch models from the status bar.
 
-![AI file review panel displaying structured feedback on code quality and suggestions](meadowpy/resources/Images/AI%20file%20review.png)
+![AI file review panel displaying structured feedback on code quality and suggestions](../MeadowPy/meadowpy/resources/Images/AI%20file%20review.png)
 
 ## Built for Beginners
 
@@ -121,19 +121,19 @@ MeadowPy is designed from the ground up for people learning to code.
 
 **Welcome screen with templates** — When you first open MeadowPy, you'll see twelve ready-to-run projects, from Hello World and Simple Calculator to Bank Account, Safe Input, and Rock Paper Scissors. One click and you're coding.
 
-![MeadowPy welcome screen showing the current quick-start project templates](meadowpy/resources/Images/Welcome%20screen.png)
+![MeadowPy welcome screen showing the current quick-start project templates](../MeadowPy/meadowpy/resources/Images/Welcome%20screen.png)
 
 **Error messages you can actually understand** — When your code hits an error, MeadowPy translates the traceback into plain English. Over 100 common error patterns are covered, from `NameError` typos to `IndentationError` mix-ups. Each explanation tells you what went wrong and how to fix it.
 
-![Beginner-friendly error panel translating a Python traceback into a plain-English explanation](meadowpy/resources/Images/beginner-friendly%20errors.png)
+![Beginner-friendly error panel translating a Python traceback into a plain-English explanation](../MeadowPy/meadowpy/resources/Images/beginner-friendly%20errors.png)
 
 **"What does this mean?" on any keyword** — Right-click any Python keyword (`for`, `def`, `class`, `try`, etc.) and MeadowPy explains it in simple terms with a code example. Over 50 keywords are documented this way.
 
-![Keyword explanation popup showing a definition and example for the 'for' keyword](meadowpy/resources/Images/Keyword%20explanations.png)
+![Keyword explanation popup showing a definition and example for the 'for' keyword](../MeadowPy/meadowpy/resources/Images/Keyword%20explanations.png)
 
 **Example library** — Browse a categorized collection of fully-commented code examples covering basics, lists, dictionaries, functions, objects, file I/O, and more. Preview the code and open it in a new tab with one click.
 
-![Example library panel showing categories of code samples with a preview pane](meadowpy/resources/Images/example%20library.png)
+![Example library panel showing categories of code samples with a preview pane](../MeadowPy/meadowpy/resources/Images/example%20library.png)
 
 **Keyboard shortcut editor** — Available under Help, a searchable list of shortcuts that can be customized and reset.
 
@@ -179,7 +179,7 @@ MeadowPy catches mistakes before you run your code, and explains them in terms y
 - Beginner-friendly explanations for common runtime errors
 - Optional AI analysis for lint issues and runtime errors
 
-![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](meadowpy/resources/Images/Error%20AI%20tool.png)
+![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](../MeadowPy/meadowpy/resources/Images/Error%20AI%20tool.png)
 
 ### Project Management
 Whether you're working on a single script or a folder full of files, MeadowPy keeps everything within reach.
@@ -198,13 +198,13 @@ Make sure Python 3.11+ is installed and that you checked "Add Python to PATH" du
 You need to run `setup.bat` once before launching the IDE. Double-click it and wait for it to finish.
 
 **Virtual environment looks broken**
-If MeadowPy or the test runner says the virtual environment is broken, rerun `setup.bat` (or `dev\setup-dev.bat` for development). This usually happens after moving the project folder or uninstalling the Python version that originally created `.venv`.
+If MeadowPy or the test runner says the virtual environment is broken, rerun `setup.bat` from the project folder (or `MeadowPy\dev\setup-dev.bat` for development). This usually happens after moving the project folder or uninstalling the Python version that originally created `.venv`.
 
 **MeadowPy won't start**
 Try running `setup.bat` again to reinstall dependencies. If the problem persists, make sure no antivirus software is blocking Python.
 
 **Window closes immediately**
-Open Command Prompt, navigate to the MeadowPy folder, and run `Run MeadowPy.bat` or `.venv\Scripts\python.exe -m meadowpy` to see startup errors. The launcher also writes details to `%USERPROFILE%\.meadowpy\meadowpy.log`.
+Open Command Prompt, navigate to the project's `MeadowPy` folder, and run `Run MeadowPy.bat` or `.venv\Scripts\python.exe -m meadowpy` to see startup errors. The launcher also writes details to `%USERPROFILE%\.meadowpy\meadowpy.log`.
 
 **AI features not working**
 Make sure [Ollama](https://ollama.com/download) is installed and running. MeadowPy connects to it automatically at `localhost:11434`. You need at least one model installed.
@@ -250,7 +250,7 @@ MeadowPy is actively developed. Here's what's coming next:
 
 MeadowPy is a solo project, but feedback from real users is what shapes it.
 
-- **Found a bug?** [Open an issue](../../issues) with what you were doing and what went wrong.
+- **Found a bug?** [Open an issue](../../../issues) with what you were doing and what went wrong.
 - **Have a feature idea?** Open an issue and describe what you'd find useful — especially if you're a beginner who ran into a gap.
 - **Want to contribute code?** Interested in being part of MeadowPy's development? Feel free to contact me (ahettle@depaul.edu) and we can talk about contribution.
 
@@ -259,6 +259,8 @@ If MeadowPy helped you learn something or is something you find useful, a ⭐ on
 ## Development Testing
 
 If you're working on MeadowPy itself, use the developer setup path so the test tools are installed too:
+
+Run the following commands from the project's `MeadowPy` folder.
 
 1. Run **`dev\setup-dev.bat`** once. This installs the app dependencies plus `pytest` and coverage reporting tools.
 2. Run **`dev\Run Tests.bat`** to execute the full automated test suite with coverage.
@@ -280,12 +282,12 @@ It generates coverage outputs under the `dev\` folder:
 - `dev\coverage.xml` for the XML report
 When launched by double-click, `dev\Run Tests.bat` now stays open after the run so you can read the results. If you're running it from an existing terminal and want it to close immediately afterward, set `MEADOWPY_NO_PAUSE=1` first.
 
-To keep the project root cleaner, the internal test suite, dev-only config, test launcher scripts, and generated coverage outputs now live under the `dev\` folder.
+To keep the application directory organized, the internal test suite, dev-only config, test launcher scripts, and generated coverage outputs live under the `dev\` folder.
 
-If you ever move the project folder or remove the Python install that created `.venv`, rerun `setup.bat` or `dev\setup-dev.bat`. MeadowPy now detects broken virtual environments and recreates them automatically.
+If you ever move the project folder or remove the Python install that created `.venv`, rerun the root `setup.bat` or `MeadowPy\dev\setup-dev.bat`. MeadowPy detects broken virtual environments and recreates them automatically.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](../MeadowPy/LICENSE).
 
-You're free to use, modify, and distribute MeadowPy for personal or commercial purposes. See the `LICENSE` file for full details.
+You're free to use, modify, and distribute MeadowPy for personal or commercial purposes. See the [`LICENSE`](../MeadowPy/LICENSE) file for full details.

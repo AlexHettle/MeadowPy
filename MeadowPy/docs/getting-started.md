@@ -47,14 +47,14 @@ If you downloaded MeadowPy as a ZIP file:
 
 1. Right-click the ZIP file.
 2. Choose **Extract All**.
-3. Open the extracted MeadowPy folder.
+3. Open the extracted project folder.
 
 Keep the extracted folder somewhere you can write to, such as Documents. Avoid
 running directly from inside the ZIP viewer.
 
 ## Run Setup
 
-In the MeadowPy project folder, double-click:
+In the extracted project folder, double-click:
 
 ```text
 setup.bat
@@ -64,11 +64,11 @@ The setup script:
 
 1. Finds Python by trying `py -3`, then `python`, then `python3`.
 2. Verifies that Python is 3.11 or newer.
-3. Creates or repairs the local `.venv` virtual environment.
+3. Creates or repairs the `MeadowPy\.venv` virtual environment.
 4. Upgrades `pip`.
-5. Installs dependencies from `meadowpy/requirements.txt`.
+5. Installs dependencies from `MeadowPy\meadowpy\requirements.txt`.
 6. Verifies that PyQt6 can be imported.
-7. Creates a `MeadowPy.lnk` shortcut when possible.
+7. Creates a `MeadowPy.lnk` shortcut in the project folder when possible.
 
 If setup reports that Python was not found, reinstall Python and make sure
 **Add Python to PATH** is enabled.
@@ -87,12 +87,13 @@ MeadowPy.lnk
 or:
 
 ```text
-Run MeadowPy.bat
+MeadowPy\Run MeadowPy.bat
 ```
 
 You can also launch from a terminal:
 
 ```bat
+cd MeadowPy
 .venv\Scripts\python.exe -m meadowpy
 ```
 

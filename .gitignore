@@ -37,15 +37,20 @@ MeadowPy.lnk
 # Claude
 .claude/
 
+# Workspace tooling
+.agents/
+
 # Test tooling
 .coverage
+.coverage.*
 .pytest_cache/
 .pytest_tmp/
 .test-artifacts/
 pytest-cache-files-*/
 coverage.xml
 htmlcov/
-dev/.coverage
-dev/.test-artifacts/
-dev/coverage.xml
-dev/htmlcov/
+MeadowPy/dev/.coverage
+MeadowPy/dev/.coverage.*
+MeadowPy/dev/.test-artifacts/
+MeadowPy/dev/coverage.xml
+MeadowPy/dev/htmlcov/
