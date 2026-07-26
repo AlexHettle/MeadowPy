@@ -86,6 +86,24 @@ def test_open_file_with_explicit_path_reads_and_emits(tmp_path):
     assert recorder.calls == [(str(file_path), "print('hello')")]
 
 
+def test_open_file_ignores_recent_file_update_errors(tmp_path):
+    recent = Mock()
+    recent.add.side_effect = OSError("recent list is unavailable")
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    recorder = SignalRecorder()
+    manager.file_opened.connect(recorder)
+    file_path = tmp_path / "hello.py"
+    file_path.write_text("print('hello')", encoding="utf-8")
+
+    result = manager.open_file(str(file_path))
+
+    assert result == (str(file_path), "print('hello')")
+    assert manager.last_open_error is None
+    assert manager.last_open_error_path is None
+    recent.add.assert_called_once_with(str(file_path))
+    assert recorder.calls == [(str(file_path), "print('hello')")]
+
+
 def test_open_file_returns_none_when_dialog_is_cancelled(monkeypatch):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)

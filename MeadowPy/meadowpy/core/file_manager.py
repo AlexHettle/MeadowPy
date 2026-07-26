@@ -131,7 +131,10 @@ class FileManager(QObject):
             self.last_open_error = exc
             self.last_open_error_path = file_path
             return None
-        self._recent_files.add(file_path)
+        try:
+            self._recent_files.add(file_path)
+        except OSError:
+            pass
         self.file_opened.emit(file_path, content)
         return file_path, content
 
