@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal DisableDelayedExpansion
 
 for %%I in ("%~dp0.") do set "PROJECT_ROOT=%%~fI"
 set "APP_DIR=%PROJECT_ROOT%\MeadowPy"
@@ -33,21 +33,21 @@ set "PYTHON_CMD="
 
 :: Try py launcher first (most reliable on Windows)
 py -3 --version >nul 2>&1
-if %errorlevel% equ 0 (
+if not errorlevel 1 (
     set "PYTHON_CMD=py -3"
     goto :check_version
 )
 
 :: Try python
 python --version >nul 2>&1
-if %errorlevel% equ 0 (
+if not errorlevel 1 (
     set "PYTHON_CMD=python"
     goto :check_version
 )
 
 :: Try python3
 python3 --version >nul 2>&1
-if %errorlevel% equ 0 (
+if not errorlevel 1 (
     set "PYTHON_CMD=python3"
     goto :check_version
 )
@@ -74,8 +74,8 @@ for /f "tokens=1,2 delims=." %%a in ("%PY_VER%") do (
     set "PY_MINOR=%%b"
 )
 
-if !PY_MAJOR! lss 3 goto :bad_version
-if !PY_MAJOR! equ 3 if !PY_MINOR! lss 11 goto :bad_version
+if %PY_MAJOR% lss 3 goto :bad_version
+if %PY_MAJOR% equ 3 if %PY_MINOR% lss 11 goto :bad_version
 
 echo  Found Python %PY_VER%
 echo.
@@ -97,23 +97,23 @@ exit /b 1
 set "VENV_OK=0"
 if exist ".venv\Scripts\python.exe" (
     .venv\Scripts\python.exe -c "import sys" >nul 2>&1
-    if !errorlevel! equ 0 (
+    if errorlevel 1 (
+        echo  Found a broken virtual environment - recreating...
+        rmdir /s /q ".venv"
+    ) else (
         set "VENV_OK=1"
         echo  Virtual environment already exists - skipping creation.
-    ) else (
-        echo  Found a broken virtual environment - recreating...
-        rmdir /s /q .venv
     )
 )
 
-if !VENV_OK! equ 0 (
+if "%VENV_OK%"=="0" (
     if exist ".venv" (
         echo  Found a broken virtual environment - recreating...
-        rmdir /s /q .venv
+        rmdir /s /q ".venv"
     )
     echo  Creating virtual environment...
     %PYTHON_CMD% -m venv .venv
-    if %errorlevel% neq 0 (
+    if errorlevel 1 (
         echo.
         echo  [ERROR] Failed to create virtual environment.
         echo  Please make sure Python is installed correctly.
@@ -136,7 +136,7 @@ if "%INSTALL_DEV%"=="1" (
     .venv\Scripts\python.exe -m pip install -r meadowpy\requirements.txt -q
 )
 
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo.
     echo  [ERROR] Failed to install dependencies.
     echo  Check your internet connection and try again.
@@ -148,7 +148,7 @@ if %errorlevel% neq 0 (
 :: 5. Quick verification
 :: -----------------------------------------------------------
 .venv\Scripts\python.exe -c "from PyQt6.QtWidgets import QApplication" >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo.
     echo  [WARNING] PyQt6 installed but could not be verified.
     echo  MeadowPy may still work - try launching it.
@@ -159,30 +159,17 @@ if %errorlevel% neq 0 (
 :: 6. Create desktop-style shortcut with icon
 :: -----------------------------------------------------------
 echo  Creating MeadowPy shortcut...
-set "GUI_PYTHON=%APP_DIR%\.venv\Scripts\pythonw.exe"
-set "SHORTCUT_TARGET=%APP_DIR%\meadowpy\resources\launch.vbs"
-set "SHORTCUT_ARGS="
+powershell -NoProfile -ExecutionPolicy Bypass -File "%APP_DIR%\meadowpy\resources\create_shortcut.ps1" -ShortcutPath "%PROJECT_ROOT%\MeadowPy.lnk" -AppDirectory "%APP_DIR%"
+if errorlevel 1 goto :shortcut_failed
+if not exist "%PROJECT_ROOT%\MeadowPy.lnk" goto :shortcut_failed
 
-if exist "%GUI_PYTHON%" (
-    set "SHORTCUT_TARGET=%GUI_PYTHON%"
-    set "SHORTCUT_ARGS=-m meadowpy"
-)
+echo  Shortcut created successfully.
+goto :shortcut_done
 
-powershell -NoProfile -Command ^
-  "$ws = New-Object -ComObject WScript.Shell;" ^
-  "$s = $ws.CreateShortcut('%PROJECT_ROOT%\MeadowPy.lnk');" ^
-  "$s.TargetPath = '%SHORTCUT_TARGET%';" ^
-  "$s.Arguments = '%SHORTCUT_ARGS%';" ^
-  "$s.WorkingDirectory = '%APP_DIR%';" ^
-  "$s.IconLocation = '%APP_DIR%\meadowpy\resources\icons\meadowpy.ico,0';" ^
-  "$s.Description = 'Launch MeadowPy IDE';" ^
-  "$s.Save()"
+:shortcut_failed
+echo  [WARNING] Could not create shortcut. You can still use "MeadowPy\Run MeadowPy.bat".
 
-if exist "%PROJECT_ROOT%\MeadowPy.lnk" (
-    echo  Shortcut created successfully.
-) else (
-    echo  [WARNING] Could not create shortcut. You can still use "MeadowPy\Run MeadowPy.bat".
-)
+:shortcut_done
 
 :: -----------------------------------------------------------
 :: Done
