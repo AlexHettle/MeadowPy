@@ -1,20 +1,15 @@
 <p align="center">
-  <img src="../MeadowPy/meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy logo" width="300"><br>
-  <img src="../MeadowPy/meadowpy/resources/icons/meadowpy_wordmark.svg" alt="MeadowPy" width="280">
+  <img src="MeadowPy/meadowpy/resources/icons/meadowpy_256.png" alt="MeadowPy logo" width="300"><br>
+  <img src="MeadowPy/meadowpy/resources/icons/meadowpy_wordmark.svg" alt="MeadowPy" width="280">
 </p>
 
 <p align="center">
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white">
-  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
-  <img alt="AI" src="https://img.shields.io/badge/AI-Ollama-orange">
-  <img alt="Active Development" src="https://img.shields.io/badge/Status-Active%20Development-brightgreen">
-  <img alt="Coverage" src="https://img.shields.io/badge/Coverage-87%25-brightgreen">
+  <img src=".github/assets/readme-badges.svg" alt="Python 3.11+ | Windows 10/11 | MIT License | AI: Ollama | Status: Active Development | Coverage: 87%" width="359">
 </p>
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
 
-![MeadowPy main interface showing the code editor, file explorer, and output panel](../MeadowPy/meadowpy/resources/Images/full%20screenshot.png)
+![MeadowPy main interface showing the code editor, file explorer, and output panel](MeadowPy/meadowpy/resources/Images/full%20screenshot.png)
 
 
 ## In 30 seconds after setup, you can:
@@ -100,20 +95,20 @@ MeadowPy has a built-in AI assistant powered by [Ollama](https://ollama.com) tha
 
 **AI Chat Panel** — Open the chat sidebar and ask questions in plain English. The AI knows which file you're editing and what function you're in, so it gives relevant answers. Responses stream in token-by-token so you don't have to wait.
 
-![AI chat panel showing a conversation about a Python function](../MeadowPy/meadowpy/resources/Images/AI%20chat.png)
+![AI chat panel showing a conversation about a Python function](MeadowPy/meadowpy/resources/Images/AI%20chat.png)
 
 **Right-click any code** to:
 - **Explain this code** — Get a plain-English breakdown of what selected code does
 - **Review & improve** — Get suggestions for cleaner, better code
 - **Generate docstring** — Automatically write a docstring for any function or class
 
-![Right-click context menu showing the Explain, Review, and Generate Docstring options](../MeadowPy/meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
+![Right-click context menu showing the Explain, Review, and Generate Docstring options](MeadowPy/meadowpy/resources/Images/explain,%20review,%20and%20improve%20code.png)
 
 **Review Current File** (Ctrl+Shift+R) — The AI reviews your entire file and gives feedback on structure, readability, naming, potential bugs, and performance.
 
 Works with any model you have installed in Ollama — Llama, CodeLlama, DeepSeek Coder, and more. MeadowPy auto-connects when Ollama is running and lets you switch models from the status bar.
 
-![AI file review panel displaying structured feedback on code quality and suggestions](../MeadowPy/meadowpy/resources/Images/AI%20file%20review.png)
+![AI file review panel displaying structured feedback on code quality and suggestions](MeadowPy/meadowpy/resources/Images/AI%20file%20review.png)
 
 ## Built for Beginners
 
@@ -121,19 +116,19 @@ MeadowPy is designed from the ground up for people learning to code.
 
 **Welcome screen with templates** — When you first open MeadowPy, you'll see twelve ready-to-run projects, from Hello World and Simple Calculator to Bank Account, Safe Input, and Rock Paper Scissors. One click and you're coding.
 
-![MeadowPy welcome screen showing the current quick-start project templates](../MeadowPy/meadowpy/resources/Images/Welcome%20screen.png)
+![MeadowPy welcome screen showing the current quick-start project templates](MeadowPy/meadowpy/resources/Images/Welcome%20screen.png)
 
 **Error messages you can actually understand** — When your code hits an error, MeadowPy translates the traceback into plain English. Over 100 common error patterns are covered, from `NameError` typos to `IndentationError` mix-ups. Each explanation tells you what went wrong and how to fix it.
 
-![Beginner-friendly error panel translating a Python traceback into a plain-English explanation](../MeadowPy/meadowpy/resources/Images/beginner-friendly%20errors.png)
+![Beginner-friendly error panel translating a Python traceback into a plain-English explanation](MeadowPy/meadowpy/resources/Images/beginner-friendly%20errors.png)
 
 **"What does this mean?" on any keyword** — Right-click any Python keyword (`for`, `def`, `class`, `try`, etc.) and MeadowPy explains it in simple terms with a code example. Over 50 keywords are documented this way.
 
-![Keyword explanation popup showing a definition and example for the 'for' keyword](../MeadowPy/meadowpy/resources/Images/Keyword%20explanations.png)
+![Keyword explanation popup showing a definition and example for the 'for' keyword](MeadowPy/meadowpy/resources/Images/Keyword%20explanations.png)
 
 **Example library** — Browse a categorized collection of fully-commented code examples covering basics, lists, dictionaries, functions, objects, file I/O, and more. Preview the code and open it in a new tab with one click.
 
-![Example library panel showing categories of code samples with a preview pane](../MeadowPy/meadowpy/resources/Images/example%20library.png)
+![Example library panel showing categories of code samples with a preview pane](MeadowPy/meadowpy/resources/Images/example%20library.png)
 
 **Keyboard shortcut editor** — Available under Help, a searchable list of shortcuts that can be customized and reset.
 
@@ -179,7 +174,7 @@ MeadowPy catches mistakes before you run your code, and explains them in terms y
 - Beginner-friendly explanations for common runtime errors
 - Optional AI analysis for lint issues and runtime errors
 
-![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](../MeadowPy/meadowpy/resources/Images/Error%20AI%20tool.png)
+![Problems panel showing a linting error with an AI-powered explanation and fix suggestion](MeadowPy/meadowpy/resources/Images/Error%20AI%20tool.png)
 
 ### Project Management
 Whether you're working on a single script or a folder full of files, MeadowPy keeps everything within reach.
@@ -250,7 +245,7 @@ MeadowPy is actively developed. Here's what's coming next:
 
 MeadowPy is a solo project, but feedback from real users is what shapes it.
 
-- **Found a bug?** [Open an issue](../../../issues) with what you were doing and what went wrong.
+- **Found a bug?** [Open an issue](../../issues) with what you were doing and what went wrong.
 - **Have a feature idea?** Open an issue and describe what you'd find useful — especially if you're a beginner who ran into a gap.
 - **Want to contribute code?** Interested in being part of MeadowPy's development? Feel free to contact me (ahettle@depaul.edu) and we can talk about contribution.
 
@@ -288,6 +283,6 @@ If you ever move the project folder or remove the Python install that created `.
 
 ## License
 
-This project is licensed under the [MIT License](../MeadowPy/LICENSE).
+This project is licensed under the [MIT License](MeadowPy/LICENSE).
 
-You're free to use, modify, and distribute MeadowPy for personal or commercial purposes. See the [`LICENSE`](../MeadowPy/LICENSE) file for full details.
+You're free to use, modify, and distribute MeadowPy for personal or commercial purposes. See the [`LICENSE`](MeadowPy/LICENSE) file for full details.
