@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import Mock
 
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.settings import Settings
@@ -75,3 +76,22 @@ def test_get_files_returns_copy(tmp_path):
     assert files == [stored_files[0], "mutated"]
     assert manager.get_files() == stored_files
     assert settings.get("window.recent_files") == stored_files
+
+
+def test_updates_remain_usable_when_settings_cannot_be_saved(tmp_path):
+    settings, manager = make_manager(tmp_path, max_files=5)
+    settings.save = Mock(side_effect=OSError("settings are read-only"))
+    recorder = SignalRecorder()
+    manager.recent_files_changed.connect(recorder)
+
+    alpha = str((tmp_path / "alpha.py").resolve())
+    beta = str((tmp_path / "beta.py").resolve())
+
+    manager.add(alpha)
+    manager.remove(alpha)
+    manager.add(beta)
+    manager.clear()
+
+    assert manager.get_files() == []
+    assert recorder.calls == [([alpha],), ([],), ([beta],), ([],)]
+    assert settings.save.call_count == 4

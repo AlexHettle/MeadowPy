@@ -32,26 +32,29 @@ class RecentFilesManager(QObject):
         # Trim to max
         files = files[: self._max_files]
 
-        self._settings.set("window.recent_files", files)
-        self._settings.save()
-        self.recent_files_changed.emit(files)
+        self._store_files(files)
 
     def remove(self, file_path: str) -> None:
         """Remove a specific file from the list."""
         normalized = str(Path(file_path).resolve())
         files = self.get_files()
         files = [f for f in files if f != normalized]
-        self._settings.set("window.recent_files", files)
-        self._settings.save()
-        self.recent_files_changed.emit(files)
+        self._store_files(files)
 
     def clear(self) -> None:
         """Clear the entire recent files list."""
-        self._settings.set("window.recent_files", [])
-        self._settings.save()
-        self.recent_files_changed.emit([])
+        self._store_files([])
 
     def get_files(self) -> list[str]:
         """Return the current recent files list."""
         files = self._settings.get("window.recent_files", [])
         return list(files) if files else []
+
+    def _store_files(self, files: list[str]) -> None:
+        """Update the list, treating persistence as a best-effort operation."""
+        self._settings.set("window.recent_files", files)
+        try:
+            self._settings.save()
+        except OSError:
+            pass
+        self.recent_files_changed.emit(files)
