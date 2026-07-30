@@ -276,6 +276,7 @@ class MeadowPyApp:
                     content,
                     large_file_mode=large_file_mode,
                 )
+                self._recent_files.add(str(path))
 
         self._set_splash_status("Finalizing startup...")
 

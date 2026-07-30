@@ -76,6 +76,10 @@ class FakeSettings:
 class FakeRecentFiles:
     def __init__(self, settings):
         self.settings = settings
+        self.added = []
+
+    def add(self, path):
+        self.added.append(path)
 
 
 class FakeFileManager:
@@ -251,6 +255,7 @@ def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
     assert window.opened == [
         (str(opened_file), f"contents from {opened_file}")
     ]
+    assert window.recent_files.added == [str(opened_file)]
     assert window.children[0].fonts == ["app-font"]
     assert window.children[1].fonts == []
     assert window.children[2].fonts == []
