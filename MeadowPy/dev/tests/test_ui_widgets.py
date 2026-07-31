@@ -478,6 +478,29 @@ def test_chat_bubble_html_plain_text_and_link_forwarding(qapp):
     user_bubble.deleteLater()
 
 
+def test_chat_loading_bubble_animates_and_stops_for_streamed_content(qapp):
+    view = ChatView()
+    bubble = view.add_loading_bubble("#445566")
+    spinner = bubble._spinner
+
+    assert spinner is not None
+    assert spinner._timer.isActive()
+    assert spinner._color.name() == "#445566"
+    assert bubble.plain_text() == "Thinking…"
+    assert not spinner.grab().isNull()
+
+    initial_angle = spinner._angle
+    spinner._advance()
+    assert spinner._angle != initial_angle
+
+    bubble.set_html("Response started")
+
+    assert bubble._spinner is None
+    assert not spinner._timer.isActive()
+    assert bubble.plain_text() == "Response started"
+    view.deleteLater()
+
+
 def test_chat_view_scroll_to_value_clamps_to_scrollbar_range(qapp):
     view = ChatView()
     scrollbar = view.verticalScrollBar()

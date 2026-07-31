@@ -461,6 +461,8 @@ class AIChatPanel(QDockWidget):
         """Ignore late AI stream updates while the main window is closing."""
         self._shutting_down = True
         self._streaming = False
+        if self._streaming_bubble is not None:
+            self._streaming_bubble.stop_loading()
         self._streaming_bubble = None
         self._current_assistant_text = ""
 
@@ -721,8 +723,8 @@ class AIChatPanel(QDockWidget):
             content_html += '<span style="opacity: 0.55;"> \u2588</span>'
             self._streaming_bubble = self._chat_view.add_bubble("ai", content_html)
         elif self._streaming:
-            self._streaming_bubble = self._chat_view.add_bubble(
-                "ai", '<span style="opacity: 0.6;">Thinking\u2026</span>',
+            self._streaming_bubble = self._chat_view.add_loading_bubble(
+                self._accent_hex,
             )
 
         self._restore_chat_scroll(

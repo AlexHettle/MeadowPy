@@ -915,8 +915,11 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     assert panel._streaming is True
     assert panel._messages == [{"role": "user", "content": "Explain this file"}]
     assert requested.calls[-1][0][-1] == {"role": "user", "content": "Explain this file"}
+    assert panel._streaming_bubble._spinner is not None
+    assert panel._streaming_bubble._spinner._timer.isActive()
 
     panel.append_token("Here is code:\n")
+    assert panel._streaming_bubble._spinner is None
     panel.append_token("```python\nprint('hi')\n```")
     assert "print('hi')" in panel._current_assistant_text
     assert "color:#445566" in panel._format_content_html(
@@ -950,6 +953,11 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     panel.clear_chat()
     assert panel._messages == []
     assert panel._chat_view.get_all_plain_text() == ""
+
+    panel.send_message_programmatic("Wait for shutdown")
+    spinner = panel._streaming_bubble._spinner
+    panel.prepare_for_shutdown()
+    assert not spinner._timer.isActive()
     panel.deleteLater()
 
 

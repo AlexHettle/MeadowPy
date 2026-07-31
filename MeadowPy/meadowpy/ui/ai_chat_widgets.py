@@ -1,7 +1,7 @@
 """Reusable widgets for the AI chat panel."""
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QKeyEvent, QTextDocument
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QKeyEvent, QPainter, QPen, QTextDocument
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -14,6 +14,47 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+class LoadingSpinner(QWidget):
+    """Small accent-colored spinner used while the AI prepares a response."""
+
+    def __init__(self, color: str, parent=None):
+        super().__init__(parent)
+        self._color = QColor(color)
+        self._angle = 0
+        self.setFixedSize(14, 14)
+        self.setAccessibleName("Loading")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(80)
+        self._timer.timeout.connect(self._advance)
+        self._timer.start()
+
+    def _advance(self) -> None:
+        self._angle = (self._angle - 30) % 360
+        self.update()
+
+    def stop(self) -> None:
+        """Stop animation when the waiting state is no longer visible."""
+        self._timer.stop()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(self._color)
+        pen.setWidthF(2.0)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawArc(
+            QRectF(2, 2, self.width() - 4, self.height() - 4),
+            self._angle * 16,
+            270 * 16,
+        )
 
 
 class ChatInput(QPlainTextEdit):
@@ -45,9 +86,11 @@ class ChatBubble(QFrame):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
 
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 9, 12, 9)
         layout.setSpacing(0)
+
+        self._spinner: LoadingSpinner | None = None
 
         self._label = QLabel()
         self._label.setTextFormat(Qt.TextFormat.RichText)
@@ -62,7 +105,34 @@ class ChatBubble(QFrame):
         layout.addWidget(self._label)
 
     def set_html(self, html_content: str) -> None:
+        self.stop_loading()
         self._label.setText(html_content)
+
+    def set_loading(self, accent_hex: str) -> None:
+        """Show an animated spinner beside the temporary thinking label."""
+        self.stop_loading()
+        self._spinner = LoadingSpinner(accent_hex, self)
+        layout = self.layout()
+        layout.setSpacing(7)
+        layout.insertWidget(
+            0,
+            self._spinner,
+            0,
+            Qt.AlignmentFlag.AlignVCenter,
+        )
+        self._label.setText('<span style="opacity: 0.6;">Thinking…</span>')
+
+    def stop_loading(self) -> None:
+        """Remove the spinner while preserving the bubble for streamed text."""
+        if self._spinner is None:
+            return
+        spinner = self._spinner
+        self._spinner = None
+        spinner.stop()
+        spinner.hide()
+        self.layout().removeWidget(spinner)
+        self.layout().setSpacing(0)
+        spinner.deleteLater()
 
     def html(self) -> str:
         return self._label.text()
@@ -121,6 +191,11 @@ class ChatView(QScrollArea):
 
     def clear(self) -> None:
         for row in self._rows:
+            layout = row.layout()
+            for index in range(layout.count()):
+                widget = layout.itemAt(index).widget()
+                if isinstance(widget, ChatBubble):
+                    widget.stop_loading()
             self._inner_layout.removeWidget(row)
             row.setParent(None)
             row.deleteLater()
@@ -133,6 +208,15 @@ class ChatView(QScrollArea):
         bubble.set_html(html_content)
         bubble.link_clicked.connect(self.link_clicked.emit)
         self._append_row(bubble, align=("right" if role == "user" else "left"))
+        self._constrain_widths()
+        return bubble
+
+    def add_loading_bubble(self, accent_hex: str) -> ChatBubble:
+        """Append the animated AI waiting bubble and return it."""
+        bubble = ChatBubble("ai")
+        bubble.set_loading(accent_hex)
+        bubble.link_clicked.connect(self.link_clicked.emit)
+        self._append_row(bubble, align="left")
         self._constrain_widths()
         return bubble
 
