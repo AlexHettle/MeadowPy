@@ -86,6 +86,12 @@ class AIAssistantController(MainWindowController):
         editor = self._tab_manager.current_editor()
         return is_python_file_path(getattr(editor, "file_path", None))
 
+    @staticmethod
+    def _display_request(summary: str, content: str, language: str = "") -> str:
+        """Build a concise visible request that preserves its source context."""
+        visible_content = content.rstrip("\r\n")
+        return f"{summary}:\n\n```{language}\n{visible_content}\n```"
+
     def _on_ai_explain_requested(self, code: str) -> None:
         """Handle 'Explain this code' from the editor context menu."""
         if self._current_editor_uses_python_mode():
@@ -93,13 +99,22 @@ class AIAssistantController(MainWindowController):
                 "Please explain the following Python code in simple terms:\n\n"
                 f"```python\n{code}\n```"
             )
+            display_text = self._display_request(
+                "Explain this code",
+                code,
+                "python",
+            )
         else:
             prompt = (
                 "Please explain the following text in simple terms:\n\n"
                 f"```\n{code}\n```"
             )
+            display_text = self._display_request("Explain this text", code)
         # Send it through the chat panel as if the user typed it
-        self._ai_chat_panel.send_message_programmatic(prompt)
+        self._ai_chat_panel.send_message_programmatic(
+            prompt,
+            display_text=display_text,
+        )
 
     def _on_ai_improve_requested(self, code: str) -> None:
         """Handle 'Review & improve' from the editor context menu."""
@@ -113,7 +128,14 @@ class AIAssistantController(MainWindowController):
             "improved version. Keep your suggestions beginner-friendly:\n\n"
             f"```python\n{code}\n```"
         )
-        self._ai_chat_panel.send_message_programmatic(prompt)
+        self._ai_chat_panel.send_message_programmatic(
+            prompt,
+            display_text=self._display_request(
+                "Review and improve this code",
+                code,
+                "python",
+            ),
+        )
 
     def action_ai_review_file(self) -> None:
         """Send the entire current file to the AI for a code review."""
@@ -129,6 +151,7 @@ class AIAssistantController(MainWindowController):
 
         filename = editor.display_name
         if is_python_file_path(getattr(editor, "file_path", None)):
+            display_language = "python"
             prompt = (
                 f"Please review the entire Python file \"{filename}\" below. "
                 "Give feedback on:\n"
@@ -141,6 +164,7 @@ class AIAssistantController(MainWindowController):
                 f"```python\n{content}\n```"
             )
         else:
+            display_language = ""
             prompt = (
                 f"Please review the entire text file \"{filename}\" below. "
                 "Give feedback on:\n"
@@ -152,7 +176,14 @@ class AIAssistantController(MainWindowController):
                 "Keep your review beginner-friendly and constructive:\n\n"
                 f"```\n{content}\n```"
             )
-        self._ai_chat_panel.send_message_programmatic(prompt)
+        self._ai_chat_panel.send_message_programmatic(
+            prompt,
+            display_text=self._display_request(
+                f'Review "{filename}"',
+                content,
+                display_language,
+            ),
+        )
 
     def _on_ai_docstring_requested(self, code: str, insert_line: int) -> None:
         """Handle 'Generate docstring' from the editor context menu."""
@@ -190,7 +221,14 @@ class AIAssistantController(MainWindowController):
                 body_indent = def_indent + 4
             editor.setCursorPosition(insert_line, 0)
 
-        self._ai_chat_panel.send_message_programmatic(prompt)
+        self._ai_chat_panel.send_message_programmatic(
+            prompt,
+            display_text=self._display_request(
+                "Generate a docstring for this code",
+                code,
+                "python",
+            ),
+        )
 
     def _on_output_ai_fix_requested(self, error_text: str) -> None:
         """Handle 'Fix with AI' from the output panel (runtime errors)."""
@@ -215,7 +253,20 @@ class AIAssistantController(MainWindowController):
                 "Please explain what went wrong and how to fix it.\n\n"
                 f"```\n{error_text}\n```"
             )
-        self._ai_chat_panel.send_message_programmatic(prompt)
+        display_text = self._display_request(
+            "Help me fix this error",
+            error_text,
+        )
+        if code_context:
+            display_text += "\n\n" + self._display_request(
+                "Code",
+                code_context,
+                "python",
+            )
+        self._ai_chat_panel.send_message_programmatic(
+            prompt,
+            display_text=display_text,
+        )
 
     def _on_lint_ai_fix_requested(
         self, code: str, line: int, message: str
@@ -263,7 +314,17 @@ class AIAssistantController(MainWindowController):
                 f"```python\n{snippet}\n```\n\n"
             )
         prompt += "Please explain what this means and how to fix it."
-        self._ai_chat_panel.send_message_programmatic(prompt)
+        display_text = f"Explain this code issue:\n\n{code}: {message}"
+        if snippet_lines:
+            display_text += "\n\n" + self._display_request(
+                "Relevant code",
+                snippet,
+                "python",
+            )
+        self._ai_chat_panel.send_message_programmatic(
+            prompt,
+            display_text=display_text,
+        )
 
     def _on_code_insert_requested(self, code: str) -> None:
         """Insert AI-generated code at the current cursor position."""

@@ -941,9 +941,23 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     panel.show_error("Ollama is unavailable")
     assert panel._messages[-1] == {"role": "error", "content": "Ollama is unavailable"}
 
-    panel.send_message_programmatic("Try again")
+    hidden_prompt = "Use these detailed retry instructions and source context"
+    display_text = "Try again:\n\n```python\nprint('hi')\n```"
+    panel.send_message_programmatic(hidden_prompt, display_text=display_text)
     assert panel._streaming is True
-    assert requested.calls[-1][0][-1] == {"role": "user", "content": "Try again"}
+    assert panel._messages[-1] == {
+        "role": "user",
+        "content": hidden_prompt,
+        "display_content": display_text,
+    }
+    assert requested.calls[-1][0][-1] == {
+        "role": "user",
+        "content": hidden_prompt,
+    }
+    visible_chat = panel._chat_view.get_all_plain_text()
+    assert "Try again" in visible_chat
+    assert "print('hi')" in visible_chat
+    assert hidden_prompt not in visible_chat
     panel._current_assistant_text = "partial answer"
     panel._on_stop()
     assert stopped.calls == [()]

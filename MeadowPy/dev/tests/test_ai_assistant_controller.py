@@ -8,11 +8,13 @@ from meadowpy.ui.controllers.window_context import MainWindowContext
 class FakeChatPanel:
     def __init__(self):
         self.prompts = []
+        self.display_texts = []
         self.context = None
         self.model_names = []
 
-    def send_message_programmatic(self, prompt):
+    def send_message_programmatic(self, prompt, *, display_text=None):
         self.prompts.append(prompt)
+        self.display_texts.append(display_text)
 
     def update_editor_context(self, **kwargs):
         self.context = kwargs
@@ -167,6 +169,9 @@ def test_explain_selected_code_builds_beginner_prompt():
 
     assert "explain" in window._ai_chat_panel.prompts[0].lower()
     assert "x = 1" in window._ai_chat_panel.prompts[0]
+    assert window._ai_chat_panel.display_texts == [
+        "Explain this code:\n\n```python\nx = 1\n```"
+    ]
 
 
 def test_review_file_includes_filename_and_code():
@@ -177,6 +182,10 @@ def test_review_file_includes_filename_and_code():
 
     assert "demo.py" in window._ai_chat_panel.prompts[0]
     assert "def main()" in window._ai_chat_panel.prompts[0]
+    display_text = window._ai_chat_panel.display_texts[0]
+    assert display_text.startswith('Review "demo.py":')
+    assert "def main()" in display_text
+    assert "Code structure and organization" not in display_text
 
 
 def test_review_file_uses_text_prompt_for_saved_non_python_editor():
@@ -211,6 +220,9 @@ def test_selected_text_explain_and_improve_handle_non_python_editor():
     assert len(window._ai_chat_panel.prompts) == 1
     assert "following text" in window._ai_chat_panel.prompts[0]
     assert "```python" not in window._ai_chat_panel.prompts[0]
+    assert window._ai_chat_panel.display_texts == [
+        "Explain this text:\n\n```\nhello\n```"
+    ]
 
 
 def test_ai_context_finds_enclosing_function():
@@ -359,6 +371,21 @@ def test_ai_improve_docstring_runtime_and_lint_prompts_include_context():
     assert "1: def greet(name):" in prompts[3]
     assert "2:     value = name.upper()  # <-- issue here" in prompts[3]
     assert "4:     return value" in prompts[3]
+    display_texts = window._ai_chat_panel.display_texts
+    assert display_texts[0].startswith("Review and improve this code:")
+    assert "x=1" in display_texts[0]
+    assert "Consider readability" not in display_texts[0]
+    assert display_texts[1].startswith("Generate a docstring for this code:")
+    assert "def greet(name)" in display_texts[1]
+    assert "IMPORTANT rules" not in display_texts[1]
+    assert display_texts[2].startswith("Help me fix this error:")
+    assert "NameError: missing" in display_texts[2]
+    assert "def greet(name)" in display_texts[2]
+    assert "Please explain" not in display_texts[2]
+    assert display_texts[3].startswith("Explain this code issue:")
+    assert "F821: undefined name" in display_texts[3]
+    assert "value = name.upper()" in display_texts[3]
+    assert "Please explain" not in display_texts[3]
 
 
 def test_ai_runtime_and_lint_prompts_handle_missing_editor_context():
@@ -373,6 +400,8 @@ def test_ai_runtime_and_lint_prompts_handle_missing_editor_context():
     assert "ZeroDivisionError" in window._ai_chat_panel.prompts[0]
     assert "W291" in window._ai_chat_panel.prompts[1]
     assert "relevant code" not in window._ai_chat_panel.prompts[1]
+    assert "ZeroDivisionError" in window._ai_chat_panel.display_texts[0]
+    assert "W291: trailing whitespace" in window._ai_chat_panel.display_texts[1]
 
 
 def test_code_insert_reindents_docstrings_and_generic_insertions():

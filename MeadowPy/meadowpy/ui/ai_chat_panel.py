@@ -298,6 +298,16 @@ class AIChatPanel(QDockWidget):
 
         return "".join(parts)
 
+    def _build_request_messages(self) -> list[dict[str, str]]:
+        """Return model-facing history without chat-only display metadata."""
+        messages = [{"role": "system", "content": self._build_system_prompt()}]
+        messages.extend(
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in self._messages
+            if msg["role"] in ("user", "assistant")
+        )
+        return messages
+
     def set_model_name(self, model: str) -> None:
         """Update the model label in the header: ``ollama \u00B7 modelname``."""
         if model:
@@ -407,11 +417,16 @@ class AIChatPanel(QDockWidget):
         })
         self._render_chat()
 
-    def send_message_programmatic(self, text: str) -> None:
+    def send_message_programmatic(
+        self,
+        text: str,
+        *,
+        display_text: str | None = None,
+    ) -> None:
         """Send a message as if the user typed it (used by context menu actions).
 
-        Shows the chat panel, appends the message, and emits chat_requested
-        so the AI responds immediately.
+        ``text`` is retained in model history, while optional ``display_text``
+        provides a concise user-facing bubble for built-in prompt templates.
         """
         if not text.strip() or self._streaming:
             return
@@ -421,7 +436,10 @@ class AIChatPanel(QDockWidget):
         self.raise_()
 
         # Append user message
-        self._messages.append({"role": "user", "content": text})
+        message = {"role": "user", "content": text}
+        if display_text and display_text.strip():
+            message["display_content"] = display_text.strip()
+        self._messages.append(message)
         self._trim_history()
 
         # Set streaming state
@@ -434,12 +452,7 @@ class AIChatPanel(QDockWidget):
         self._render_chat()
 
         # Build the full message list (system prompt + history)
-        full_messages = [{"role": "system", "content": self._build_system_prompt()}]
-        for msg in self._messages:
-            if msg["role"] in ("user", "assistant"):
-                full_messages.append(msg)
-
-        self.chat_requested.emit(full_messages)
+        self.chat_requested.emit(self._build_request_messages())
 
     def clear_chat(self) -> None:
         """Reset the conversation."""
@@ -663,12 +676,7 @@ class AIChatPanel(QDockWidget):
         self._render_chat()
 
         # Build the full message list (system prompt + history)
-        full_messages = [{"role": "system", "content": self._build_system_prompt()}]
-        for msg in self._messages:
-            if msg["role"] in ("user", "assistant"):
-                full_messages.append(msg)
-
-        self.chat_requested.emit(full_messages)
+        self.chat_requested.emit(self._build_request_messages())
 
     def _trim_history(self) -> None:
         """Keep only the last MAX_HISTORY_MESSAGES messages."""
@@ -696,7 +704,8 @@ class AIChatPanel(QDockWidget):
             role = msg["role"]
 
             if role == "user":
-                content_html = html.escape(msg["content"]).replace("\n", "<br>")
+                visible_content = msg.get("display_content", msg["content"])
+                content_html = html.escape(visible_content).replace("\n", "<br>")
                 self._chat_view.add_bubble("user", content_html)
             elif role == "assistant":
                 content_html = self._format_content_html(
