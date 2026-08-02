@@ -120,12 +120,19 @@ def test_shortcut_helper_preserves_special_character_paths(short_tmp_path):
     )
     shortcut = json.loads(inspected.stdout)
 
-    assert shortcut == {
-        "TargetPath": str(pythonw_path),
-        "Arguments": "-m meadowpy",
-        "WorkingDirectory": str(app_dir),
-        "IconLocation": f"{icon_path},0",
+    assert set(shortcut) == {
+        "TargetPath",
+        "Arguments",
+        "WorkingDirectory",
+        "IconLocation",
     }
+    assert shortcut["Arguments"] == "-m meadowpy"
+    assert Path(shortcut["TargetPath"]).samefile(pythonw_path)
+    assert Path(shortcut["WorkingDirectory"]).samefile(app_dir)
+
+    shortcut_icon, shortcut_icon_index = shortcut["IconLocation"].rsplit(",", 1)
+    assert Path(shortcut_icon).samefile(icon_path)
+    assert shortcut_icon_index == "0"
 
 
 def test_run_batch_launches_from_special_character_path(tmp_path):
