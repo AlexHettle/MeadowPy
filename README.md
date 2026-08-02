@@ -225,11 +225,11 @@ MeadowPy is actively developed. Here's what's coming next:
 | Keyboard shortcut editor                           | ✅ Completed    |
 | Integrated terminal panel                          | ✅ Completed    |
 | Improved syntax highlighting                       | ✅ Completed    |
+| Implement Github actions                           | ✅ Completed    |
 | MacOS support                                      | 🔄 In progress |
 | LM Studio integration                              | 🔄 In progress |
 | Improve linter customization                       | 🔄 In progress |
 | Plot / output preview                              | 📋 Planned     |
-| Implement Github actions                           | 📋 Planned     |
 | Enhanced AI features/capabilities                  | 📋 Planned     |
 | Multi-cursor editing                               | 📋 Planned     |
 | Snippet / template expansion (e.g. `for`+Tab)      | 📋 Planned     |
