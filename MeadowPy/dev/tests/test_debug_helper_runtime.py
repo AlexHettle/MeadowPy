@@ -15,6 +15,11 @@ import pytest
 from meadowpy.core import debug_helper
 
 
+# Real process and TCP handshakes need extra scheduling headroom on hosted
+# Windows runners, especially while the helper's receiver thread shuts down.
+REAL_HELPER_TIMEOUT_SECONDS = 15
+
+
 def test_debug_helper_validation_and_protocol_failure_branches(
     monkeypatch,
     tmp_path,
@@ -429,7 +434,7 @@ def _run_helper_subprocess(tmp_path, source):
     script.write_text(source, encoding="utf-8")
     helper = os.path.abspath(debug_helper.__file__)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.settimeout(5)
+    server.settimeout(REAL_HELPER_TIMEOUT_SECONDS)
     server.bind(("127.0.0.1", 0))
     server.listen(1)
     process = subprocess.Popen(
@@ -442,7 +447,7 @@ def _run_helper_subprocess(tmp_path, source):
     connection = None
     try:
         connection, _ = server.accept()
-        connection.settimeout(5)
+        connection.settimeout(REAL_HELPER_TIMEOUT_SECONDS)
         recv_buf = bytearray()
         connected_line = debug_helper._recv_line(connection, recv_buf)
         assert connected_line is not None
@@ -460,13 +465,15 @@ def _run_helper_subprocess(tmp_path, source):
             "rejected": {},
         }
 
-        stdout, stderr = process.communicate(timeout=5)
+        stdout, stderr = process.communicate(
+            timeout=REAL_HELPER_TIMEOUT_SECONDS,
+        )
         assert connection.recv(1) == b""
         return process.returncode, json.loads(finished_line), stdout, stderr
     finally:
         if process.poll() is None:
             process.kill()
-            process.wait(timeout=5)
+            process.wait(timeout=REAL_HELPER_TIMEOUT_SECONDS)
         if connection is not None:
             connection.close()
         server.close()
