@@ -198,7 +198,7 @@
         {
           "name": "Dataclasses",
           "desc": "Simple classes with less boilerplate",
-          "code_file": "classes_and_objects/dataclasses.py"
+          "code_file": "classes_and_objects/dataclass_examples.py"
         },
         {
           "name": "Custom Exceptions",

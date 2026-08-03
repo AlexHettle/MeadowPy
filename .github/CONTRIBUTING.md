@@ -189,6 +189,16 @@ Then add the example to:
 meadowpy\resources\examples\catalog.json
 ```
 
+Add a matching execution contract to:
+
+```text
+dev\tests\example_expectations.py
+```
+
+The contract should provide any scripted input and assert the example's
+meaningful output or generated files. Run
+`dev\tests\test_example_library_execution.py` before submitting the change.
+
 ## Coding Guidelines
 
 General guidelines:

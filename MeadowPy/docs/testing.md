@@ -185,8 +185,25 @@ The suite includes coverage for:
 - Search panel lifecycle.
 - UI panels and dialogs.
 - Resource loading.
+- Example-library syntax and isolated execution behavior.
 - Startup helpers.
 - Qt thread helpers.
+
+## Example Library Tests
+
+Every example listed in `meadowpy/resources/examples/catalog.json` has an
+execution contract in `dev/tests/example_expectations.py`. The tests compile
+the source, execute it with the active test interpreter, provide scripted
+input where needed, and verify output and generated files.
+
+Run only these contracts with:
+
+```bat
+.venv\Scripts\python.exe -m pytest -c dev\pytest.ini --no-cov dev\tests\test_example_library_execution.py -q
+```
+
+The HTTP example uses a local test server. The suite does not require access
+to a public API.
 
 ## When To Add Tests
 

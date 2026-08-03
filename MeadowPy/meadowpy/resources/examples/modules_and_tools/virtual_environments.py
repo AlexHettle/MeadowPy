@@ -28,11 +28,12 @@ print("  pip freeze > req.txt       Save dependencies")
 print("  pip uninstall <package>    Remove a package")
 
 # === Let's check what's installed right now ===
-import pkg_resources
+# importlib.metadata is built into Python, so no extra package is needed.
+from importlib.metadata import distributions
 
 installed = sorted(
-    [(d.project_name, d.version)
-     for d in pkg_resources.working_set],
+    [((d.metadata.get("Name") or "Unknown"), d.version)
+     for d in distributions()],
     key=lambda x: x[0].lower()
 )
 

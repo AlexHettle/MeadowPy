@@ -18,8 +18,9 @@ print(f"\nCurrent time: {now.strftime('%H:%M')}")
 
 # === Exploring a module ===
 import os
+from getpass import getuser
 print(f"\nCurrent directory: {os.getcwd()}")
-print(f"Your username: {os.getlogin()}")
+print(f"Your username: {getuser()}")
 
 # === Using the platform module ===
 import platform

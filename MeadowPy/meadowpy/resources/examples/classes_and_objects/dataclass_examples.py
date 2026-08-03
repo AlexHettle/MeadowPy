@@ -4,6 +4,7 @@
 
 from dataclasses import dataclass, field
 
+
 # === Without dataclass (lots of boilerplate) ===
 # class Point:
 #     def __init__(self, x, y):
@@ -18,13 +19,15 @@ class Point:
     x: float
     y: float
 
+
 p1 = Point(3, 4)
 p2 = Point(3, 4)
 p3 = Point(1, 2)
 
 print(f"p1 = {p1}")           # Auto __repr__
-print(f"p1 == p2: {p1 == p2}") # Auto __eq__
+print(f"p1 == p2: {p1 == p2}")  # Auto __eq__
 print(f"p1 == p3: {p1 == p3}")
+
 
 # === Default values and fields ===
 @dataclass
@@ -36,6 +39,7 @@ class Student:
 
     def is_passing(self):
         return self.grade not in ("F", "N/A")
+
 
 alice = Student("Alice", 15, "A")
 bob = Student("Bob", 14)  # Uses defaults

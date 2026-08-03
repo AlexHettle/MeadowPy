@@ -308,9 +308,22 @@ To add an example:
 
 1. Create a readable `.py` example file in the appropriate category folder.
 2. Add an entry to `catalog.json`.
-3. Keep example code beginner-friendly and well-commented.
-4. Run tests.
-5. If the category or behavior changes, update [User Guide](user-guide.md).
+3. Add its execution contract to
+   `dev/tests/example_expectations.py`, including scripted input and expected
+   output or files.
+4. Keep example code beginner-friendly and well-commented.
+5. Run the focused example tests:
+
+   ```bat
+   .venv\Scripts\python.exe -m pytest -c dev\pytest.ini --no-cov dev\tests\test_example_library_execution.py -q
+   ```
+
+6. Run the full test suite.
+7. If the category or behavior changes, update [User Guide](user-guide.md).
+
+The execution suite compiles every cataloged source file and runs each example
+in an isolated temporary directory. It does not permit missing contracts,
+unexpected files, uncontrolled network access, tracebacks, or nonzero exits.
 
 ## Adding Resources
 
