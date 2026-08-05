@@ -167,6 +167,24 @@ When editing docs:
 If this repository is hosted on GitHub, use the documentation issue template
 for stale, missing, confusing, or incorrect docs.
 
+## Quick Start Template Contributions
+
+Quick Start templates should be beginner-friendly, well-commented, safe to
+run, and focused on a small project. Add or update templates in:
+
+```text
+meadowpy\ui\welcome_templates.py
+```
+
+Add matching execution scenarios to:
+
+```text
+dev\tests\quick_start_expectations.py
+```
+
+Scenarios should exercise meaningful input, output, error, and file paths.
+Run `dev\tests\test_quick_start_templates.py` before submitting the change.
+
 ## Example Library Contributions
 
 Examples should be:

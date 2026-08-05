@@ -290,6 +290,32 @@ in `_pending_changes`, then writes them to `Settings` on Apply or OK.
 When a preference should update open editors immediately, handle it in
 `WorkspaceController._on_settings_changed()`.
 
+## Adding Quick Start Templates
+
+Welcome-screen Quick Start templates are defined in:
+
+```text
+meadowpy/ui/welcome_templates.py
+```
+
+Every template must have one or more execution scenarios in:
+
+```text
+dev/tests/quick_start_expectations.py
+```
+
+Scenarios provide scripted input and verify meaningful output, generated
+files, error recovery, or other observable behavior. Run the focused suite
+after adding or changing a template:
+
+```bat
+.venv\Scripts\python.exe -m pytest -c dev\pytest.ini --no-cov dev\tests\test_quick_start_templates.py -q
+```
+
+The suite validates template metadata, compiles every embedded code string,
+and executes each scenario in an isolated temporary directory. Turtle Graphics
+uses a headless turtle stub so CI never opens or waits on a real window.
+
 ## Adding Example Library Entries
 
 The example library is driven by:

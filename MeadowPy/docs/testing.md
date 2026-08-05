@@ -185,6 +185,7 @@ The suite includes coverage for:
 - Search panel lifecycle.
 - UI panels and dialogs.
 - Resource loading.
+- Quick Start template syntax and isolated execution behavior.
 - Example-library syntax and isolated execution behavior.
 - Startup helpers.
 - Qt thread helpers.
@@ -204,6 +205,22 @@ Run only these contracts with:
 
 The HTTP example uses a local test server. The suite does not require access
 to a public API.
+
+## Quick Start Template Tests
+
+Every template in `meadowpy/ui/welcome_templates.py` has one or more execution
+scenarios in `dev/tests/quick_start_expectations.py`. The suite validates the
+template fields, compiles each embedded code string, supplies scripted input,
+and checks output and file side effects in an isolated temporary directory.
+
+Run only the Quick Start contracts with:
+
+```bat
+.venv\Scripts\python.exe -m pytest -c dev\pytest.ini --no-cov dev\tests\test_quick_start_templates.py -q
+```
+
+Random templates use invariant-based assertions. Turtle Graphics uses a fake
+turtle module that records drawing calls instead of opening a GUI.
 
 ## When To Add Tests
 
