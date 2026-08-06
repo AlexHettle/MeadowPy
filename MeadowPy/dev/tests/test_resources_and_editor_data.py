@@ -1,7 +1,9 @@
 import json
+import keyword
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from PyQt6.Qsci import QsciLexerPython
 
 from meadowpy.constants import APP_NAME, DEFAULT_SETTINGS, DEFAULT_WINDOW_STATE
@@ -79,11 +81,24 @@ class FakeApis:
         self.prepared = True
 
 
-def test_keyword_help_entries_have_explanations_and_examples():
-    assert "for" in KEYWORD_HELP
-    assert KEYWORD_HELP["for"]["explanation"]
-    assert "print" in KEYWORD_HELP
-    assert "example" in KEYWORD_HELP["print"]
+def test_keyword_help_covers_every_python_keyword():
+    assert set(keyword.kwlist) <= set(KEYWORD_HELP)
+
+
+@pytest.mark.parametrize("topic", KEYWORD_HELP)
+def test_keyword_help_entries_are_complete_and_valid_python(topic):
+    entry = KEYWORD_HELP[topic]
+
+    assert isinstance(topic, str)
+    assert topic.strip()
+    assert isinstance(entry, dict)
+    assert set(entry) == {"explanation", "example"}
+
+    for field in ("explanation", "example"):
+        assert isinstance(entry[field], str)
+        assert entry[field].strip()
+
+    compile(entry["example"], f"<keyword-help:{topic}>", "exec")
 
 
 def test_example_library_has_categories_and_examples():
