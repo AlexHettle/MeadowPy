@@ -21,19 +21,19 @@ TYPE_VALUE_PATTERNS: list[ErrorPattern] = [
     ),
     (
         re.compile(
-            r"TypeError: '(.+)' not supported between instances of "
-            r"'(.+)' and '(.+)'"
-        ),
-        "You can't compare a {1} with a {2} using {0}. Make sure "
-        "both values are the same type before comparing.",
-    ),
-    (
-        re.compile(
             r"TypeError: (.+) not supported between instances of "
             r"'NoneType' and"
         ),
         "You're comparing None with another value. A variable is "
         "unexpectedly None — check for missing return statements.",
+    ),
+    (
+        re.compile(
+            r"TypeError: '(.+)' not supported between instances of "
+            r"'(.+)' and '(.+)'"
+        ),
+        "You can't compare a {1} with a {2} using {0}. Make sure "
+        "both values are the same type before comparing.",
     ),
     (
         re.compile(r"TypeError: 'NoneType' object is not (.+)"),
