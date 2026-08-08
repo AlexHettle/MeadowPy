@@ -1,9 +1,14 @@
+from collections import Counter
+
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
 
+from meadowpy.constants import DEFAULT_SETTINGS
 from meadowpy.core.settings import Settings
 from meadowpy.core.shortcuts import (
     SHORTCUT_OVERRIDES_KEY,
+    SHORTCUTS,
+    _shortcut_is_assignable,
     all_shortcuts,
     event_matches_shortcut,
     find_shortcut_conflict,
@@ -29,6 +34,54 @@ class MemorySettings:
 
     def set(self, key, value):
         self.values[key] = value
+
+
+def test_shortcut_registry_has_unique_ids_valid_defaults_and_no_conflicts():
+    assert SHORTCUTS
+    assert SHORTCUT_OVERRIDES_KEY in DEFAULT_SETTINGS
+
+    ids = [definition.id for definition in SHORTCUTS]
+    duplicate_ids = sorted(
+        shortcut_id
+        for shortcut_id, count in Counter(ids).items()
+        if count > 1
+    )
+    assert duplicate_ids == []
+
+    metadata_fields = ("id", "category", "name", "description", "scope")
+    incomplete_metadata = {
+        definition.id: [
+            field
+            for field in metadata_fields
+            if not getattr(definition, field).strip()
+        ]
+        for definition in SHORTCUTS
+        if any(
+            not getattr(definition, field).strip()
+            for field in metadata_fields
+        )
+    }
+    assert incomplete_metadata == {}
+
+    invalid_defaults = {
+        definition.id: definition.default
+        for definition in SHORTCUTS
+        if definition.default
+        and not _shortcut_is_assignable(definition.default)
+    }
+    assert invalid_defaults == {}
+
+    default_owners = {}
+    for definition in SHORTCUTS:
+        normalized = normalize_shortcut(definition.default)
+        if normalized:
+            default_owners.setdefault(normalized, []).append(definition.id)
+    conflicts = {
+        shortcut: owners
+        for shortcut, owners in default_owners.items()
+        if len(owners) > 1
+    }
+    assert conflicts == {}
 
 
 def test_shortcut_overrides_persist_reset_and_report_conflicts(tmp_path):

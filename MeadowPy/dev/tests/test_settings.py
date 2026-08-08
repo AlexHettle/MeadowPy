@@ -1,4 +1,6 @@
+import ast
 import json
+from pathlib import Path
 
 from meadowpy.constants import (
     CONFIG_DIR_NAME,
@@ -11,6 +13,57 @@ from meadowpy.constants import (
 )
 from meadowpy.core.settings import Settings
 from tests.helpers import SignalRecorder
+
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "meadowpy"
+SETTINGS_RECEIVER_NAMES = {"settings", "_settings"}
+
+
+def _settings_receiver_name(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def test_literal_setting_references_have_registered_defaults():
+    references = []
+
+    for source_path in PACKAGE_ROOT.rglob("*.py"):
+        tree = ast.parse(
+            source_path.read_text(encoding="utf-8"),
+            filename=str(source_path),
+        )
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr not in {"get", "set"} or not node.args:
+                continue
+            if (
+                _settings_receiver_name(node.func.value)
+                not in SETTINGS_RECEIVER_NAMES
+            ):
+                continue
+
+            key_node = node.args[0]
+            if not isinstance(key_node, ast.Constant):
+                continue
+            if not isinstance(key_node.value, str):
+                continue
+
+            location = source_path.relative_to(PACKAGE_ROOT.parent)
+            references.append((key_node.value, f"{location}:{node.lineno}"))
+
+    assert references
+    unregistered = [
+        f"{key!r} at {location}"
+        for key, location in references
+        if key not in DEFAULT_SETTINGS
+    ]
+    assert unregistered == []
 
 
 def test_default_config_dir_uses_user_home(monkeypatch, tmp_path):

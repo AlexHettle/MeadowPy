@@ -1,7 +1,112 @@
+import ast
+import re
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+
+import pytest
 
 from meadowpy.resources import resource_icons, resource_loader
 from meadowpy.resources.theme_colors import resolve_accent_shades
+
+
+PACKAGE_ROOT = Path(resource_loader.__file__).resolve().parents[1]
+RESOURCE_ROOT = Path(resource_loader._RESOURCES_DIR)
+ICON_ROOT = RESOURCE_ROOT / "icons"
+SVG_ICON_PATHS = tuple(sorted(ICON_ROOT.glob("*.svg")))
+DIRECT_ICON_CALL_ARGUMENTS = {
+    "get_icon_path": 0,
+    "load_themed_icon": 0,
+    "load_tinted_icon": 0,
+}
+STYLESHEET_ICON_PATTERN = re.compile(
+    r"\{\{ICONS_DIR\}\}/([A-Za-z0-9_.-]+)"
+)
+
+
+def _call_name(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def _icon_call_argument_index(source_path, call_name):
+    if call_name in DIRECT_ICON_CALL_ARGUMENTS:
+        return DIRECT_ICON_CALL_ARGUMENTS[call_name]
+    if source_path.name in {"output_panel.py", "terminal_panel.py"}:
+        if call_name == "_make_tool_button":
+            return 0
+    if source_path.name == "tool_bar.py":
+        if call_name == "_icon":
+            return 0
+        if call_name == "_add":
+            return 1
+    return None
+
+
+@pytest.mark.parametrize("svg_path", SVG_ICON_PATHS, ids=lambda path: path.name)
+def test_svg_icon_assets_are_well_formed(svg_path):
+    root = ElementTree.parse(svg_path).getroot()
+
+    assert root.tag.rsplit("}", 1)[-1] == "svg"
+
+
+def test_icon_references_resolve_to_packaged_assets():
+    python_references = []
+    for source_path in PACKAGE_ROOT.rglob("*.py"):
+        tree = ast.parse(
+            source_path.read_text(encoding="utf-8"),
+            filename=str(source_path),
+        )
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            argument_index = _icon_call_argument_index(
+                source_path,
+                _call_name(node.func),
+            )
+            if argument_index is None or len(node.args) <= argument_index:
+                continue
+            name_node = node.args[argument_index]
+            if not isinstance(name_node, ast.Constant):
+                continue
+            if not isinstance(name_node.value, str):
+                continue
+
+            location = source_path.relative_to(PACKAGE_ROOT.parent)
+            python_references.append(
+                (name_node.value, f"{location}:{node.lineno}")
+            )
+
+    stylesheet_references = []
+    for stylesheet_path in (RESOURCE_ROOT / "styles").glob("*.qss"):
+        for line_number, line in enumerate(
+            stylesheet_path.read_text(encoding="utf-8").splitlines(),
+            start=1,
+        ):
+            for match in STYLESHEET_ICON_PATTERN.finditer(line):
+                location = stylesheet_path.relative_to(PACKAGE_ROOT.parent)
+                stylesheet_references.append(
+                    (match.group(1), f"{location}:{line_number}")
+                )
+
+    assert python_references
+    assert stylesheet_references
+
+    available_names = {path.name for path in ICON_ROOT.iterdir() if path.is_file()}
+    available_stems = {Path(name).stem for name in available_names}
+    missing = [
+        f"{name!r} at {location}"
+        for name, location in python_references
+        if name not in available_stems
+    ]
+    missing.extend(
+        f"{name!r} at {location}"
+        for name, location in stylesheet_references
+        if name not in available_names
+    )
+    assert missing == []
 
 
 def test_get_icon_and_font_path_return_existing_assets():
