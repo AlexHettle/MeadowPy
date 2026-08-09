@@ -841,6 +841,88 @@ def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
     window.deleteLater()
 
 
+def test_find_replace_bar_ignores_missing_editor_and_empty_searches(qapp):
+    window = FakeFindWindow(None)
+    bar = FindReplaceBar(window)
+    bar._match_label.setText("stale")
+
+    bar.find_next()
+    bar.find_previous()
+    bar.replace_current()
+    bar.replace_all()
+    bar.hide_bar()
+
+    assert bar._match_label.text() == "stale"
+    assert bar.isHidden()
+
+    editor = FakeEditor()
+    editor.has_selection = False
+    window._editor = editor
+    bar._find_input.clear()
+    bar.find_next()
+    bar.find_previous()
+    bar.replace_current()
+    bar.replace_all()
+
+    assert editor.find_first_calls == []
+    assert editor.replacements == []
+
+    bar._match_label.setText("No results")
+    bar._on_find_text_changed("")
+    assert bar._match_label.text() == ""
+
+    editor.has_selection = True
+    editor.selected = "first line\nsecond line"
+    bar._find_input.setText("existing")
+    editor.find_first_calls.clear()
+    bar.toggle_find()
+    assert bar._find_input.text() == "existing"
+
+    bar.deleteLater()
+    window.deleteLater()
+
+
+def test_find_replace_bar_handles_escape_and_shift_enter_keys(qapp):
+    editor = FakeEditor()
+    window = FakeFindWindow(editor)
+    bar = FindReplaceBar(window)
+    bar._find_input.setText("needle")
+    bar.show()
+
+    escape = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_Escape,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    bar.keyPressEvent(escape)
+
+    assert bar.isHidden()
+    assert editor.focused is True
+
+    editor.find_first_calls.clear()
+    shift_enter = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_Return,
+        Qt.KeyboardModifier.ShiftModifier,
+    )
+    bar.keyPressEvent(shift_enter)
+
+    assert editor.find_first_calls[-1][5] is False
+
+    editor.find_first_calls.clear()
+    ordinary_key = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_A,
+        Qt.KeyboardModifier.NoModifier,
+        "a",
+    )
+    bar.keyPressEvent(ordinary_key)
+    assert editor.find_first_calls == []
+
+    bar.deleteLater()
+    window.deleteLater()
+
+
 def test_symbol_outline_parses_symbols_preserves_tree_on_syntax_error_and_emits_navigation(qapp):
     panel = SymbolOutlinePanel()
     navigated = Recorder()

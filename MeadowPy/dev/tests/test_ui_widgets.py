@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QMenu, QStatusBar
 
 import meadowpy.ui.ai_chat_widgets as ai_chat_widgets_module
 import meadowpy.ui.model_selector as model_selector_module
+import meadowpy.ui.problems_panel as problems_panel_module
 from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.linter import LintIssue
 from meadowpy.ui.ai_chat_widgets import ChatBubble, ChatInput, ChatView
@@ -115,6 +116,99 @@ def test_problems_panel_updates_counts_navigation_and_linter_errors(qapp):
     panel.clear_issues()
     assert panel.windowTitle() == "Problems"
     assert panel._table.rowCount() == 0
+    panel.deleteLater()
+
+
+def test_problems_panel_guards_navigation_and_emits_context_ai_request(
+    qapp,
+    monkeypatch,
+):
+    class FakeTriggeredSignal:
+        def __init__(self):
+            self.callback = None
+
+        def connect(self, callback):
+            self.callback = callback
+
+        def emit(self):
+            self.callback()
+
+    class FakeAction:
+        def __init__(self, text):
+            self.text = text
+            self.tooltip = ""
+            self.triggered = FakeTriggeredSignal()
+
+        def setToolTip(self, tooltip):
+            self.tooltip = tooltip
+
+    class FakeMenu:
+        instances = []
+
+        def __init__(self, parent):
+            self.parent = parent
+            self.action = None
+            self.exec_position = None
+            self.instances.append(self)
+
+        def addAction(self, text):
+            self.action = FakeAction(text)
+            return self.action
+
+        def exec(self, position):
+            self.exec_position = position
+            self.action.triggered.emit()
+
+    monkeypatch.setattr(problems_panel_module, "QMenu", FakeMenu)
+    panel = ProblemsPanel()
+    navigated = Recorder()
+    ai_requested = Recorder()
+    panel.navigate_to.connect(navigated)
+    panel.ai_fix_requested.connect(ai_requested)
+    issue = LintIssue(2, 4, "F821", "undefined name", "error")
+    panel.update_issues([issue])
+
+    panel._on_cell_clicked(99, 0)
+    assert navigated.calls == []
+
+    line_item = panel._table.item(0, 1)
+    location = line_item.data(Qt.ItemDataRole.UserRole)
+    line_item.setData(Qt.ItemDataRole.UserRole, None)
+    panel._on_cell_clicked(0, 1)
+    assert navigated.calls == []
+
+    line_item.setData(Qt.ItemDataRole.UserRole, location)
+    panel._on_cell_clicked(0, 3)
+    assert navigated.calls == [(2, 4)]
+
+    panel.resize(600, 240)
+    panel.show()
+    qapp.processEvents()
+    row_position = panel._table.visualItemRect(
+        panel._table.item(0, 0)
+    ).center()
+    assert panel._table.rowAt(row_position.y()) == 0
+
+    panel._on_context_menu(QPoint(0, -1))
+    assert FakeMenu.instances == []
+
+    panel._on_context_menu(row_position)
+
+    assert len(FakeMenu.instances) == 1
+    menu = FakeMenu.instances[0]
+    assert menu.parent is panel
+    assert menu.action.text == "AI Analysis..."
+    assert menu.action.tooltip == "Ask the AI to analyze this linting issue"
+    assert menu.exec_position is not None
+    assert ai_requested.calls == [("F821", 3, "undefined name")]
+
+    panel.show_linter_error("flake8 unavailable")
+    error_position = panel._table.visualItemRect(
+        panel._table.item(0, 0)
+    ).center()
+    panel._on_context_menu(error_position)
+    assert len(FakeMenu.instances) == 1
+
     panel.deleteLater()
 
 
