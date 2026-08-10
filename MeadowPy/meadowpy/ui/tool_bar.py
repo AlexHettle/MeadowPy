@@ -240,6 +240,7 @@ class CompactRunControlButton(QToolButton):
         self._symbol = symbol
         self._is_dark = True
         self._is_high_contrast = False
+        self._accent = QColor(self._DEBUG_COLOR)
         self._label_font = self.font()
         self._apply_label_font()
         self._refresh_fixed_size()
@@ -255,6 +256,13 @@ class CompactRunControlButton(QToolButton):
         self._is_high_contrast = theme_is_high_contrast(theme_name)
         self._is_dark = theme_is_dark(theme_name, custom_base)
         self.update()
+
+    def set_accent_color(self, hex_color: str) -> None:
+        """Set the accent used by accent-colored control glyphs."""
+        color = QColor(hex_color)
+        if color.isValid():
+            self._accent = color
+            self.update()
 
     def displayed_text(self) -> str:
         metrics = QFontMetrics(self._label_font)
@@ -350,7 +358,7 @@ class CompactRunControlButton(QToolButton):
         if not self.isEnabled():
             return QColor(RunFileButton._DISABLED_FOREGROUND)
         if self._symbol == "debug":
-            return QColor(self._DEBUG_COLOR)
+            return QColor(self._accent)
         return QColor(self._STOP_COLOR)
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -551,9 +559,11 @@ class ToolBarBuilder:
         return toolbar
 
     def update_accent_color(self, hex_color: str) -> None:
-        """Refresh the Run button fill color (called on theme change)."""
+        """Refresh accent-colored toolbar controls after theme changes."""
         if getattr(self, "_run_btn", None):
             self._run_btn.set_accent_color(hex_color)
+        if getattr(self, "_debug_btn", None):
+            self._debug_btn.set_accent_color(hex_color)
         self._apply_compact_control_theme()
 
     def update_run_file_label(self, editor=None) -> None:

@@ -1901,6 +1901,7 @@ def test_toolbar_builder_creates_shared_actions_editor_calls_and_run_controls(qa
 
     builder.update_accent_color("#112233")
     assert builder._run_btn._accent.name().upper() == "#112233"
+    assert debug_button.symbol_color().name().upper() == "#112233"
 
     window._debug_action.setToolTip("Run with debugger (F6)")
     qapp.processEvents()

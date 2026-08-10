@@ -545,6 +545,7 @@ def test_toolbar_compact_stop_debug_buttons_follow_actions(qapp):
     assert debug_button.symbol_color().name().upper() == "#FFFFFF"
     window._settings.values["editor.theme"] = "default_dark"
     builder.update_accent_color("#4CAF50")
+    assert debug_button.symbol_color().name().upper() == "#4CAF50"
 
     triggered = []
     window._debug_action.triggered.connect(lambda: triggered.append("debug"))
@@ -575,7 +576,7 @@ def test_toolbar_compact_stop_debug_buttons_follow_actions(qapp):
     window._debug_action.setEnabled(True)
     qapp.processEvents()
     assert stop_button.symbol_color().name().upper() == "#E51400"
-    assert debug_button.symbol_color().name().upper() == "#FF9800"
+    assert debug_button.symbol_color().name().upper() == "#4CAF50"
 
     toolbar.deleteLater()
     window.deleteLater()

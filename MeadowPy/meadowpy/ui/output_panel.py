@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from meadowpy.resources.resource_loader import (
+    current_accent_hex,
     load_themed_icon,
     load_tinted_icon,
     theme_is_high_contrast,
@@ -114,6 +115,12 @@ class OutputPanel(QDockWidget):
         self._restart_repl_btn = self._make_tool_button(
             "restart", "Restart Python Console"
         )
+        restart_accent = QColor(self._current_accent_color())
+        self._restart_repl_btn.setIcon(load_tinted_icon(
+            "restart",
+            restart_accent.name(),
+            size=PANEL_TITLE_ICON_SIZE,
+        ))
         self._restart_repl_btn.clicked.connect(
             lambda: self.repl_restart_requested.emit()
         )
@@ -140,12 +147,10 @@ class OutputPanel(QDockWidget):
             )
             header_layout.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        # Glow painter for the restart button. HC mode collapses every
-        # glow onto pure white (no chroma anywhere) for accessibility.
-        is_hc = theme_is_high_contrast(self._current_theme_name())
-        restart_glow = QColor("#FFFFFF") if is_hc else QColor("#FF9800")
+        # Glow painter for the restart button follows the same live accent
+        # as the icon (pure white when High Contrast is active).
         self._header_glow = HeaderGlowPainter(title_bar, title_bar)
-        self._header_glow.add_button(self._restart_repl_btn, restart_glow)
+        self._header_glow.add_button(self._restart_repl_btn, restart_accent)
 
         # Visual separator
         sep = QLabel("|")
@@ -378,7 +383,17 @@ class OutputPanel(QDockWidget):
 
     def update_accent_color(self, hex_color: str) -> None:
         """Refresh themed controls after accent changes."""
-        _ = hex_color
+        color = QColor(hex_color)
+        if color.isValid():
+            self._restart_repl_btn.setIcon(load_tinted_icon(
+                "restart",
+                color.name(),
+                size=PANEL_TITLE_ICON_SIZE,
+            ))
+            self._header_glow.set_button_color(
+                self._restart_repl_btn,
+                color,
+            )
         self._refresh_send_arrow_icon()
 
     def update_font(self, family: str, size: int) -> None:
@@ -545,3 +560,13 @@ class OutputPanel(QDockWidget):
         if self._settings is not None:
             return self._settings.get("editor.theme") or ""
         return ""
+
+    def _current_accent_color(self) -> str:
+        """Return the active accent represented by the injected settings."""
+        if self._settings is None:
+            return current_accent_hex("")
+        return current_accent_hex(
+            self._current_theme_name(),
+            self._settings.get("editor.custom_theme.base") or "dark",
+            self._settings.get("editor.custom_theme.accent"),
+        )

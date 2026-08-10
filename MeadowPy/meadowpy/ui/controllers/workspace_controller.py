@@ -741,14 +741,17 @@ class WorkspaceController(MainWindowController):
             )
             if hasattr(self, "_toolbar_builder"):
                 self._toolbar_builder.update_accent_color(accent)
-            if hasattr(self, "_output_panel"):
-                self._output_panel.update_accent_color(accent)
 
             # Rebuild icons whose color depends on the theme (Run/Stop/Debug
             # are white in HC, original brand colors in dark/light/custom).
             # Without this, icons created at startup persist across theme
             # switches and you get white icons leaking into non-HC themes.
             self._refresh_themed_icons()
+
+            # Apply the accent after rebuilding theme-sensitive icons so the
+            # Output panel's restart icon is not reset to its source SVG color.
+            if hasattr(self, "_output_panel"):
+                self._output_panel.update_accent_color(accent)
 
             # Re-render the Problems panel so its severity glyphs (✕ red /
             # ⚠ amber vs both white in HC) follow the new theme.

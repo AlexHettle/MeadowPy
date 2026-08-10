@@ -61,7 +61,7 @@ def load_tinted_icon(
     size: int = 16,
     resources_dir: Path | str = DEFAULT_RESOURCES_DIR,
 ):
-    """Render a ``{{COLOR}}``-templated SVG into a QIcon at the given color."""
+    """Render an SVG into a QIcon using one requested tint color."""
     from PyQt6.QtCore import QByteArray, QSize, Qt
     from PyQt6.QtGui import QIcon, QPainter, QPixmap
     from PyQt6.QtSvg import QSvgRenderer
@@ -70,7 +70,13 @@ def load_tinted_icon(
     if not svg_path.exists():
         return QIcon()
 
-    svg_data = svg_path.read_text(encoding="utf-8").replace("{{COLOR}}", color)
+    svg_data = svg_path.read_text(encoding="utf-8")
+    if "{{COLOR}}" in svg_data:
+        svg_data = svg_data.replace("{{COLOR}}", color)
+    else:
+        for original in _HC_ICON_COLOR_MAP:
+            svg_data = svg_data.replace(original, color)
+            svg_data = svg_data.replace(original.lower(), color)
     renderer = QSvgRenderer(QByteArray(svg_data.encode("utf-8")))
 
     render_size = size * 2

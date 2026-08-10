@@ -235,6 +235,12 @@ def test_font_and_accent_updates_refresh_output_panel_controls(qapp):
     panel = OutputPanel(settings=MutableSettings({"editor.theme": "default_dark"}))
     refreshes = []
     panel._refresh_send_arrow_icon = lambda: refreshes.append("refresh")
+    original_restart_icon = panel._restart_repl_btn.icon().cacheKey()
+    initial_restart_glow = next(
+        entry for entry in panel._header_glow._entries
+        if entry["btn"] is panel._restart_repl_btn
+    )
+    assert initial_restart_glow["color"].name().upper() == "#2F7A44"
 
     panel.update_font("Consolas", 17)
     panel.update_accent_color("#123456")
@@ -242,6 +248,18 @@ def test_font_and_accent_updates_refresh_output_panel_controls(qapp):
     assert panel._output_text.font().pointSize() == 17
     assert panel._input_line.font().pointSize() == 17
     assert refreshes == ["refresh"]
+    assert panel._restart_repl_btn.icon().cacheKey() != original_restart_icon
+    restart_glow = next(
+        entry for entry in panel._header_glow._entries
+        if entry["btn"] is panel._restart_repl_btn
+    )
+    assert restart_glow["color"].name().upper() == "#123456"
+    restart_image = panel._restart_repl_btn.icon().pixmap(16, 16).toImage()
+    center = restart_image.pixelColor(
+        restart_image.width() // 2,
+        restart_image.height() // 2,
+    )
+    assert center.name().upper() == "#123456"
 
     panel.deleteLater()
 

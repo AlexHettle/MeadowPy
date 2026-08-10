@@ -34,7 +34,7 @@ def load_themed_icon(name: str, theme_name: str = ""):
 
 
 def load_tinted_icon(name: str, color: str, size: int = 16):
-    """Render a ``{{COLOR}}``-templated SVG into a QIcon at the given color."""
+    """Render an SVG into a QIcon using one requested tint color."""
     return _load_tinted_icon(name, color, size, _RESOURCES_DIR)
 
 
