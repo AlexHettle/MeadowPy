@@ -29,6 +29,21 @@ see terminal output too:
 .venv\Scripts\python.exe -m meadowpy
 ```
 
+## Unsaved-Work Recovery Prompt
+
+After an unexpected shutdown, MeadowPy may report that it found unsaved work.
+Choose **Restore Work** to reopen the recovered buffers, then save or discard
+them normally. MeadowPy stores this local snapshot at:
+
+```text
+%USERPROFILE%\.meadowpy\unsaved-recovery.json
+```
+
+If the snapshot is damaged, MeadowPy preserves it beside the original path
+with `invalid-YYYYMMDD-HHMMSS` in the filename and explains that it could not
+be restored. Do not delete that quarantined file until you are sure it contains
+nothing you need.
+
 ## Python Not Found
 
 Symptoms:

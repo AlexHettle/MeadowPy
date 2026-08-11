@@ -19,6 +19,10 @@ from meadowpy.resources.resource_loader import (
     theme_is_dark,
 )
 from meadowpy.ui.tab_manager import TabManager
+from meadowpy.ui.session_recovery import (
+    RECOVERY_FILENAME,
+    SessionRecoveryManager,
+)
 from meadowpy.ui.menu_bar import MenuBarBuilder
 from meadowpy.ui.tool_bar import ToolBarBuilder
 from meadowpy.ui.status_bar import StatusBarManager
@@ -85,6 +89,7 @@ class MainWindow(QMainWindow):
 
         self._setup_window()
         self._create_tab_manager()
+        self._create_session_recovery()
         self._create_file_explorer()
         self._create_symbol_outline()
         self._create_problems_panel()
@@ -181,6 +186,21 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
         layout.addWidget(self._tab_manager)
         self.setCentralWidget(container)
+
+    def _create_session_recovery(self) -> None:
+        """Create crash-recovery monitoring before any editor tabs open."""
+        recovery_path = (
+            Path(self._settings.config_file_path).parent / RECOVERY_FILENAME
+        )
+        self._session_recovery = SessionRecoveryManager(
+            self._tab_manager,
+            recovery_path,
+            self,
+        )
+
+    def recover_unsaved_work(self) -> int:
+        """Prompt for previous unsaved buffers after the window is visible."""
+        return self._session_recovery.recover_if_available(self)
 
     def _apply_explorer_icon_theme(self) -> None:
         """Push the current accent + base to the file explorer's icon
@@ -654,6 +674,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Handle window close: save files, persist state, stop background work."""
+        recovery = getattr(self, "_session_recovery", None)
+        if recovery is not None:
+            recovery.flush(force=True)
+
         try:
             should_close = self._tab_manager.prompt_save_all()
         except Exception as exc:
@@ -664,6 +688,9 @@ class MainWindow(QMainWindow):
         if not should_close:
             event.ignore()
             return
+
+        if recovery is not None:
+            recovery.stop_and_clear()
 
         try:
             self._save_state()

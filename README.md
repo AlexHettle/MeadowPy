@@ -143,6 +143,7 @@ MeadowPy's editor is built to feel familiar from day one — tabbed files, colou
 - Plain-text editing for readable `.txt`, `.toml`, `.csv`, and `.log` files
 - Auto-completion for Python keywords and built-ins
 - Smart indentation and auto-closing brackets
+- Crash recovery for unsaved files and untitled tabs
 - Code folding for functions, classes, and blocks
 - Symbol outline panel for quick navigation
 - Find & replace with search across files

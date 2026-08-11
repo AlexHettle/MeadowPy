@@ -112,6 +112,21 @@ Runtime logs are written to:
 Logs may include local file paths, startup errors, Qt warnings, crash details,
 or shutdown errors. Review logs before sharing them publicly.
 
+## Unsaved-Work Recovery Data
+
+While editor tabs contain unsaved changes, MeadowPy stores a local recovery
+snapshot at:
+
+```text
+%USERPROFILE%\.meadowpy\unsaved-recovery.json
+```
+
+This file can contain the complete text of modified saved files and untitled
+tabs. MeadowPy removes it after a clean shutdown, but a snapshot intentionally
+remains after a crash or forced shutdown. Treat recovery and quarantined
+`unsaved-recovery.invalid-*.json` files as private source code when backing up,
+sharing, or troubleshooting the application.
+
 ## Dependency Security
 
 From the repository root, MeadowPy's application dependencies are listed in:

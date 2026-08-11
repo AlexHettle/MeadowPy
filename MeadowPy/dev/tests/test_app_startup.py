@@ -102,6 +102,7 @@ class FakeSplash:
         self.shown = False
         self.closed = False
         self.deleted = False
+        self.recovered_unsaved_work = False
 
     def set_status_text(self, message):
         self.statuses.append(message)
@@ -166,6 +167,9 @@ class FakeWindow:
 
     def activateWindow(self):
         self.activated = True
+
+    def recover_unsaved_work(self):
+        self.recovered_unsaved_work = True
 
     def isVisible(self):
         return self.visible
@@ -266,6 +270,7 @@ def test_app_startup_applies_settings_opens_cli_files_and_tears_down(
     assert app._qapp.exec_called is True
     assert window.raised is True
     assert window.activated is True
+    assert window.recovered_unsaved_work is True
     assert window.closed is True
     assert window.deleted is True
     assert app._qapp.sent_deferred_delete is True

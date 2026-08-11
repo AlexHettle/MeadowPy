@@ -53,6 +53,25 @@ Choosing a template opens an untitled editor tab with ready-to-run code.
 
 You can reopen the Welcome screen from **Help > Welcome Screen**.
 
+## Recovering Unsaved Work
+
+MeadowPy keeps a local recovery snapshot of modified editor tabs. It does not
+overwrite your source files. If MeadowPy closes unexpectedly because of a
+crash, power loss, or forced shutdown, the next launch offers to restore the
+unsaved buffers.
+
+Choose **Restore Work** to reopen every recovered buffer as an unsaved tab so
+you can review and save it. Choose **Discard Recovery** only when you are sure
+the recovered changes are no longer needed. Closing the recovery prompt without
+choosing Discard restores the work by default.
+
+Recovery data is removed after a normal shutdown once the usual save prompts
+have been completed. The local snapshot is stored at:
+
+```text
+%USERPROFILE%\.meadowpy\unsaved-recovery.json
+```
+
 ## Editing Files
 
 Use the editor for Python and other readable text files.

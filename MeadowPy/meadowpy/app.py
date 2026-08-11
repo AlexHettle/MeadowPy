@@ -484,6 +484,13 @@ class MeadowPyApp:
         self._window.activateWindow()
         self._process_pending_ui_events()
         self._close_splash()
+        recover_unsaved_work = getattr(
+            self._window,
+            "recover_unsaved_work",
+            None,
+        )
+        if callable(recover_unsaved_work):
+            recover_unsaved_work()
         exit_code = self._qapp.exec()
         self._teardown_qt_objects()
         return exit_code

@@ -1,5 +1,6 @@
 """Tab manager for editor tabs."""
 
+import re
 from pathlib import Path
 
 from PyQt6.QtCore import pyqtSignal, QEvent, Qt, QTimer, QSize, QPoint
@@ -201,6 +202,7 @@ class TabManager(QTabWidget):
         content: str = "",
         *,
         large_file_mode: bool = False,
+        untitled_name: str | None = None,
     ) -> CodeEditor:
         """Create a new editor tab. Returns the editor."""
         editor = CodeEditor(self._settings, self)
@@ -212,8 +214,19 @@ class TabManager(QTabWidget):
             editor.setModified(False)
             tab_title = Path(file_path).name
         else:
-            editor._untitled_name = f"Untitled-{self._untitled_counter}"
-            self._untitled_counter += 1
+            if untitled_name:
+                editor._untitled_name = untitled_name
+                match = re.fullmatch(r"Untitled-(\d+)", untitled_name)
+                if match:
+                    self._untitled_counter = max(
+                        self._untitled_counter,
+                        int(match.group(1)) + 1,
+                    )
+            else:
+                editor._untitled_name = f"Untitled-{self._untitled_counter}"
+                self._untitled_counter += 1
+            if content:
+                editor.setText(content)
             tab_title = editor._untitled_name
 
         index = self.addTab(editor, tab_title)

@@ -344,6 +344,57 @@ def test_close_event_saves_then_stops_background_work():
     assert event.ignored is False
 
 
+def test_close_event_flushes_recovery_and_clears_it_only_after_save_prompt():
+    calls = []
+    recovery = SimpleNamespace(
+        flush=lambda force=False: calls.append(("flush", force)),
+        stop_and_clear=lambda: calls.append("clear_recovery"),
+    )
+    window = SimpleNamespace(
+        _session_recovery=recovery,
+        _tab_manager=SimpleNamespace(
+            prompt_save_all=lambda: calls.append("prompt") or True
+        ),
+        _save_state=lambda: calls.append("save_state"),
+        _settings=SimpleNamespace(save=lambda: calls.append("settings_save")),
+        _shutdown_background_work=lambda: calls.append("shutdown"),
+    )
+    event = FakeCloseEvent()
+
+    MainWindow.closeEvent(window, event)
+
+    assert calls == [
+        ("flush", True),
+        "prompt",
+        "clear_recovery",
+        "save_state",
+        "settings_save",
+        "shutdown",
+    ]
+    assert event.accepted is True
+
+
+def test_close_event_preserves_flushed_recovery_when_close_is_cancelled():
+    calls = []
+    recovery = SimpleNamespace(
+        flush=lambda force=False: calls.append(("flush", force)),
+        stop_and_clear=lambda: calls.append("clear_recovery"),
+    )
+    window = SimpleNamespace(
+        _session_recovery=recovery,
+        _tab_manager=SimpleNamespace(
+            prompt_save_all=lambda: calls.append("prompt") or False
+        ),
+    )
+    event = FakeCloseEvent()
+
+    MainWindow.closeEvent(window, event)
+
+    assert calls == [("flush", True), "prompt"]
+    assert event.ignored is True
+    assert event.accepted is False
+
+
 def test_close_event_ignores_when_save_prompt_raises():
     calls = []
 

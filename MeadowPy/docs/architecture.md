@@ -53,6 +53,29 @@ Crash and Qt logs are written to:
 %USERPROFILE%\.meadowpy\meadowpy.log
 ```
 
+## Unsaved-Work Recovery
+
+`SessionRecoveryManager` in `meadowpy/ui/session_recovery.py` monitors every
+`CodeEditor` created by `TabManager`. Modified buffers are collected after a
+short debounce and at a periodic safety interval. `RecoverySnapshotStore`
+writes the complete document set to a temporary file, flushes it to disk, and
+atomically replaces:
+
+```text
+%USERPROFILE%\.meadowpy\unsaved-recovery.json
+```
+
+Snapshots include saved and untitled buffers, cursor positions, active-tab
+state, and large-file mode. On startup, normal saved tabs are restored first;
+the recovery manager then offers to overlay recovered saved buffers and reopen
+untitled buffers. All restored editors remain marked modified so recovery can
+never silently overwrite a source file.
+
+At shutdown, MeadowPy flushes recovery before displaying ordinary save
+prompts. A cancelled close leaves recovery active. Once every save prompt is
+resolved and shutdown is accepted, the recovery timers stop and the snapshot
+is removed.
+
 ## Main Window Composition
 
 `MainWindow` creates and wires the primary UI:
