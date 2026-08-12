@@ -170,6 +170,41 @@ def test_recovery_manager_restores_saved_and_untitled_buffers(qapp, tmp_path):
     tabs.deleteLater()
 
 
+def test_recovery_manager_preserves_pending_snapshot_until_prompt_is_resolved(
+    qapp,
+    tmp_path,
+):
+    settings = Settings(tmp_path)
+    tabs = TabManager(settings)
+    recovery_path = tmp_path / "unsaved-recovery.json"
+    original = RecoveryDocument(
+        None,
+        "Untitled-1",
+        "irreplaceable draft",
+        active=True,
+    )
+    store = RecoverySnapshotStore(recovery_path)
+    store.save((original,))
+    manager = SessionRecoveryManager(tabs, recovery_path)
+
+    assert manager._periodic_timer.isActive() is False
+    assert manager.flush(force=True) is False
+    assert store.load() == (original,)
+
+    def restore_after_attempted_timer_flush(documents):
+        assert documents == (original,)
+        assert manager.flush() is False
+        assert store.load() == (original,)
+        return True
+
+    assert manager.recover_if_available(prompt=restore_after_attempted_timer_flush) == 1
+    assert manager._periodic_timer.isActive() is True
+    assert store.load() == (original,)
+
+    manager.stop_and_clear()
+    tabs.deleteLater()
+
+
 def test_recovery_manager_discards_only_after_explicit_rejection(qapp, tmp_path):
     settings = Settings(tmp_path)
     tabs = TabManager(settings)
@@ -184,6 +219,7 @@ def test_recovery_manager_discards_only_after_explicit_rejection(qapp, tmp_path)
     assert restored == 0
     assert tabs.count() == 0
     assert not recovery_path.exists()
+    assert manager._periodic_timer.isActive() is True
 
     manager.stop()
     tabs.deleteLater()

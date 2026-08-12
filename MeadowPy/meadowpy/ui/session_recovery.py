@@ -175,6 +175,7 @@ class SessionRecoveryManager(QObject):
         self._tab_manager = tab_manager
         self._store = RecoverySnapshotStore(recovery_path)
         self._enabled = True
+        self._pending_recovery = self._store.path.exists()
         self._last_fingerprint: tuple | None = None
         self._watched_editors: weakref.WeakSet = weakref.WeakSet()
 
@@ -186,7 +187,8 @@ class SessionRecoveryManager(QObject):
         self._periodic_timer = QTimer(self)
         self._periodic_timer.setInterval(self.PERIODIC_SNAPSHOT_MS)
         self._periodic_timer.timeout.connect(self.flush)
-        self._periodic_timer.start()
+        if not self._pending_recovery:
+            self._periodic_timer.start()
 
         editor_created = getattr(tab_manager, "editor_created", None)
         if editor_created is not None:
@@ -215,12 +217,12 @@ class SessionRecoveryManager(QObject):
 
     def schedule_snapshot(self, *_args) -> None:
         """Debounce a snapshot after editor content or state changes."""
-        if self._enabled:
+        if self._enabled and not self._pending_recovery:
             self._snapshot_timer.start()
 
     def flush(self, *, force: bool = False) -> bool:
         """Persist all modified buffers now; return whether writing succeeded."""
-        if not self._enabled:
+        if not self._enabled or self._pending_recovery:
             return False
         documents = self._collect_documents()
         fingerprint = self._fingerprint(documents)
@@ -282,14 +284,17 @@ class SessionRecoveryManager(QObject):
     ) -> int:
         """Offer recovery for a previous snapshot and return restored count."""
         if not self._store.path.exists():
+            self._resume_monitoring()
             return 0
         try:
             documents = self._store.load()
         except RecoveryDataError as exc:
             self._handle_invalid_snapshot(parent, exc)
+            self._resume_monitoring(snapshot_current=True)
             return 0
         if not documents:
             self.discard_pending()
+            self._resume_monitoring(snapshot_current=True)
             return 0
 
         should_restore = (
@@ -299,11 +304,22 @@ class SessionRecoveryManager(QObject):
         )
         if not should_restore:
             self.discard_pending()
+            self._resume_monitoring(snapshot_current=True)
             return 0
 
         restored = self.restore_documents(documents)
-        self.flush(force=True)
+        self._resume_monitoring(snapshot_current=True)
         return restored
+
+    def _resume_monitoring(self, *, snapshot_current: bool = False) -> None:
+        """Allow writes only after previous recovery data has been resolved."""
+        self._pending_recovery = False
+        if not self._enabled:
+            return
+        if not self._periodic_timer.isActive():
+            self._periodic_timer.start()
+        if snapshot_current:
+            self.flush(force=True)
 
     def restore_documents(self, documents: Iterable[RecoveryDocument]) -> int:
         """Recreate recovered buffers and mark them modified for explicit save."""
@@ -418,6 +434,7 @@ class SessionRecoveryManager(QObject):
         except OSError as exc:
             qWarning(f"Could not remove MeadowPy recovery snapshot: {exc}")
         self._last_fingerprint = None
+        self._resume_monitoring()
 
     def stop(self) -> None:
         """Stop recovery timers without altering the on-disk snapshot."""

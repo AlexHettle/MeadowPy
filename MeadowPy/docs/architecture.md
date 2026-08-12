@@ -71,6 +71,11 @@ the recovery manager then offers to overlay recovered saved buffers and reopen
 untitled buffers. All restored editors remain marked modified so recovery can
 never silently overwrite a source file.
 
+When a previous-session snapshot exists, the recovery manager suspends both
+debounced and periodic writes until the user restores or discards it. This
+prevents startup activity or the recovery prompt's event loop from replacing
+the pending data before the user has made a decision.
+
 At shutdown, MeadowPy flushes recovery before displaying ordinary save
 prompts. A cancelled close leaves recovery active. Once every save prompt is
 resolved and shutdown is accepted, the recovery timers stop and the snapshot
