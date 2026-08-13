@@ -83,6 +83,37 @@ def test_recovery_store_rejects_and_quarantines_invalid_data(tmp_path):
     assert "invalid-" in quarantined.name
 
 
+def test_recovery_manager_quarantines_invalid_utf8_and_continues_startup(
+    monkeypatch,
+    qapp,
+    tmp_path,
+):
+    path = tmp_path / "unsaved-recovery.json"
+    invalid_bytes = b"\xff\xfe\x00invalid recovery"
+    path.write_bytes(invalid_bytes)
+    warnings = []
+    monkeypatch.setattr(
+        "meadowpy.ui.session_recovery.QMessageBox.warning",
+        lambda parent, title, message: warnings.append((parent, title, message)),
+    )
+    tabs = TabManager(Settings(tmp_path))
+    manager = SessionRecoveryManager(tabs, path)
+
+    assert manager.recover_if_available() == 0
+
+    quarantined = list(tmp_path.glob("unsaved-recovery.invalid-*.json"))
+    assert len(quarantined) == 1
+    assert quarantined[0].read_bytes() == invalid_bytes
+    assert not path.exists()
+    assert manager._periodic_timer.isActive() is True
+    assert len(warnings) == 1
+    assert warnings[0][1] == "Recovery Data Could Not Be Read"
+    assert "Could not read recovery data" in warnings[0][2]
+
+    manager.stop()
+    tabs.deleteLater()
+
+
 def test_recovery_manager_snapshots_only_modified_editors(qapp, tmp_path):
     settings = Settings(tmp_path)
     tabs = TabManager(settings)

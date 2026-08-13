@@ -59,7 +59,9 @@ def test_setup_resolves_special_character_install_path(tmp_path):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        timeout=15,
+        # PowerShell startup and WScript.Shell COM initialization can be slow
+        # on loaded Windows and CI hosts even when the helper is healthy.
+        timeout=60,
         check=False,
     )
 
@@ -80,10 +82,39 @@ def test_shortcut_helper_preserves_special_character_paths(short_tmp_path):
     pythonw_path.write_bytes(b"test executable placeholder")
     icon_path.write_bytes(b"test icon placeholder")
 
+    try:
+        powershell_probe = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                (
+                    "$ErrorActionPreference = 'Stop'; "
+                    "$shell = New-Object -ComObject WScript.Shell; "
+                    "[Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) "
+                    "| Out-Null; exit 0"
+                ),
+            ],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        pytest.skip(f"PowerShell is unavailable on this Windows host: {exc}")
+    if powershell_probe.returncode != 0:
+        pytest.skip(
+            "PowerShell is unavailable on this Windows host "
+            f"(exit code {powershell_probe.returncode})"
+        )
+
     subprocess.run(
         [
             "powershell.exe",
             "-NoProfile",
+            "-NonInteractive",
             "-ExecutionPolicy",
             "Bypass",
             "-File",
@@ -94,7 +125,8 @@ def test_shortcut_helper_preserves_special_character_paths(short_tmp_path):
             str(app_dir),
         ],
         check=True,
-        timeout=15,
+        stdin=subprocess.DEVNULL,
+        timeout=60,
     )
 
     env = os.environ.copy()
@@ -116,7 +148,7 @@ def test_shortcut_helper_preserves_special_character_paths(short_tmp_path):
         stdout=subprocess.PIPE,
         text=True,
         check=True,
-        timeout=15,
+        timeout=60,
     )
     shortcut = json.loads(inspected.stdout)
 

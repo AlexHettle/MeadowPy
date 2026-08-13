@@ -95,7 +95,7 @@ class RecoverySnapshotStore:
             return ()
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise RecoveryDataError(f"Could not read recovery data: {exc}") from exc
 
         if not isinstance(payload, dict):
