@@ -145,6 +145,32 @@ def test_recovery_manager_snapshots_only_modified_editors(qapp, tmp_path):
     tabs.deleteLater()
 
 
+def test_recovery_manager_autosaves_editor_changes_after_debounce(qapp, tmp_path):
+    tabs = TabManager(Settings(tmp_path))
+    path = tmp_path / "unsaved-recovery.json"
+    manager = SessionRecoveryManager(tabs, path)
+    manager._snapshot_timer.setInterval(0)
+    editor = tabs.new_tab(untitled_name="Untitled-5")
+
+    editor.insert("print('autosaved')\n")
+
+    assert editor.is_modified is True
+    assert manager._snapshot_timer.isActive() is True
+    assert not path.exists()
+
+    qapp.processEvents()
+
+    assert manager._snapshot_timer.isActive() is False
+    documents = RecoverySnapshotStore(path).load()
+    assert len(documents) == 1
+    assert documents[0].display_name == "Untitled-5"
+    assert documents[0].content == "print('autosaved')\n"
+    assert documents[0].active is True
+
+    manager.stop_and_clear()
+    tabs.deleteLater()
+
+
 def test_recovery_manager_restores_saved_and_untitled_buffers(qapp, tmp_path):
     settings = Settings(tmp_path)
     tabs = TabManager(settings)
