@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
+import pytest
+
 from PyQt6.QtCore import QEvent, QPointF, Qt
-from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtGui import QColor, QKeyEvent, QTextCursor
 
 from meadowpy.ui.output_panel import OutputPanel
 from meadowpy.ui.output_text_formatting import (
@@ -47,6 +49,7 @@ def test_recolor_for_theme_replays_history_and_preserves_error_tail(qapp):
     before_text = panel._output_text.toPlainText()
     before_history = list(panel._output_history)
     before_error = panel._last_error_text
+    before_hint_icon = panel._output_text._hint_icon.cacheKey()
 
     settings.set("editor.theme", "default_high_contrast")
     panel.recolor_for_theme()
@@ -57,6 +60,68 @@ def test_recolor_for_theme_replays_history_and_preserves_error_tail(qapp):
     assert panel._last_error_text.count("ZeroDivisionError") == 1
     assert not panel._fix_btn.isHidden()
     assert not panel._fix_separator.isHidden()
+    assert panel._output_text._hint_icon.cacheKey() != before_hint_icon
+    hint_block = panel._output_text.document().findBlockByNumber(1)
+    assert hint_block.userData() is not None
+    assert panel._output_text.viewportMargins().left() == 22
+
+    panel.deleteLater()
+
+
+@pytest.mark.parametrize(
+    ("values", "expected_color"),
+    [
+        ({"editor.theme": "default_light"}, "#2E7D32"),
+        ({"editor.theme": "default_dark"}, "#2F7A44"),
+        ({
+            "editor.theme": "custom",
+            "editor.custom_theme.base": "light",
+            "editor.custom_theme.accent": "#7A3EE6",
+        }, "#7A3EE6"),
+        ({"editor.theme": "default_high_contrast"}, "#FFFFFF"),
+    ],
+)
+def test_error_hint_uses_theme_tinted_lightbulb_without_changing_plain_text(
+    qapp,
+    values,
+    expected_color,
+):
+    panel = OutputPanel(settings=MutableSettings(values))
+
+    panel.append_output("Check the variable name.\n", "hint")
+
+    assert panel._output_text.toPlainText() == "Check the variable name.\n"
+    hint_block = panel._output_text.document().begin()
+    assert hint_block.userData() is not None
+
+    panel.resize(700, 300)
+    panel.show()
+    qapp.processEvents()
+    editor = panel._output_text
+    text_start = editor.viewport().mapTo(
+        editor,
+        editor.cursorRect(QTextCursor(hint_block)).topLeft(),
+    ).x()
+    icon_left = (
+        editor._hint_gutter.geometry().left()
+        + (editor._hint_gutter.width() - editor.HINT_ICON_SIZE) // 2
+    )
+    assert icon_left + editor.HINT_ICON_SIZE < text_start
+
+    image = panel._output_text._hint_icon.pixmap(16, 16).toImage()
+    opaque_colors = {
+        image.pixelColor(x, y).name().upper()
+        for y in range(image.height())
+        for x in range(image.width())
+        if image.pixelColor(x, y).alpha() == 255
+    }
+    assert QColor(expected_color).name().upper() in opaque_colors
+    assert sum(
+        1
+        for y in range(image.height())
+        for x in range(image.width())
+        if image.pixelColor(x, y).alpha() == 255
+    ) >= 35
 
     panel.deleteLater()
 

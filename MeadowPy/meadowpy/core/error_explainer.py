@@ -23,5 +23,5 @@ def explain_error(stderr_text: str) -> str | None:
                 explanation = template.format(*groups)
             except (IndexError, KeyError):
                 explanation = template
-            return f"\U0001f4a1 {explanation}\n"
+            return f"{explanation}\n"
     return None

@@ -1,7 +1,14 @@
 """Output panel — displays program output with stdin support."""
 
-from PyQt6.QtCore import QEvent, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QIcon, QTextCursor
+from PyQt6.QtCore import QEvent, QRect, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import (
+    QColor,
+    QFont,
+    QIcon,
+    QPainter,
+    QTextBlockUserData,
+    QTextCursor,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -36,6 +43,104 @@ from meadowpy.ui.panel_title_bar import (
     configure_panel_title_bar,
     configure_panel_title_label,
 )
+
+
+class _HintBlockData(QTextBlockUserData):
+    """Marks the first document block belonging to an error hint."""
+
+
+class _HintGutter(QWidget):
+    """Dedicated painting surface for output hint icons."""
+
+    def __init__(self, editor):
+        super().__init__(editor)
+        self._editor = editor
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def sizeHint(self) -> QSize:
+        return QSize(self._editor.HINT_GUTTER_WIDTH, 0)
+
+    def paintEvent(self, event) -> None:
+        self._editor.paint_hint_gutter(event)
+
+
+class _OutputTextEdit(QPlainTextEdit):
+    """Plain-text output view that paints themed icons beside hint blocks."""
+
+    HINT_GUTTER_WIDTH = 22
+    HINT_ICON_SIZE = 16
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._hint_icon = QIcon()
+        self._hint_gutter = _HintGutter(self)
+        self.setViewportMargins(self.HINT_GUTTER_WIDTH, 0, 0, 0)
+        self.updateRequest.connect(self._update_hint_gutter)
+
+    def set_hint_icon(self, icon: QIcon) -> None:
+        """Set the icon painted in the reserved hint gutter."""
+        self._hint_icon = icon
+        self._hint_gutter.update()
+
+    def insert_hint(
+        self,
+        cursor: QTextCursor,
+        text: str,
+        text_format,
+    ) -> None:
+        """Insert a hint while keeping its icon out of copied plain text."""
+        cursor.block().setUserData(_HintBlockData())
+        cursor.insertText(text, text_format)
+
+    def paint_hint_gutter(self, event) -> None:
+        """Paint icons beside visible hint blocks in the reserved gutter."""
+        if self._hint_icon.isNull():
+            return
+
+        painter = QPainter(self._hint_gutter)
+        painter.setClipRect(event.rect())
+        block = self.firstVisibleBlock()
+        top = self.blockBoundingGeometry(block).translated(
+            self.contentOffset()
+        ).top()
+
+        while block.isValid() and top <= event.rect().bottom():
+            height = self.blockBoundingRect(block).height()
+            if (
+                block.isVisible()
+                and top + height >= event.rect().top()
+                and isinstance(block.userData(), _HintBlockData)
+            ):
+                pixmap = self._hint_icon.pixmap(
+                    QSize(self.HINT_ICON_SIZE, self.HINT_ICON_SIZE)
+                )
+                x = int((self._hint_gutter.width() - pixmap.width()) / 2)
+                y = int(top + max(0.0, (height - pixmap.height()) / 2.0))
+                painter.drawPixmap(x, y, pixmap)
+            top += height
+            block = block.next()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        contents = self.contentsRect()
+        self._hint_gutter.setGeometry(QRect(
+            contents.left(),
+            contents.top(),
+            self.HINT_GUTTER_WIDTH,
+            contents.height(),
+        ))
+
+    def _update_hint_gutter(self, rect, dy: int) -> None:
+        """Keep gutter icons aligned while output scrolls or repaints."""
+        if dy:
+            self._hint_gutter.scroll(0, dy)
+        else:
+            self._hint_gutter.update(
+                0,
+                rect.y(),
+                self._hint_gutter.width(),
+                rect.height(),
+            )
 
 
 class OutputPanel(QDockWidget):
@@ -192,13 +297,14 @@ class OutputPanel(QDockWidget):
         layout.setSpacing(0)
 
         # --- Output text area ---
-        self._output_text = QPlainTextEdit()
+        self._output_text = _OutputTextEdit()
         self._output_text.setObjectName("outputText")
         self._output_text.setReadOnly(True)
         self._output_text.setUndoRedoEnabled(False)
         font = QFont("Consolas", 13)
         font.setStyleHint(QFont.StyleHint.Monospace)
         self._output_text.setFont(font)
+        self._refresh_hint_icon()
         # Enable mouse tracking for hover cursor changes on traceback lines
         self._output_text.setMouseTracking(True)
         self._output_text.viewport().setMouseTracking(True)
@@ -296,6 +402,12 @@ class OutputPanel(QDockWidget):
             self._fix_btn.setVisible(True)
             self._fix_separator.setVisible(True)
             self._insert_stderr(cursor, text)
+        elif stream == "hint":
+            self._output_text.insert_hint(
+                cursor,
+                text,
+                stream_text_format(stream, self._current_theme_name()),
+            )
         else:
             cursor.insertText(
                 text,
@@ -327,6 +439,7 @@ class OutputPanel(QDockWidget):
         existing output picks up the new theme's colors (e.g. red traceback
         text becomes white in HC, and back to red when leaving HC).
         """
+        self._refresh_hint_icon()
         history_snapshot = list(self._output_history)
         # Reset visible state and history; append_output will rebuild both.
         self._output_text.clear()
@@ -394,6 +507,7 @@ class OutputPanel(QDockWidget):
                 self._restart_repl_btn,
                 color,
             )
+            self._refresh_hint_icon(color.name())
         self._refresh_send_arrow_icon()
 
     def update_font(self, family: str, size: int) -> None:
@@ -569,4 +683,13 @@ class OutputPanel(QDockWidget):
             self._current_theme_name(),
             self._settings.get("editor.custom_theme.base") or "dark",
             self._settings.get("editor.custom_theme.accent"),
+        )
+
+    def _refresh_hint_icon(self, color: str | None = None) -> None:
+        """Retint the error-hint lightbulb for the active theme."""
+        tint = QColor(color or self._current_accent_color())
+        if not tint.isValid():
+            return
+        self._output_text.set_hint_icon(
+            load_tinted_icon("lightbulb", tint.name(), size=16)
         )

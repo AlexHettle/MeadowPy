@@ -20,7 +20,7 @@ ERROR_PATTERN_CASES = tuple(ERROR_PATTERNS)
 def assert_hint(message):
     explanation = explain_error(message)
     assert explanation is not None
-    assert explanation.startswith("\U0001f4a1 ")
+    assert not explanation.startswith("\U0001f4a1 ")
     assert explanation.endswith("\n")
     return explanation
 
@@ -180,4 +180,4 @@ def test_explain_error_falls_back_to_raw_template_for_bad_placeholders(monkeypat
 
     explanation = explain_error("ExampleError: mismatched template")
 
-    assert explanation == "\U0001f4a1 Broken placeholder {1}\n"
+    assert explanation == "Broken placeholder {1}\n"
