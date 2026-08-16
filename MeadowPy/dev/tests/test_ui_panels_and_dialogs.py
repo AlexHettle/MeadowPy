@@ -613,6 +613,22 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     panel.deleteLater()
 
 
+def test_search_panel_labels_align_with_search_input(qapp):
+    panel = SearchPanel()
+    panel.resize(700, 400)
+    panel.show()
+    qapp.processEvents()
+
+    input_left = panel._search_input.geometry().left()
+    for label in (panel._scope_label, panel._status_label):
+        label_text_left = (
+            label.geometry().left() + label.contentsMargins().left()
+        )
+        assert label_text_left == input_left
+
+    panel.deleteLater()
+
+
 def test_search_panel_scope_empty_root_and_broad_root_cancel(qapp, tmp_path):
     panel = SearchPanel()
 

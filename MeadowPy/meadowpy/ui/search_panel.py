@@ -211,7 +211,8 @@ class SearchPanel(QDockWidget):
         # Styled to mirror the Output panel's input row: matching
         # fixed heights, rounded corners, accent-colored action button.
         controls = QHBoxLayout()
-        controls.setContentsMargins(4, 0, 4, 0)
+        controls_inset = 4
+        controls.setContentsMargins(controls_inset, 0, controls_inset, 0)
         controls.setSpacing(6)
         controls.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
@@ -246,10 +247,12 @@ class SearchPanel(QDockWidget):
         # -- Scope + status labels --
         self._scope_label = QLabel("")
         self._scope_label.setObjectName("searchScopeLabel")
+        self._scope_label.setContentsMargins(controls_inset, 0, 0, 0)
         layout.addWidget(self._scope_label)
 
         self._status_label = QLabel("")
         self._status_label.setObjectName("searchStatusLabel")
+        self._status_label.setContentsMargins(controls_inset, 0, 0, 0)
         layout.addWidget(self._status_label)
 
         # -- Results tree --
