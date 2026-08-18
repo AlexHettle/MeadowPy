@@ -1,5 +1,6 @@
 import json
 import keyword
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -219,3 +220,25 @@ def test_constants_expose_expected_app_metadata():
     assert APP_NAME == "MeadowPy"
     assert DEFAULT_SETTINGS["editor.theme"] == "default_dark"
     assert DEFAULT_SETTINGS["window.state"] == DEFAULT_WINDOW_STATE
+
+
+def test_readme_coverage_badge_text_matches_svg():
+    project_root = Path(__file__).resolve().parents[3]
+    readme = (project_root / "README.md").read_text(encoding="utf-8")
+    badge = (
+        project_root / ".github" / "assets" / "readme-badges.svg"
+    ).read_text(encoding="utf-8")
+
+    readme_match = re.search(r"Coverage: (\d+)%", readme)
+    badge_desc_match = re.search(
+        r"(\d+) percent test coverage",
+        badge,
+    )
+    badge_text_values = re.findall(r">(\d+)%</text>", badge)
+
+    assert readme_match is not None
+    assert badge_desc_match is not None
+    assert badge_text_values
+    expected = readme_match.group(1)
+    assert badge_desc_match.group(1) == expected
+    assert set(badge_text_values) == {expected}

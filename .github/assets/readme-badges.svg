@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="359" height="44" viewBox="0 0 359 44" role="img" aria-labelledby="title desc">
   <title id="title">MeadowPy project badges</title>
-  <desc id="desc">Python 3.11 or newer, Windows 10 and 11, MIT License, AI powered by Ollama, active development, and 87 percent test coverage.</desc>
+  <desc id="desc">Python 3.11 or newer, Windows 10 and 11, MIT License, AI powered by Ollama, active development, and 95 percent test coverage.</desc>
   <defs>
     <filter id="shadow">
       <feGaussianBlur stdDeviation="16"/>
@@ -120,8 +120,8 @@
         <text x="325" y="140" textLength="530">Coverage</text>
       </g>
       <g transform="scale(.1)">
-        <g aria-hidden="true" fill="#010101"><text x="795" y="150" fill-opacity=".8" filter="url(#shadow)" textLength="250">87%</text><text x="795" y="150" fill-opacity=".3" textLength="250">87%</text></g>
-        <text x="795" y="140" textLength="250">87%</text>
+        <g aria-hidden="true" fill="#010101"><text x="795" y="150" fill-opacity=".8" filter="url(#shadow)" textLength="250">95%</text><text x="795" y="150" fill-opacity=".3" textLength="250">95%</text></g>
+        <text x="795" y="140" textLength="250">95%</text>
       </g>
     </g>
   </g>

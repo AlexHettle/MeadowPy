@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/readme-badges.svg" alt="Python 3.11+ | Windows 10/11 | MIT License | AI: Ollama | Status: Active Development | Coverage: 87%" width="359">
+  <img src=".github/assets/readme-badges.svg" alt="Python 3.11+ | Windows 10/11 | MIT License | AI: Ollama | Status: Active Development | Coverage: 95%" width="359">
 </p>
 
 A beginner-friendly Python IDE with built-in AI assistance, a step-through debugger, and everything you need to start coding — no experience required.
