@@ -654,6 +654,43 @@ def test_search_panel_scope_empty_root_and_broad_root_cancel(qapp, tmp_path):
     panel.deleteLater()
 
 
+def test_search_panel_reports_invalid_regex_before_starting_search(qapp, tmp_path):
+    panel = SearchPanel()
+    panel.show()
+    qapp.processEvents()
+    panel.set_root_path(str(tmp_path))
+    existing_path = str(tmp_path / "existing.py")
+    panel._on_match_found(SearchResult(existing_path, 1, 0, "existing"))
+    confirmations = []
+    panel._is_broad_search_root = lambda root: True
+    panel._confirm_broad_search_root = (
+        lambda root: confirmations.append(root) or False
+    )
+    panel._regex_cb.setChecked(True)
+    panel._search_input.setText("[")
+
+    panel._start_search()
+
+    assert panel._status_label.text().startswith("Invalid regular expression:")
+    assert "position 0" in panel._status_label.text()
+    assert panel._status_label.toolTip() == panel._status_label.text()
+    assert panel._search_input.hasFocus()
+    assert panel._tree.topLevelItemCount() == 1
+    assert confirmations == []
+    assert panel._thread is None
+    assert panel._worker is None
+    assert panel._search_btn.isEnabled()
+
+    panel._search_input.setText("valid")
+    panel._start_search()
+
+    assert confirmations == [str(tmp_path)]
+    assert panel._status_label.text() == "Search cancelled."
+    assert panel._status_label.toolTip() == ""
+
+    panel.deleteLater()
+
+
 def test_search_panel_starts_confirmed_broad_search_and_cancels_previous(
     monkeypatch,
     qapp,

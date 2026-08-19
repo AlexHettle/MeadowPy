@@ -290,7 +290,19 @@ class SearchPanel(QDockWidget):
         if not self._root_path:
             self._update_scope_label()
             self._status_label.setText("Open a folder to search files.")
+            self._status_label.setToolTip("")
             return
+        if self._regex_cb.isChecked():
+            flags = 0 if self._case_cb.isChecked() else re.IGNORECASE
+            try:
+                re.compile(query, flags)
+            except re.error as exc:
+                message = f"Invalid regular expression: {exc}"
+                self._status_label.setText(message)
+                self._status_label.setToolTip(message)
+                self._search_input.setFocus()
+                return
+        self._status_label.setToolTip("")
         if self._is_broad_search_root(self._root_path):
             root_key = self._normalized_root_key(self._root_path)
             if root_key not in self._confirmed_broad_roots:
