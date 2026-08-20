@@ -1,8 +1,8 @@
 """VS Code-style floating find/replace bar."""
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, QPoint, Qt
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QVBoxLayout, QLineEdit,
+    QFrame, QGridLayout, QHBoxLayout, QVBoxLayout, QLineEdit,
     QPushButton, QLabel, QWidget,
 )
 
@@ -12,11 +12,20 @@ from meadowpy.editor.code_editor import CodeEditor
 class FindReplaceBar(QFrame):
     """VS Code-style floating find/replace bar."""
 
+    MAX_WIDTH = 620
+    EDGE_MARGIN = 15
+    COMPACT_WIDTH = 520
+
     def __init__(self, main_window):
         super().__init__(main_window)
         self._window = main_window
         self._replace_visible = False
+        self._compact_layout = False
+        self._layout_initialized = False
+        self._central_widget = main_window.centralWidget()
         self._setup_ui()
+        if self._central_widget is not None:
+            self._central_widget.installEventFilter(self)
         self.hide()
 
     def _setup_ui(self) -> None:
@@ -25,13 +34,15 @@ class FindReplaceBar(QFrame):
         layout.setSpacing(8)
 
         # --- Find row ---
-        find_row = QHBoxLayout()
-        find_row.setSpacing(6)
+        self._find_layout = QGridLayout()
+        self._find_layout.setContentsMargins(0, 0, 0, 0)
+        self._find_layout.setHorizontalSpacing(6)
+        self._find_layout.setVerticalSpacing(6)
 
         self._find_input = QLineEdit()
         self._find_input.setPlaceholderText("Find")
         self._find_input.setClearButtonEnabled(True)
-        self._find_input.setMinimumWidth(220)
+        self._find_input.setMinimumWidth(80)
         self._find_input.setMinimumHeight(30)
         self._find_input.textChanged.connect(self._on_find_text_changed)
         self._find_input.returnPressed.connect(self.find_next)
@@ -41,7 +52,8 @@ class FindReplaceBar(QFrame):
         self._regex_btn = self._make_toggle(".*", "Use Regular Expression")
 
         self._match_label = QLabel("")
-        self._match_label.setMinimumWidth(75)
+        self._match_label.setMinimumWidth(40)
+        self._match_label.setMaximumWidth(75)
         self._match_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._prev_btn = self._make_nav_btn("\u25B2", "Previous Match (Shift+Enter)")
@@ -53,15 +65,18 @@ class FindReplaceBar(QFrame):
         self._close_btn = self._make_nav_btn("\u2715", "Close (Escape)")
         self._close_btn.clicked.connect(self.hide_bar)
 
-        find_row.addWidget(self._find_input, 1)
-        find_row.addWidget(self._case_btn)
-        find_row.addWidget(self._word_btn)
-        find_row.addWidget(self._regex_btn)
-        find_row.addWidget(self._match_label)
-        find_row.addWidget(self._prev_btn)
-        find_row.addWidget(self._next_btn)
-        find_row.addWidget(self._close_btn)
-        layout.addLayout(find_row)
+        self._find_widgets = (
+            self._find_input,
+            self._case_btn,
+            self._word_btn,
+            self._regex_btn,
+            self._match_label,
+            self._prev_btn,
+            self._next_btn,
+            self._close_btn,
+        )
+        self._apply_find_layout(compact=False)
+        layout.addLayout(self._find_layout)
 
         # --- Replace row (hidden by default) ---
         self._replace_row = QWidget()
@@ -214,14 +229,51 @@ class FindReplaceBar(QFrame):
         """Position the bar at the top-right of the central widget."""
         parent = self._window.centralWidget()
         if parent:
-            bar_width = min(620, parent.width() - 40)
-            bar_width = max(bar_width, 520)
-            self.setMinimumWidth(bar_width)
-            self.setMaximumWidth(bar_width)
+            available_width = max(1, parent.width() - 2 * self.EDGE_MARGIN)
+            bar_width = min(self.MAX_WIDTH, available_width)
+            self._apply_find_layout(bar_width < self.COMPACT_WIDTH)
+            self.setFixedWidth(bar_width)
             self.adjustSize()
-            x = parent.width() - bar_width - 15
-            self.move(max(x, 5), 5)
+            origin = parent.mapTo(self._window, QPoint(0, 0))
+            x = origin.x() + parent.width() - bar_width - self.EDGE_MARGIN
+            self.move(x, origin.y() + 5)
             self.raise_()
+
+    def _apply_find_layout(self, compact: bool) -> None:
+        """Use a second controls row when horizontal space is limited."""
+        if self._layout_initialized and self._compact_layout == compact:
+            return
+        if hasattr(self, "_find_widgets"):
+            for widget in self._find_widgets:
+                self._find_layout.removeWidget(widget)
+        for column in range(8):
+            self._find_layout.setColumnStretch(column, 0)
+
+        if compact:
+            self._find_layout.addWidget(self._find_input, 0, 0, 1, 7)
+            self._find_layout.addWidget(self._close_btn, 0, 7)
+            self._find_layout.addWidget(self._case_btn, 1, 0)
+            self._find_layout.addWidget(self._word_btn, 1, 1)
+            self._find_layout.addWidget(self._regex_btn, 1, 2)
+            self._find_layout.addWidget(self._match_label, 1, 3, 1, 3)
+            self._find_layout.addWidget(self._prev_btn, 1, 6)
+            self._find_layout.addWidget(self._next_btn, 1, 7)
+            self._find_layout.setColumnStretch(3, 1)
+        else:
+            for column, widget in enumerate(self._find_widgets):
+                self._find_layout.addWidget(widget, 0, column)
+            self._find_layout.setColumnStretch(0, 1)
+        self._compact_layout = compact
+        self._layout_initialized = True
+
+    def eventFilter(self, watched, event) -> bool:
+        if (
+            watched is self._central_widget
+            and event.type() in {QEvent.Type.Resize, QEvent.Type.Move}
+            and self.isVisible()
+        ):
+            self._reposition()
+        return super().eventFilter(watched, event)
 
     def _on_find_text_changed(self, text: str) -> None:
         """Incremental search as the user types."""

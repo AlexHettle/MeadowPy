@@ -841,12 +841,48 @@ class FakeFindWindow(QWidget):
     def __init__(self, editor):
         super().__init__()
         self._editor = editor
-        self._central = QWidget()
-        self._central.resize(700, 400)
+        self.resize(900, 500)
+        self._central = QWidget(self)
+        self._central.setGeometry(100, 30, 700, 400)
         self._tab_manager = SimpleNamespace(current_editor=lambda: self._editor)
 
     def centralWidget(self):
         return self._central
+
+
+def test_find_replace_bar_tracks_available_editor_width(qapp):
+    window = FakeFindWindow(FakeEditor())
+    window.show()
+    bar = FindReplaceBar(window)
+
+    bar.toggle_find()
+    qapp.processEvents()
+
+    assert bar.width() == bar.MAX_WIDTH
+    assert bar._compact_layout is False
+    assert bar.x() + bar.width() == (
+        window._central.x() + window._central.width() - bar.EDGE_MARGIN
+    )
+    assert bar.y() == window._central.y() + 5
+
+    window._central.resize(360, 400)
+    qapp.processEvents()
+
+    assert bar.width() == 360 - 2 * bar.EDGE_MARGIN
+    assert bar._compact_layout is True
+    assert bar.x() >= window._central.x() + bar.EDGE_MARGIN
+    assert bar._find_input.y() < bar._case_btn.y()
+    assert bar._close_btn.geometry().right() < bar.width()
+
+    window._central.resize(700, 400)
+    qapp.processEvents()
+
+    assert bar.width() == bar.MAX_WIDTH
+    assert bar._compact_layout is False
+    assert bar._find_input.y() == bar._case_btn.y()
+
+    bar.deleteLater()
+    window.deleteLater()
 
 
 def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
