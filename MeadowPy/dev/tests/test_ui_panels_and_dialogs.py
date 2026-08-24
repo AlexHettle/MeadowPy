@@ -906,6 +906,11 @@ def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
     editor.find_first_results = [True]
     bar.find_previous()
     assert editor.find_first_calls[-1][5] is False
+    assert bar._match_label.text() == ""
+
+    editor.find_first_results = [False]
+    bar.find_previous()
+    assert bar._match_label.text() == "No results"
 
     bar.toggle_replace()
     assert bar._replace_visible is True

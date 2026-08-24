@@ -174,14 +174,17 @@ class FindReplaceBar(QFrame):
         if not text:
             return
 
-        editor.findFirst(
+        if not editor.findFirst(
             text,
             self._regex_btn.isChecked(),
             self._case_btn.isChecked(),
             self._word_btn.isChecked(),
             True,   # wrap around
             False,  # backward
-        )
+        ):
+            self._match_label.setText("No results")
+        else:
+            self._match_label.setText("")
 
     def replace_current(self) -> None:
         """Replace the current match and find the next one."""
