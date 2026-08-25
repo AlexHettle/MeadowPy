@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
     QFontComboBox,
     QDialog,
@@ -24,6 +25,7 @@ import meadowpy.ui.dialogs.shortcut_reference_dialog as shortcut_reference_modul
 import meadowpy.ui.search_panel as search_panel_module
 from meadowpy.core.settings import Settings
 from meadowpy.core.shortcuts import ShortcutDefinition, get_shortcut, set_shortcut
+from meadowpy.resources.example_library import EXAMPLE_CATEGORIES
 from meadowpy.resources.resource_loader import get_stylesheet
 from tests.helpers import DummySignal
 from meadowpy.ui.ai_chat_panel import AIChatPanel
@@ -1718,6 +1720,23 @@ def test_accent_color_picker_preserves_hue_for_grayscale_colors(qapp):
     assert dialog._h == previous_hue
     assert dialog._s == 0.0
     assert dialog.selected_hex() == "#808080"
+
+    dialog.deleteLater()
+
+
+def test_example_library_double_click_opens_clicked_example(qapp):
+    dialog = ExampleLibraryDialog()
+    opened = Recorder()
+    dialog.example_selected.connect(opened)
+    expected = EXAMPLE_CATEGORIES[0]["examples"][1]
+    card = dialog._example_cards[1]
+
+    dialog.show()
+    qapp.processEvents()
+    QTest.mouseDClick(card, Qt.MouseButton.LeftButton)
+
+    assert dialog._current_ex == 1
+    assert opened.calls == [(expected["name"], expected["code"])]
 
     dialog.deleteLater()
 

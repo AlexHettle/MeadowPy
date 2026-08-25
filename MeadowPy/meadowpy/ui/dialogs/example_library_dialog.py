@@ -90,6 +90,7 @@ class _ExampleCard(QWidget):
     """A card widget for an individual example."""
 
     clicked = pyqtSignal()
+    double_clicked = pyqtSignal()
 
     def __init__(self, name: str, desc: str, parent=None):
         super().__init__(parent)
@@ -144,8 +145,8 @@ class _ExampleCard(QWidget):
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
-        self.clicked.emit()
-        # Bubble up double-click so the dialog can handle "open on double-click"
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.double_clicked.emit()
         super().mouseDoubleClickEvent(event)
 
 
@@ -422,6 +423,9 @@ class ExampleLibraryDialog(QDialog):
             card = _ExampleCard(ex["name"], ex["desc"], self)
             eidx = j
             card.clicked.connect(lambda _j=eidx: self._on_example_clicked(_j))
+            card.double_clicked.connect(
+                lambda _j=eidx: self._on_example_double_clicked(_j)
+            )
             self._cards_layout.addWidget(card)
             self._example_cards.append(card)
 
@@ -456,6 +460,11 @@ class ExampleLibraryDialog(QDialog):
         self._preview_desc.setText(ex["desc"])
         self._code_preview.setHtml(self._code_to_html(ex["code"]))
         self._open_btn.setEnabled(True)
+
+    def _on_example_double_clicked(self, index: int) -> None:
+        """Select and open the card that received the double-click."""
+        self._on_example_clicked(index)
+        self._on_open_clicked()
 
     @staticmethod
     def _code_to_html(code: str) -> str:
