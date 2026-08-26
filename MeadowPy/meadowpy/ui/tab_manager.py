@@ -77,9 +77,12 @@ class _TabRightWidget(QWidget):
 class _EditorTabBar(QTabBar):
     """Accessible editor tab bar with responsive interaction states."""
 
+    middle_close_requested = pyqtSignal(int)
+
     def __init__(self, settings: Settings, parent=None):
         super().__init__(parent)
         self._settings = settings
+        self._middle_pressed_index = -1
         self.setExpanding(False)
         self.setUsesScrollButtons(True)
         self.setElideMode(Qt.TextElideMode.ElideMiddle)
@@ -139,6 +142,8 @@ class _EditorTabBar(QTabBar):
         super().focusOutEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._middle_pressed_index = self.tabAt(event.position().toPoint())
         is_tab_press = (
             event.button() == Qt.MouseButton.LeftButton
             and self.tabAt(event.position().toPoint()) >= 0
@@ -147,8 +152,16 @@ class _EditorTabBar(QTabBar):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        middle_close_index = -1
+        if event.button() == Qt.MouseButton.MiddleButton:
+            released_index = self.tabAt(event.position().toPoint())
+            if released_index == self._middle_pressed_index:
+                middle_close_index = released_index
+            self._middle_pressed_index = -1
         super().mouseReleaseEvent(event)
         self._set_visual_state("editorPressed", False)
+        if middle_close_index >= 0:
+            self.middle_close_requested.emit(middle_close_index)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         if self.tabAt(event.position().toPoint()) >= 0:
@@ -169,6 +182,7 @@ class _EditorTabBar(QTabBar):
             QEvent.Type.Hide,
         }:
             self._set_visual_state("editorPressed", False)
+            self._middle_pressed_index = -1
         return super().event(event)
 
 
@@ -186,7 +200,9 @@ class TabManager(QTabWidget):
         self._untitled_counter = 1
 
         self.setObjectName("editorTabs")
-        self.setTabBar(_EditorTabBar(settings, self))
+        tab_bar = _EditorTabBar(settings, self)
+        self.setTabBar(tab_bar)
+        tab_bar.middle_close_requested.connect(self._on_middle_close_requested)
 
         self.setTabsClosable(False)
         self.setMovable(True)
@@ -195,6 +211,11 @@ class TabManager(QTabWidget):
         self.setUsesScrollButtons(True)
 
         self.currentChanged.connect(self._on_tab_changed)
+
+    def _on_middle_close_requested(self, index: int) -> None:
+        """Close an editor tab through the standard guarded close flow."""
+        if isinstance(self.widget(index), CodeEditor):
+            self.close_tab(index)
 
     def new_tab(
         self,

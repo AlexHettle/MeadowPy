@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
@@ -167,6 +168,47 @@ def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, t
 
     tabs.deleteLater()
     parent.deleteLater()
+
+
+def test_middle_click_closes_saved_tab_and_prompts_for_modified_tab(
+    monkeypatch, qapp, tmp_path
+):
+    settings = make_settings(tmp_path)
+    tabs = TabManager(settings)
+    saved = tabs.new_tab(str(tmp_path / "saved.py"), "print('saved')\n")
+    modified = tabs.new_tab(str(tmp_path / "modified.py"), "print('modified')\n")
+    prompts = []
+
+    def cancel_close(parent, display_name):
+        prompts.append((parent, display_name))
+        return QMessageBox.StandardButton.Cancel
+
+    monkeypatch.setattr(tab_module, "prompt_save_before_closing", cancel_close)
+    tabs.resize(500, 300)
+    tabs.show()
+    qapp.processEvents()
+    modified.setCursorPosition(0, 0)
+    modified.insert("# unsaved change\n")
+    assert modified.is_modified is True
+
+    bar = tabs.tabBar()
+    QTest.mouseClick(
+        bar,
+        Qt.MouseButton.MiddleButton,
+        pos=bar.tabRect(tabs.indexOf(saved)).center(),
+    )
+    assert tabs.indexOf(saved) == -1
+    assert prompts == []
+
+    QTest.mouseClick(
+        bar,
+        Qt.MouseButton.MiddleButton,
+        pos=bar.tabRect(tabs.indexOf(modified)).center(),
+    )
+    assert tabs.indexOf(modified) == 0
+    assert prompts == [(tabs, "modified.py")]
+
+    tabs.deleteLater()
 
 
 def test_close_prompts_keep_tab_open_when_save_fails(monkeypatch, qapp, tmp_path):
