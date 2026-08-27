@@ -1116,6 +1116,7 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     assert inserted.calls == [("print('hi')",)]
     panel._on_link_clicked_str("meadowpy://insert-code/not-an-index")
 
+    panel.send_message_programmatic("Trigger an Ollama error")
     panel.show_error("Ollama is unavailable")
     assert panel._messages[-1] == {"role": "error", "content": "Ollama is unavailable"}
 
@@ -1150,6 +1151,36 @@ def test_ai_chat_panel_builds_context_streams_messages_and_handles_insert_links(
     spinner = panel._streaming_bubble._spinner
     panel.prepare_for_shutdown()
     assert not spinner._timer.isActive()
+    panel.deleteLater()
+
+
+def test_ai_chat_clear_cancels_stream_and_ignores_late_callbacks(qapp):
+    panel = AIChatPanel()
+    stopped = Recorder()
+    panel.chat_stop_requested.connect(stopped)
+
+    panel.send_message_programmatic("Explain this code")
+    spinner = panel._streaming_bubble._spinner
+    assert spinner is not None
+
+    panel.clear_chat()
+
+    assert stopped.calls == [()]
+    assert panel._streaming is False
+    assert panel._messages == []
+    assert panel._chat_view.get_all_plain_text() == ""
+    assert spinner._timer.isActive() is False
+
+    panel.append_token("late token")
+    panel.show_error("late error")
+    panel.finish_response()
+
+    assert panel._current_assistant_text == ""
+    assert panel._messages == []
+    assert panel._chat_view.get_all_plain_text() == ""
+
+    panel.clear_chat()
+    assert stopped.calls == [()]
     panel.deleteLater()
 
 

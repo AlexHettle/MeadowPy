@@ -852,6 +852,41 @@ def test_client_start_properties_and_normal_slots(qapp, tmp_path):
     assert finished.calls == [()]
 
 
+def test_client_ignores_signals_from_cancelled_chat_worker(tmp_path):
+    client = OllamaClient(Settings(tmp_path))
+    cancelled_worker = ChatWorker("http://localhost:11434", "old", [])
+    active_worker = ChatWorker("http://localhost:11434", "new", [])
+    tokens = SignalRecorder()
+    errors = SignalRecorder()
+    finished = SignalRecorder()
+    client.chat_token.connect(tokens)
+    client.chat_error.connect(errors)
+    client.chat_finished.connect(finished)
+    cancelled_worker.chat_token.connect(client._on_chat_token)
+    cancelled_worker.chat_error.connect(client._on_chat_error)
+    cancelled_worker.finished.connect(client._on_chat_worker_finished)
+    active_worker.chat_token.connect(client._on_chat_token)
+    active_worker.chat_error.connect(client._on_chat_error)
+    active_worker.finished.connect(client._on_chat_worker_finished)
+    client._chat_worker = active_worker
+
+    cancelled_worker.chat_token.emit("late token")
+    cancelled_worker.chat_error.emit("late error")
+    cancelled_worker.finished.emit()
+
+    assert tokens.calls == []
+    assert errors.calls == []
+    assert finished.calls == []
+
+    active_worker.chat_token.emit("current token")
+    active_worker.chat_error.emit("current error")
+    active_worker.finished.emit()
+
+    assert tokens.calls == [("current token",)]
+    assert errors.calls == [("current error",)]
+    assert finished.calls == [()]
+
+
 def test_client_slots_ignore_results_and_settings_during_shutdown(tmp_path):
     settings = Settings(tmp_path)
     client = OllamaClient(settings)

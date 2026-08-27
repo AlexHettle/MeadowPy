@@ -488,18 +488,23 @@ class OllamaClient(QObject):
 
     # ── Chat slots ───────────────────────────────────────────────────
 
+    def _chat_signal_is_current(self) -> bool:
+        """Return whether a chat callback belongs to the active worker."""
+        sender = self.sender()
+        return sender is None or sender is self._chat_worker
+
     def _on_chat_token(self, token: str) -> None:
-        if self._shutting_down:
+        if self._shutting_down or not self._chat_signal_is_current():
             return
         self.chat_token.emit(token)
 
     def _on_chat_error(self, message: str) -> None:
-        if self._shutting_down:
+        if self._shutting_down or not self._chat_signal_is_current():
             return
         self.chat_error.emit(message)
 
     def _on_chat_worker_finished(self) -> None:
-        if self._shutting_down:
+        if self._shutting_down or not self._chat_signal_is_current():
             return
         self.chat_finished.emit()
 

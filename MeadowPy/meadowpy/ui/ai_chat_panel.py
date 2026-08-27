@@ -356,7 +356,7 @@ class AIChatPanel(QDockWidget):
         Updates the existing streaming bubble in place to avoid rebuilding the
         entire chat view (and the visual jumpiness that caused) for each token.
         """
-        if self._shutting_down:
+        if self._shutting_down or not self._streaming:
             return
 
         self._current_assistant_text += token
@@ -379,7 +379,7 @@ class AIChatPanel(QDockWidget):
 
     def finish_response(self) -> None:
         """Called when the AI stream completes."""
-        if self._shutting_down:
+        if self._shutting_down or not self._streaming:
             return
 
         # Save the complete assistant message into history
@@ -399,7 +399,7 @@ class AIChatPanel(QDockWidget):
 
     def show_error(self, message: str) -> None:
         """Display an error in the chat and re-enable input."""
-        if self._shutting_down:
+        if self._shutting_down or not self._streaming:
             return
 
         self._current_assistant_text = ""
@@ -455,20 +455,23 @@ class AIChatPanel(QDockWidget):
         self.chat_requested.emit(self._build_request_messages())
 
     def clear_chat(self) -> None:
-        """Reset the conversation."""
+        """Cancel any active response and reset the conversation."""
         if self._shutting_down:
             return
 
+        was_streaming = self._streaming
+        self._streaming = False
         self._messages.clear()
         self._code_blocks.clear()
         self._current_assistant_text = ""
-        self._streaming = False
         self._streaming_bubble = None
         self._chat_view.clear()
         self._input_area.setEnabled(True)
         self._update_send_btn()
         self._update_btn_visibility()
         self._input_area.setFocus()
+        if was_streaming:
+            self.chat_stop_requested.emit()
 
     def prepare_for_shutdown(self) -> None:
         """Ignore late AI stream updates while the main window is closing."""
