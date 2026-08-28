@@ -1772,6 +1772,19 @@ def test_example_library_double_click_opens_clicked_example(qapp):
     dialog.deleteLater()
 
 
+def test_example_library_preview_preserves_blank_lines(qapp):
+    dialog = ExampleLibraryDialog()
+    code = "first = '<tag>'\n\nsecond = 2"
+    rendered = dialog._code_to_html(code)
+
+    dialog._code_preview.setHtml(rendered)
+
+    assert "&lt;tag&gt;" in rendered
+    assert dialog._code_preview.toPlainText() == code
+
+    dialog.deleteLater()
+
+
 def test_dialogs_sync_color_example_about_and_preferences_state(monkeypatch, qapp, tmp_path):
     color_dialog = AccentColorPickerDialog("#336699")
     assert color_dialog.selected_hex() == "#336699"

@@ -468,10 +468,7 @@ class ExampleLibraryDialog(QDialog):
 
     @staticmethod
     def _code_to_html(code: str) -> str:
-        """Convert code to HTML with compact blank-line spacing."""
-        lines = code.split(chr(10))
-        lines = [line_text for line_text in lines if line_text.strip() != '']
-        code = chr(10).join(lines)
+        """Convert code to escaped HTML while preserving its formatting."""
         escaped = _html.escape(code)
         return (
             '<pre style="font-family: Consolas, monospace; font-size: 10pt; '
