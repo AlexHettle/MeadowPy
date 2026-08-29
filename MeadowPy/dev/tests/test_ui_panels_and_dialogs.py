@@ -610,6 +610,16 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     panel._large_files_skipped = 1
     panel._on_search_finished(2)
     assert panel._status_label.text() == "2 results in 1 file 1 large file skipped."
+
+    panel._search_input.setText("target")
+    panel._search_input.clear()
+    assert panel._tree.topLevelItemCount() == 0
+    assert panel._file_items == {}
+    assert panel._large_files_skipped == 0
+    assert panel._status_label.text() == ""
+    assert panel._status_label.toolTip() == ""
+    assert panel._search_btn.isEnabled()
+
     panel.focus_search()
     assert panel.isVisible()
     panel.deleteLater()
@@ -793,9 +803,25 @@ def test_search_panel_starts_confirmed_broad_search_and_cancels_previous(
     assert panel._thread is second_thread
     assert panel._worker is second_worker
 
-    panel.stop()
+    result_path = str(project / "result.py")
+    panel._on_match_found(SearchResult(result_path, 1, 0, "second"))
+    panel._large_files_skipped = 2
+    panel._search_input.clear()
 
     assert second_worker.cancelled is True
+    assert second_thread.quit_calls == 1
+    assert panel._thread is None
+    assert panel._worker is None
+    assert panel._tree.topLevelItemCount() == 0
+    assert panel._file_items == {}
+    assert panel._large_files_skipped == 0
+    assert panel._status_label.text() == ""
+    assert panel._search_btn.isEnabled()
+    assert panel._old_threads == [first_thread, second_thread]
+    assert panel._old_workers == [first_worker, second_worker]
+
+    panel.stop()
+
     assert panel._thread is None
     assert panel._worker is None
     assert panel._old_threads == []

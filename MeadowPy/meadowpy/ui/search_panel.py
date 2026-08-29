@@ -223,6 +223,7 @@ class SearchPanel(QDockWidget):
         self._search_input.setClearButtonEnabled(True)
         self._search_input.setFixedHeight(28)
         self._search_input.returnPressed.connect(self._start_search)
+        self._search_input.textChanged.connect(self._on_search_text_changed)
         controls.addWidget(self._search_input, 1)
 
         self._case_cb = QCheckBox("Aa")
@@ -286,6 +287,7 @@ class SearchPanel(QDockWidget):
     def _start_search(self) -> None:
         query = self._search_input.text()
         if not query:
+            self._on_search_text_changed(query)
             return
         if not self._root_path:
             self._update_scope_label()
@@ -315,9 +317,7 @@ class SearchPanel(QDockWidget):
         self._cancel_search()
 
         # Clear previous results
-        self._tree.clear()
-        self._file_items.clear()
-        self._large_files_skipped = 0
+        self._clear_search_results()
         self._status_label.setText("Searching…")
         self._search_btn.setEnabled(False)
 
@@ -338,6 +338,22 @@ class SearchPanel(QDockWidget):
             lambda t=self._thread, w=self._worker: self._on_thread_finished(t, w)
         )
         self._thread.start()
+
+    def _clear_search_results(self) -> None:
+        """Clear displayed matches and their aggregate bookkeeping."""
+        self._tree.clear()
+        self._file_items.clear()
+        self._large_files_skipped = 0
+
+    def _on_search_text_changed(self, text: str) -> None:
+        """Reset stale search state when the query is cleared."""
+        if text:
+            return
+        self._cancel_search()
+        self._clear_search_results()
+        self._status_label.clear()
+        self._status_label.setToolTip("")
+        self._search_btn.setEnabled(True)
 
     def stop(self) -> None:
         """Shut down all threads cleanly (call during app close)."""
