@@ -13,7 +13,7 @@ from meadowpy.core.debug_manager import DebugState
 from meadowpy.core.linter import LintIssue
 from meadowpy.ui.ai_chat_widgets import ChatBubble, ChatInput, ChatView
 from meadowpy.ui.call_stack_panel import CallStackPanel
-from meadowpy.ui.dialogs.venv_dialog import VenvDialog
+from meadowpy.ui.dialogs.venv_dialog import VenvDialog, _is_valid_venv_name
 from meadowpy.ui.model_selector import ModelSelectorPopup
 from meadowpy.ui.problems_panel import ProblemsPanel
 from meadowpy.ui.splash_screen import LoadingDotsWidget, MeadowPySplashScreen
@@ -681,6 +681,21 @@ def test_venv_dialog_validates_inputs_and_reports_success(monkeypatch, qapp, tmp
     dialog._create_venv()
     assert messages[-1][1] == "Missing Name"
 
+    for invalid_name in (
+        ".",
+        "..",
+        "nested/env",
+        r"nested\env",
+        "/tmp/env",
+        r"C:\env",
+        "C:env",
+        r"\\server\share\env",
+    ):
+        dialog._name_edit.setText(invalid_name)
+        dialog._create_venv()
+        assert messages[-1][1] == "Invalid Name"
+    assert manager.created == []
+
     existing = tmp_path / ".venv"
     existing.mkdir()
     dialog._name_edit.setText(".venv")
@@ -708,6 +723,13 @@ def test_venv_dialog_validates_inputs_and_reports_success(monkeypatch, qapp, tmp
     assert manager.created == [(str(tmp_path), "new-env", "python.exe")]
     assert messages[-1][0] == "info"
     dialog.deleteLater()
+
+
+def test_venv_name_validation_accepts_single_directory_components():
+    assert _is_valid_venv_name(".venv") is True
+    assert _is_valid_venv_name("project-env") is True
+    assert _is_valid_venv_name("env 3") is True
+    assert _is_valid_venv_name("") is False
 
 
 def test_splash_screen_status_icon_and_loading_dots(qapp):

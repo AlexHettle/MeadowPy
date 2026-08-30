@@ -1,6 +1,6 @@
 """Virtual environment creation dialog."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit, QComboBox,
@@ -9,6 +9,17 @@ from PyQt6.QtWidgets import (
 )
 
 from meadowpy.core.interpreter_manager import InterpreterManager
+
+
+def _is_valid_venv_name(name: str) -> bool:
+    """Return whether *name* is one safe directory component."""
+    return (
+        bool(name)
+        and name not in {".", ".."}
+        and "/" not in name
+        and "\\" not in name
+        and not PureWindowsPath(name).drive
+    )
 
 
 class VenvDialog(QDialog):
@@ -91,6 +102,14 @@ class VenvDialog(QDialog):
             return
         if not venv_name:
             QMessageBox.warning(self, "Missing Name", "Please enter a name for the venv.")
+            return
+        if not _is_valid_venv_name(venv_name):
+            QMessageBox.warning(
+                self,
+                "Invalid Name",
+                "Enter a single folder name without a drive, path separators, "
+                "or '.'/'..'.",
+            )
             return
 
         target = Path(base_dir) / venv_name
