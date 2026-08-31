@@ -119,6 +119,31 @@ def test_problems_panel_updates_counts_navigation_and_linter_errors(qapp):
     panel.deleteLater()
 
 
+def test_problems_panel_linter_error_uses_contrast_warning_icon(
+    monkeypatch, qapp
+):
+    loaded_icons = []
+    real_loader = problems_panel_module.load_tinted_icon
+
+    def record_icon(name, color):
+        loaded_icons.append((name, color))
+        return real_loader(name, color)
+
+    monkeypatch.setattr(problems_panel_module, "load_tinted_icon", record_icon)
+    panel = ProblemsPanel(
+        settings=FakeSettings({"editor.theme": "default_high_contrast"})
+    )
+
+    panel.show_linter_error("flake8 is unavailable")
+
+    icon_item = panel._table.item(0, 0)
+    assert icon_item.text() == ""
+    assert icon_item.icon().isNull() is False
+    assert loaded_icons == [("problem_warning", "#FFFFFF")]
+
+    panel.deleteLater()
+
+
 def test_problems_panel_guards_navigation_and_emits_context_ai_request(
     qapp,
     monkeypatch,

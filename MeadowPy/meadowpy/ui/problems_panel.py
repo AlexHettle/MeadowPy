@@ -1,7 +1,6 @@
 """Problems panel — shows linting issues with click-to-navigate."""
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDockWidget,
     QFrame,
@@ -125,20 +124,13 @@ class ProblemsPanel(QDockWidget):
         self.setWindowTitle(title)
         self._title_label.setText(title)
 
-        # In HC mode collapse both severity icons onto pure white so the panel
-        # is fully monochrome — severity is read from the glyph shape (✕ vs ⚠)
-        # rather than color, which works for color-blind users too.
-        is_hc = theme_is_high_contrast(self._current_theme_name())
-
         # Pre-render the severity icons for this batch. Custom SVG glyphs
         # avoid two pitfalls of the previous text-based approach: the
         # warning sign rendered as a yellow color emoji that ignored
         # setForeground in HC, and ASCII fallbacks like "[X]" got elided
         # to "..." in the narrow severity column.
-        error_color = "#FFFFFF" if is_hc else "#F44747"
-        warning_color = "#FFFFFF" if is_hc else "#F0AD4E"
-        error_icon = load_tinted_icon("problem_error", error_color)
-        warning_icon = load_tinted_icon("problem_warning", warning_color)
+        error_icon = self._severity_icon("error")
+        warning_icon = self._severity_icon("warning")
 
         for row, issue in enumerate(issues):
             # Severity indicator — drawn as a tinted SVG icon, not text,
@@ -169,6 +161,16 @@ class ProblemsPanel(QDockWidget):
         if self._settings is not None:
             return self._settings.get("editor.theme") or ""
         return ""
+
+    def _severity_icon(self, severity: str):
+        """Load a themed SVG for an error or warning severity."""
+        is_high_contrast = theme_is_high_contrast(self._current_theme_name())
+        icon_name = (
+            "problem_error" if severity == "error" else "problem_warning"
+        )
+        normal_color = "#F44747" if severity == "error" else "#F0AD4E"
+        color = "#FFFFFF" if is_high_contrast else normal_color
+        return load_tinted_icon(icon_name, color)
 
     def _on_cell_clicked(self, row: int, column: int) -> None:
         line_item = self._table.item(row, 1)
@@ -205,8 +207,8 @@ class ProblemsPanel(QDockWidget):
         self.setWindowTitle(title)
         self._title_label.setText(title)
 
-        icon_item = QTableWidgetItem("\u26A0")
-        icon_item.setForeground(QColor("#CCA700"))
+        icon_item = QTableWidgetItem()
+        icon_item.setIcon(self._severity_icon("warning"))
         icon_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setItem(0, 0, icon_item)
 
