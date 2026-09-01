@@ -3,7 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QMessageBox, QToolButton, QWidget
+from PyQt6.QtWidgets import QMessageBox, QScrollArea, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
 from meadowpy.resources.resource_loader import run_button_accent_hex
@@ -339,6 +339,27 @@ def test_welcome_tab_reuse_theme_update_close_and_template_signal(qapp, tmp_path
 
     tabs.deleteLater()
     parent.deleteLater()
+
+
+def test_welcome_widget_expands_and_fits_narrow_viewport(qapp):
+    welcome = WelcomeWidget()
+    welcome.resize(800, 600)
+    welcome.show()
+    qapp.processEvents()
+
+    scroll = welcome.findChild(QScrollArea, "welcomeScrollArea")
+    center = welcome.findChild(QWidget, "welcomeCenter")
+
+    assert center.width() == center.maximumWidth() == 720
+
+    welcome.resize(420, 600)
+    qapp.processEvents()
+
+    assert center.width() == scroll.viewport().width()
+    assert scroll.widget().width() == scroll.viewport().width()
+    assert scroll.horizontalScrollBar().maximum() == 0
+
+    welcome.deleteLater()
 
 
 def test_deferred_close_button_closes_editor_on_next_event_loop(monkeypatch, qapp, tmp_path):

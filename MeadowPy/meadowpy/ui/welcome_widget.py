@@ -78,9 +78,12 @@ class WelcomeWidget(QWidget):
 
         # Scrollable center column
         center = QWidget()
-        center.setMinimumWidth(640)
+        center.setObjectName("welcomeCenter")
+        # Allow dock panels to narrow the editor without forcing the hidden
+        # horizontal scrollbar to clip the welcome content.
+        center.setMinimumWidth(0)
         center.setMaximumWidth(720)
-        center.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        center.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(center)
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(12)
@@ -98,6 +101,10 @@ class WelcomeWidget(QWidget):
         section_font.setPointSize(12)
         section_font.setBold(True)
         actions_label.setFont(section_font)
+        actions_label.setWordWrap(True)
+        actions_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
         layout.addWidget(actions_label)
 
         actions_row = QHBoxLayout()
@@ -123,6 +130,10 @@ class WelcomeWidget(QWidget):
         templates_label = QLabel("Quick-Start Templates")
         templates_label.setObjectName("welcomeSectionLabel")
         templates_label.setFont(section_font)
+        templates_label.setWordWrap(True)
+        templates_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
         layout.addWidget(templates_label)
 
         # Build the grid as stacked HBox rows inside a VBox.
@@ -166,9 +177,12 @@ class WelcomeWidget(QWidget):
         # Center the column horizontally inside the scroll area
         scroll_outer.addStretch(1)
         h_box = QHBoxLayout()
-        h_box.addStretch(1)
-        h_box.addWidget(center)
-        h_box.addStretch(1)
+        # Give the center column all available width until it reaches its
+        # 720-pixel cap.  Zero-stretch side spacers then share any remainder,
+        # keeping the full-width column centered without collapsing it.
+        h_box.addStretch()
+        h_box.addWidget(center, 1)
+        h_box.addStretch()
         scroll_outer.addLayout(h_box)
         scroll_outer.addStretch(1)
 
@@ -188,6 +202,9 @@ class WelcomeWidget(QWidget):
         btn.setObjectName("welcomeActionBtn")
         btn.setToolTip(tooltip)
         btn.setMinimumHeight(40)
+        # Let the three-button row contract with narrow editor viewports;
+        # the labels still have enough room at the supported window minimum.
+        btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         return btn
 
@@ -199,7 +216,9 @@ class WelcomeWidget(QWidget):
         # Lock the card to a uniform size so every row looks identical,
         # regardless of whether the description wraps to 1 or 2 lines.
         card.setFixedHeight(110)
-        card.setMinimumWidth(180)
+        # The three-column grid must be able to contract with its container.
+        # Its labels already wrap and ignore their intrinsic width hints.
+        card.setMinimumWidth(0)
         card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         card_layout = QVBoxLayout(card)
