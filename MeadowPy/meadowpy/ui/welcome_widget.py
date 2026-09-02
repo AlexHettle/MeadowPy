@@ -251,9 +251,19 @@ class WelcomeWidget(QWidget):
 
         card_layout.addStretch()
 
-        # Make the whole card clickable
-        card.mousePressEvent = lambda ev, t=tmpl: self._on_template_clicked(t)
+        # Make the whole card clickable without treating context or
+        # middle-click gestures as requests to open the template.
+        card.mousePressEvent = (
+            lambda event, template=tmpl: self._on_template_card_pressed(
+                event, template
+            )
+        )
         return card
+
+    def _on_template_card_pressed(self, event, tmpl: dict) -> None:
+        """Open a template only for the standard left-button gesture."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._on_template_clicked(tmpl)
 
     def _on_template_clicked(self, tmpl: dict) -> None:
         self.template_selected.emit(tmpl["name"], tmpl["code"])

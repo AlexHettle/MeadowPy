@@ -109,6 +109,11 @@ class WorkspaceController(MainWindowController):
         editor = self._tab_manager.new_tab()
         editor.setText(code)
         editor.setModified(False)
+        # The Welcome card is not focusable, so the tab bar can retain its
+        # keyboard-focus outline after the Welcome tab is replaced. Move
+        # focus into the new editor so only the normal selected-tab state
+        # remains visible and the user can start typing immediately.
+        editor.setFocus()
 
     def action_show_welcome(self) -> None:
         """Re-show the welcome tab (accessible from Help menu)."""

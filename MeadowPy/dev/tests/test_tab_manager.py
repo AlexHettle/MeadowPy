@@ -3,7 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QMessageBox, QScrollArea, QToolButton, QWidget
+from PyQt6.QtWidgets import QFrame, QMessageBox, QScrollArea, QToolButton, QWidget
 
 from meadowpy.core.settings import Settings
 from meadowpy.resources.resource_loader import run_button_accent_hex
@@ -359,6 +359,28 @@ def test_welcome_widget_expands_and_fits_narrow_viewport(qapp):
     assert scroll.widget().width() == scroll.viewport().width()
     assert scroll.horizontalScrollBar().maximum() == 0
 
+    welcome.deleteLater()
+
+
+def test_welcome_template_cards_only_activate_on_left_click(qapp):
+    welcome = WelcomeWidget()
+    welcome.resize(800, 600)
+    welcome.show()
+    qapp.processEvents()
+    selected = []
+    welcome.template_selected.connect(
+        lambda name, code: selected.append((name, code))
+    )
+    card = welcome.findChildren(QFrame, "welcomeTemplateCard")[0]
+
+    QTest.mouseClick(card, Qt.MouseButton.RightButton)
+    QTest.mouseClick(card, Qt.MouseButton.MiddleButton)
+
+    assert selected == []
+
+    QTest.mouseClick(card, Qt.MouseButton.LeftButton)
+
+    assert selected == [(TEMPLATES[0]["name"], TEMPLATES[0]["code"])]
     welcome.deleteLater()
 
 

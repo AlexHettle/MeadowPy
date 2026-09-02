@@ -3,9 +3,12 @@ from types import SimpleNamespace
 
 import meadowpy.ui.controllers.workspace_controller as workspace_module
 import pytest
+from PyQt6.QtCore import Qt
 from PyQt6.Qsci import QsciScintilla
 from meadowpy.constants import DEFAULT_WINDOW_LAYOUT_VERSION, DEFAULT_WINDOW_STATE
 from meadowpy.core.file_manager import LargeFileError
+from meadowpy.core.settings import Settings
+from meadowpy.ui.tab_manager import TabManager
 from meadowpy.ui.controllers.workspace_controller import WorkspaceController
 from meadowpy.ui.controllers.window_context import MainWindowContext
 
@@ -14,12 +17,16 @@ class FakeEditor:
     def __init__(self):
         self.text_value = ""
         self.modified = True
+        self.focused = False
 
     def setText(self, text):
         self.text_value = text
 
     def setModified(self, value):
         self.modified = value
+
+    def setFocus(self):
+        self.focused = True
 
 
 class FakeTabManager:
@@ -92,6 +99,40 @@ def test_template_selection_opens_clean_untitled_tab():
     assert tabs.closed_welcome is True
     assert tabs.editor.text_value == "print('hello')"
     assert tabs.editor.modified is False
+    assert tabs.editor.focused is True
+
+
+def test_template_selection_clears_tab_bar_keyboard_focus(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    tabs = TabManager(settings)
+    window = SimpleNamespace(_settings=settings, _tab_manager=tabs)
+    controller = WorkspaceController(
+        MainWindowContext(window, settings, None, None)
+    )
+    controller._show_welcome()
+    tabs.resize(800, 600)
+    tabs.show()
+    qapp.processEvents()
+
+    tab_bar = tabs.tabBar()
+    tab_bar.clearFocus()
+    qapp.processEvents()
+    tab_bar.setFocus(Qt.FocusReason.TabFocusReason)
+    qapp.processEvents()
+    assert tab_bar.property("editorKeyboardFocus") is True
+
+    welcome = tabs.currentWidget()
+    welcome._on_template_clicked({"name": "Demo", "code": "print('demo')"})
+    qapp.processEvents()
+
+    editor = tabs.current_editor()
+    assert editor is not None
+    assert editor.hasFocus() is True
+    assert tab_bar.hasFocus() is False
+    assert tab_bar.property("editorKeyboardFocus") is False
+
+    tabs.deleteLater()
+    qapp.processEvents()
 
 
 def test_show_welcome_creates_welcome_tab_with_current_theme():
