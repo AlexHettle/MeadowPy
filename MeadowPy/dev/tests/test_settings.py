@@ -202,6 +202,18 @@ def test_load_invalid_json_resets_to_empty_data(tmp_path):
     assert settings.get("editor.theme") == DEFAULT_SETTINGS["editor.theme"]
 
 
+def test_load_invalid_utf8_resets_to_empty_data(tmp_path):
+    config_file = tmp_path / "settings.json"
+    config_file.write_bytes(b'{"editor.theme": "\xff"}')
+
+    settings = Settings(tmp_path)
+    settings.set("custom.key", "stale")
+    settings.load()
+
+    assert settings.get("custom.key") is None
+    assert settings.get("editor.theme") == DEFAULT_SETTINGS["editor.theme"]
+
+
 def test_load_ignores_non_object_json_and_uses_defaults(tmp_path):
     config_file = tmp_path / "settings.json"
     config_file.write_text(json.dumps(["editor.font_size", 20]), encoding="utf-8")
