@@ -625,6 +625,78 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     panel.deleteLater()
 
 
+def test_search_panel_switching_roots_discards_stale_search_state(qapp, tmp_path):
+    class FakeWorker:
+        def __init__(self):
+            self.match_found = DummySignal()
+            self.finished = DummySignal()
+            self.cancelled = False
+
+        def cancel(self):
+            self.cancelled = True
+
+    class FakeThread:
+        def __init__(self):
+            self.running = True
+            self.quit_calls = 0
+
+        def isRunning(self):
+            return self.running
+
+        def quit(self):
+            self.quit_calls += 1
+            self.running = False
+
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    panel = SearchPanel()
+    panel.set_root_path(str(first_root))
+    worker = FakeWorker()
+    thread = FakeThread()
+    worker.match_found.connect(panel._on_match_found)
+    worker.finished.connect(panel._on_search_finished)
+    panel._worker = worker
+    panel._thread = thread
+    old_result = SearchResult(str(first_root / "old.py"), 1, 0, "old")
+    panel._on_match_found(old_result)
+    panel._large_files_skipped = 2
+    panel._status_label.setText("Searching…")
+    panel._status_label.setToolTip("old search")
+    panel._search_btn.setEnabled(False)
+
+    panel.set_root_path(str(second_root))
+
+    assert worker.cancelled is True
+    assert thread.quit_calls == 1
+    assert panel._worker is None
+    assert panel._thread is None
+    assert panel._tree.topLevelItemCount() == 0
+    assert panel._file_items == {}
+    assert panel._large_files_skipped == 0
+    assert panel._status_label.text() == ""
+    assert panel._status_label.toolTip() == ""
+    assert panel._search_btn.isEnabled()
+    assert panel._scope_label.toolTip() == str(second_root)
+
+    worker.match_found.emit(old_result)
+    worker.finished.emit(1)
+    assert panel._tree.topLevelItemCount() == 0
+    assert panel._status_label.text() == ""
+
+    current_result = SearchResult(
+        str(second_root / "current.py"), 1, 0, "current"
+    )
+    panel._on_match_found(current_result)
+    panel._status_label.setText("Current results")
+    panel.set_root_path(str(second_root.resolve()))
+    assert panel._tree.topLevelItemCount() == 1
+    assert panel._status_label.text() == "Current results"
+
+    panel.deleteLater()
+
+
 def test_search_panel_labels_align_with_search_input(qapp):
     panel = SearchPanel()
     panel.resize(700, 400)

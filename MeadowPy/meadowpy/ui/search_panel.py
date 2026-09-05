@@ -271,6 +271,14 @@ class SearchPanel(QDockWidget):
     # ── Public API ──────────────────────────────────────────────────────
 
     def set_root_path(self, path: str) -> None:
+        previous_root = (
+            self._normalized_root_key(self._root_path)
+            if self._root_path
+            else None
+        )
+        next_root = self._normalized_root_key(path) if path else None
+        if previous_root != next_root:
+            self._reset_search_state()
         self._root_path = path
         self._update_scope_label()
 
@@ -345,15 +353,19 @@ class SearchPanel(QDockWidget):
         self._file_items.clear()
         self._large_files_skipped = 0
 
-    def _on_search_text_changed(self, text: str) -> None:
-        """Reset stale search state when the query is cleared."""
-        if text:
-            return
+    def _reset_search_state(self) -> None:
+        """Cancel active work and clear results from the current scope."""
         self._cancel_search()
         self._clear_search_results()
         self._status_label.clear()
         self._status_label.setToolTip("")
         self._search_btn.setEnabled(True)
+
+    def _on_search_text_changed(self, text: str) -> None:
+        """Reset stale search state when the query is cleared."""
+        if text:
+            return
+        self._reset_search_state()
 
     def stop(self) -> None:
         """Shut down all threads cleanly (call during app close)."""
