@@ -1870,6 +1870,31 @@ def test_example_library_double_click_opens_clicked_example(qapp):
     dialog.deleteLater()
 
 
+def test_example_library_cards_only_select_with_left_click(qapp):
+    dialog = ExampleLibraryDialog()
+    dialog.show()
+    qapp.processEvents()
+
+    target_category = dialog._cat_buttons[1]
+    for button in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
+        QTest.mouseClick(target_category, button)
+        assert dialog._current_cat == 0
+
+    QTest.mouseClick(target_category, Qt.MouseButton.LeftButton)
+    assert dialog._current_cat == 1
+    assert dialog._current_ex == 0
+
+    target_example = dialog._example_cards[1]
+    for button in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
+        QTest.mouseClick(target_example, button)
+        assert dialog._current_ex == 0
+
+    QTest.mouseClick(target_example, Qt.MouseButton.LeftButton)
+    assert dialog._current_ex == 1
+
+    dialog.deleteLater()
+
+
 def test_example_library_preview_preserves_blank_lines(qapp):
     dialog = ExampleLibraryDialog()
     code = "first = '<tag>'\n\nsecond = 2"

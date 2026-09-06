@@ -82,7 +82,8 @@ class _CategoryButton(QWidget):
         self.update()
 
     def mousePressEvent(self, event):
-        self.clicked.emit()
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
         super().mousePressEvent(event)
 
 
@@ -141,7 +142,8 @@ class _ExampleCard(QWidget):
         self.update()
 
     def mousePressEvent(self, event):
-        self.clicked.emit()
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
