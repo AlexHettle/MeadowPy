@@ -32,7 +32,7 @@ def _normalize_api_url(api_url: str | None) -> str:
 class OllamaSetupCheckWorker(QObject):
     """Checks the Ollama HTTP API without blocking the dialog."""
 
-    finished = pyqtSignal(bool, str, list)
+    finished = pyqtSignal(bool, str, list, str)
 
     def __init__(self, api_url: str):
         super().__init__()
@@ -41,9 +41,10 @@ class OllamaSetupCheckWorker(QObject):
     def run(self) -> None:
         connected, message = self._check_health()
         models: list[str] = []
+        model_error = ""
         if connected:
-            models = self._fetch_models()
-        self.finished.emit(connected, message, models)
+            models, model_error = self._fetch_models()
+        self.finished.emit(connected, message, models, model_error)
 
     def _check_health(self) -> tuple[bool, str]:
         try:
@@ -57,15 +58,15 @@ class OllamaSetupCheckWorker(QObject):
         except Exception as exc:
             return False, str(exc)
 
-    def _fetch_models(self) -> list[str]:
+    def _fetch_models(self) -> tuple[list[str], str]:
         try:
             req = urllib.request.Request(f"{self._api_url}/api/tags")
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             models = data.get("models", [])
-            return [m["name"] for m in models if "name" in m]
-        except Exception:
-            return []
+            return [m["name"] for m in models if "name" in m], ""
+        except Exception as exc:
+            return [], str(exc) or type(exc).__name__
 
 
 class OllamaSetupDialog(QDialog):
@@ -223,7 +224,11 @@ class OllamaSetupDialog(QDialog):
         self._thread.start()
 
     def _on_check_finished(
-        self, connected: bool, message: str, models: list[str]
+        self,
+        connected: bool,
+        message: str,
+        models: list[str],
+        model_error: str = "",
     ) -> None:
         self._set_status(self._server_status, message, connected)
 
@@ -237,7 +242,13 @@ class OllamaSetupDialog(QDialog):
         if selected and selected in models:
             self._model_combo.setCurrentText(selected)
 
-        if connected and has_models:
+        if connected and model_error:
+            self._set_status(
+                self._models_status,
+                f"Could not retrieve models: {model_error}",
+                False,
+            )
+        elif connected and has_models:
             self._set_status(
                 self._models_status,
                 f"Found {len(models)} model(s).",

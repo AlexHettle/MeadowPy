@@ -100,20 +100,27 @@ def test_worker_reports_url_errors_unexpected_errors_and_model_fetch_failures(
     assert connected is False
     assert message == "boom"
 
-    assert worker._fetch_models() == []
+    assert worker._fetch_models() == ([], "boom")
+
+    finished = []
+    worker.finished.connect(
+        lambda connected, message, models, model_error: finished.append(
+            (connected, message, models, model_error)
+        )
+    )
+
+    worker._check_health = lambda: (True, "Ollama is running")
+    worker._fetch_models = lambda: ([], "tags unavailable")
+    worker.run()
+    assert finished == [(True, "Ollama is running", [], "tags unavailable")]
 
     worker._check_health = lambda: (False, "no server")
     worker._fetch_models = lambda: (_ for _ in ()).throw(
         AssertionError("models should not be fetched when health fails")
     )
-    finished = []
-    worker.finished.connect(lambda connected, message, models: finished.append(
-        (connected, message, models)
-    ))
-
     worker.run()
 
-    assert finished == [(False, "no server", [])]
+    assert finished[-1] == (False, "no server", [], "")
 
 
 def test_dialog_start_check_wires_worker_thread_and_cleans_up(
@@ -226,6 +233,18 @@ def test_dialog_model_selection_empty_model_and_invalid_accent_paths(
     dialog._on_check_finished(True, "Ollama is running.", [])
     assert dialog._model_combo.isEnabled() is False
     assert "no models are installed" in dialog._models_status.text()
+
+    dialog._on_check_finished(
+        True,
+        "Ollama is running.",
+        [],
+        "model endpoint timed out",
+    )
+    assert dialog._model_combo.isEnabled() is False
+    assert (
+        dialog._models_status.text()
+        == "Could not retrieve models: model endpoint timed out"
+    )
 
     settings.set("ollama.selected_model", "")
     dialog._url_input.setText(" http://localhost:11436/ ")

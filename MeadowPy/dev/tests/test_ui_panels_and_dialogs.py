@@ -2094,7 +2094,7 @@ def test_ollama_setup_check_worker_reports_health_and_models(monkeypatch):
 
     worker.run()
 
-    assert finished.calls == [(True, "Ollama is running", ["llama3"])]
+    assert finished.calls == [(True, "Ollama is running", ["llama3"], "")]
 
 
 class FakeToolbarWindow(QWidget):
