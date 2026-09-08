@@ -6,7 +6,7 @@ data_file = dev/.coverage
 [report]
 show_missing = True
 skip_covered = True
-fail_under = 85
+fail_under = 95
 exclude_lines =
     pragma: no cover
     if __name__ == "__main__":
