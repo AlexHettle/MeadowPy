@@ -997,9 +997,20 @@ def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
     editor.find_first_calls.clear()
     editor.find_first_results = [False]
     bar._case_btn.setChecked(True)
+    assert editor.find_first_calls[-1][:6] == (
+        "needle", False, True, False, True, True
+    )
+    assert bar._match_label.text() == "No results"
+
+    editor.find_first_results = [True]
     bar._word_btn.setChecked(True)
+    assert editor.find_first_calls[-1][:6] == (
+        "needle", False, True, True, True, True
+    )
+    assert bar._match_label.text() == ""
+
+    editor.find_first_results = [False]
     bar._regex_btn.setChecked(True)
-    bar.find_next()
     assert editor.find_first_calls[-1][:6] == ("needle", True, True, True, True, True)
     assert bar._match_label.text() == "No results"
 

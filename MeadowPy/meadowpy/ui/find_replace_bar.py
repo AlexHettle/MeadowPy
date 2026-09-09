@@ -50,6 +50,8 @@ class FindReplaceBar(QFrame):
         self._case_btn = self._make_toggle("Aa", "Match Case")
         self._word_btn = self._make_toggle("W", "Match Whole Word")
         self._regex_btn = self._make_toggle(".*", "Use Regular Expression")
+        for toggle in (self._case_btn, self._word_btn, self._regex_btn):
+            toggle.toggled.connect(self._on_match_option_toggled)
 
         self._match_label = QLabel("")
         self._match_label.setMinimumWidth(40)
@@ -284,6 +286,10 @@ class FindReplaceBar(QFrame):
             self.find_next()
         else:
             self._match_label.setText("")
+
+    def _on_match_option_toggled(self, _checked: bool) -> None:
+        """Refresh the current search after a match option changes."""
+        self.find_next()
 
     def _get_editor(self) -> CodeEditor | None:
         return self._window._tab_manager.current_editor()
