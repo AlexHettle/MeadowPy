@@ -382,7 +382,7 @@ def test_menu_bar_rebuilds_recent_files_and_routes_edit_commands(
 ):
     opened = []
     cleared = []
-    recent_paths = [str(tmp_path / "demo.py"), "standalone.py"]
+    recent_paths = [str(tmp_path / "R&D.py"), "stand&alone.py"]
     recent_files = SimpleNamespace(
         get_files=lambda: recent_paths,
         clear=lambda: cleared.append(True),
@@ -397,9 +397,9 @@ def test_menu_bar_rebuilds_recent_files_and_routes_edit_commands(
     builder.rebuild_recent_files_menu()
 
     actions = builder._recent_files_menu.actions()
-    assert actions[0].text() == f"{tmp_path.name}/demo.py"
+    assert actions[0].text() == f"{tmp_path.name}/R&&D.py"
     assert actions[0].toolTip() == recent_paths[0]
-    assert actions[1].text() == "standalone.py"
+    assert actions[1].text() == "stand&&alone.py"
     actions[0].trigger()
     actions[-1].trigger()
     assert opened == [recent_paths[0]]

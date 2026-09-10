@@ -48,7 +48,9 @@ class MenuBarBuilder:
             else:
                 display = p.name
 
-            action = self._recent_files_menu.addAction(display)
+            # QAction treats ampersands as mnemonic markers. Double them in the
+            # visible label so filenames such as "R&D.py" render literally.
+            action = self._recent_files_menu.addAction(display.replace("&", "&&"))
             action.setToolTip(filepath)
             action.triggered.connect(
                 lambda checked, path=filepath: self._window.open_recent_file(path)
