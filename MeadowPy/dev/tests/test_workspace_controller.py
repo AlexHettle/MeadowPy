@@ -1117,6 +1117,23 @@ def test_tab_changed_and_settings_changed_refresh_dependent_ui(monkeypatch, qapp
     assert window._file_explorer.visible is True
 
 
+def test_max_output_lines_setting_updates_live_output_panel():
+    limits = []
+    window = SimpleNamespace(
+        _settings=MutableSettings(),
+        _tab_manager=WorkspaceTabs([]),
+        _status_bar_manager=SimpleNamespace(update_indent_info=lambda: None),
+        _output_panel=SimpleNamespace(set_max_lines=limits.append),
+    )
+    controller = WorkspaceController(
+        MainWindowContext(window, window._settings, None, None)
+    )
+
+    controller._on_settings_changed("run.max_output_lines", 2000)
+
+    assert limits == [2000]
+
+
 def test_linter_setting_change_clears_stale_results_and_runs_once(monkeypatch):
     monkeypatch.setattr(workspace_module, "CodeEditor", SignalEditor)
     monkeypatch.setattr(

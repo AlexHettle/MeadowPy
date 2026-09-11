@@ -492,7 +492,9 @@ class OutputPanel(QDockWidget):
             self._update_send_button_state()
 
     def set_max_lines(self, max_lines: int) -> None:
+        """Set the output limit and immediately trim any excess lines."""
         self._max_lines = max_lines
+        self._trim_output()
 
     def update_accent_color(self, hex_color: str) -> None:
         """Refresh themed controls after accent changes."""

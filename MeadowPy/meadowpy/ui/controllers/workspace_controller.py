@@ -785,6 +785,9 @@ class WorkspaceController(MainWindowController):
                     self._settings.get("editor.font_size"),
                 )
 
+        if key == "run.max_output_lines" and hasattr(self, "_output_panel"):
+            self._output_panel.set_max_lines(value)
+
         if key == "shortcuts.custom":
             refresh_shortcuts = getattr(self.window, "_refresh_shortcut_actions", None)
             if callable(refresh_shortcuts):

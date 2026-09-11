@@ -296,6 +296,17 @@ def test_copy_output_leaves_clipboard_unchanged_when_empty(qapp):
     panel.deleteLater()
 
 
+def test_lowering_max_lines_immediately_trims_existing_output(qapp):
+    panel = OutputPanel(settings=MutableSettings({"editor.theme": "default_dark"}))
+    panel.append_output("one\ntwo\nthree\nfour", "stdout")
+
+    panel.set_max_lines(2)
+
+    assert panel._output_text.document().blockCount() == 2
+    assert panel._output_text.toPlainText() == "three\nfour"
+    panel.deleteLater()
+
+
 def test_font_and_accent_updates_refresh_output_panel_controls(qapp):
     panel = OutputPanel(settings=MutableSettings({"editor.theme": "default_dark"}))
     refreshes = []
