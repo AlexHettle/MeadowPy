@@ -559,5 +559,5 @@ class SearchPanel(QDockWidget):
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
         line_num = item.data(0, Qt.ItemDataRole.UserRole + 1)
-        if file_path:
-            self.navigate_to_file.emit(file_path, line_num or 1)
+        if file_path and line_num is not None:
+            self.navigate_to_file.emit(file_path, line_num)

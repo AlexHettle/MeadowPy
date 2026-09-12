@@ -596,6 +596,9 @@ def test_search_panel_builds_grouped_results_and_navigates(qapp, tmp_path):
     assert file_item.childCount() == 2
     assert len(file_item.child(1).text(0)) < 230
 
+    panel._on_item_double_clicked(file_item, 0)
+    assert navigated.calls == []
+
     panel._on_item_double_clicked(file_item.child(0), 0)
     assert navigated.calls == [(file_path, 2)]
 
