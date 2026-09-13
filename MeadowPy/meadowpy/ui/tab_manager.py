@@ -1,5 +1,6 @@
 """Tab manager for editor tabs."""
 
+import os
 import re
 from pathlib import Path
 
@@ -19,6 +20,11 @@ from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.resources.resource_loader import current_accent_hex, theme_is_dark
 from meadowpy.ui.save_helpers import prompt_save_before_closing, show_save_failed
 from meadowpy.ui.welcome_widget import WelcomeWidget
+
+
+def _path_comparison_key(file_path: str) -> str:
+    """Return a platform-aware key for comparing resolved file paths."""
+    return os.path.normcase(str(Path(file_path).resolve()))
 
 
 class _ModifiedDot(QWidget):
@@ -360,11 +366,11 @@ class TabManager(QTabWidget):
         large_file_mode: bool = False,
     ) -> CodeEditor:
         """Open a file. If already open, switch to its tab."""
-        norm_path = str(Path(file_path).resolve())
+        path_key = _path_comparison_key(file_path)
         for i in range(self.count()):
             ed = self.widget(i)
             if isinstance(ed, CodeEditor) and ed.file_path:
-                if str(Path(ed.file_path).resolve()) == norm_path:
+                if _path_comparison_key(ed.file_path) == path_key:
                     ed.large_file_mode = large_file_mode
                     self.setCurrentIndex(i)
                     return ed

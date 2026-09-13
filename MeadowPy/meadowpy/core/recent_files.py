@@ -1,11 +1,17 @@
 """Recent files list management."""
 
+import os
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from meadowpy.constants import RECENT_FILES_MAX
 from meadowpy.core.settings import Settings
+
+
+def _path_comparison_key(file_path: str) -> str:
+    """Return a platform-aware key for comparing resolved file paths."""
+    return os.path.normcase(str(Path(file_path).resolve()))
 
 
 class RecentFilesManager(QObject):
@@ -21,13 +27,21 @@ class RecentFilesManager(QObject):
     def add(self, file_path: str) -> None:
         """Add a file to the top of the recent list."""
         normalized = str(Path(file_path).resolve())
+        normalized_key = _path_comparison_key(normalized)
         files = self.get_files()
 
-        # Remove if already present
-        files = [f for f in files if f != normalized]
+        # Preserve the spelling already shown to the user when an equivalent
+        # Windows path is added with different casing.
+        display_path = next(
+            (f for f in files if _path_comparison_key(f) == normalized_key),
+            normalized,
+        )
+        files = [
+            f for f in files if _path_comparison_key(f) != normalized_key
+        ]
 
         # Insert at top
-        files.insert(0, normalized)
+        files.insert(0, display_path)
 
         # Trim to max
         files = files[: self._max_files]
@@ -36,9 +50,11 @@ class RecentFilesManager(QObject):
 
     def remove(self, file_path: str) -> None:
         """Remove a specific file from the list."""
-        normalized = str(Path(file_path).resolve())
+        normalized_key = _path_comparison_key(file_path)
         files = self.get_files()
-        files = [f for f in files if f != normalized]
+        files = [
+            f for f in files if _path_comparison_key(f) != normalized_key
+        ]
         self._store_files(files)
 
     def clear(self) -> None:

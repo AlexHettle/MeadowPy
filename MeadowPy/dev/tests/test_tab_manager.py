@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+
+import pytest
 from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtTest import QTest
@@ -119,6 +122,23 @@ def test_tab_manager_creates_deduplicates_titles_and_paths(qapp, tmp_path):
 
     tabs.deleteLater()
     parent.deleteLater()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows paths ignore casing")
+def test_tab_manager_deduplicates_paths_with_different_casing(qapp, tmp_path):
+    settings = make_settings(tmp_path)
+    tabs = TabManager(settings)
+    original_path = str(tmp_path / "MixedCase.py")
+
+    opened = tabs.open_file_in_tab(original_path, "original content")
+    duplicate = tabs.open_file_in_tab(original_path.swapcase(), "ignored")
+
+    assert duplicate is opened
+    assert tabs.count() == 1
+    assert opened.file_path == original_path
+    assert opened.text() == "original content"
+
+    tabs.deleteLater()
 
 
 def test_close_tab_prompt_save_discard_cancel_and_close_all(monkeypatch, qapp, tmp_path):

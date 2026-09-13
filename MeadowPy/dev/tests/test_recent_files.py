@@ -1,5 +1,8 @@
+import os
 from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
 
 from meadowpy.core.recent_files import RecentFilesManager
 from meadowpy.core.settings import Settings
@@ -39,6 +42,22 @@ def test_add_trims_to_max_files(tmp_path):
         manager.add(str(path))
 
     assert manager.get_files() == [files[2], files[1]]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows paths ignore casing")
+def test_add_and_remove_compare_windows_paths_case_insensitively(tmp_path):
+    _, manager = make_manager(tmp_path, max_files=5)
+    original = str((tmp_path / "MixedCase.py").resolve())
+    case_variant = original.swapcase()
+
+    manager.add(original)
+    manager.add(case_variant)
+
+    assert manager.get_files() == [original]
+
+    manager.remove(case_variant)
+
+    assert manager.get_files() == []
 
 
 def test_remove_and_clear_update_settings(tmp_path):
