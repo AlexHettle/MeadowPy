@@ -8,13 +8,31 @@ from meadowpy.resources.resource_loader import theme_is_high_contrast
 
 
 class _ClickableLabel(QLabel):
-    """A QLabel that emits clicked() on mouse press."""
+    """A QLabel that emits ``clicked`` after a completed left click."""
 
     clicked = pyqtSignal()
 
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._left_button_pressed = False
+
     def mousePressEvent(self, event):
-        self.clicked.emit()
+        self._left_button_pressed = (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        should_emit = (
+            self._left_button_pressed
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        self._left_button_pressed = False
+        super().mouseReleaseEvent(event)
+        if should_emit:
+            self.clicked.emit()
 
 
 class StatusBarManager:

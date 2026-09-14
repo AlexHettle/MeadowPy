@@ -299,14 +299,57 @@ def test_status_bar_manager_handles_empty_lint_ai_and_clickable_states(qapp):
     manager.update_ollama_status(True, "")
     assert manager.ollama_label.text() == "AI: Select model..."
 
-    click = QMouseEvent(
+    label = manager.ollama_label
+    label.resize(120, 24)
+    center = QPointF(label.rect().center())
+    left_press = QMouseEvent(
         QEvent.Type.MouseButtonPress,
-        QPointF(1, 1),
+        center,
         Qt.MouseButton.LeftButton,
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-    manager.ollama_label.mousePressEvent(click)
+    left_release = QMouseEvent(
+        QEvent.Type.MouseButtonRelease,
+        center,
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    label.mousePressEvent(left_press)
+    assert clicked.calls == []
+    label.mouseReleaseEvent(left_release)
+    assert clicked.calls == [()]
+
+    for button in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
+        press = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            center,
+            button,
+            button,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        release = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            center,
+            button,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        label.mousePressEvent(press)
+        label.mouseReleaseEvent(release)
+    assert clicked.calls == [()]
+
+    label.mousePressEvent(left_press)
+    outside_release = QMouseEvent(
+        QEvent.Type.MouseButtonRelease,
+        QPointF(-1, -1),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    label.mouseReleaseEvent(outside_release)
+    label.mouseReleaseEvent(left_release)
     assert clicked.calls == [()]
 
     manager.show_message("File saved", 10)
