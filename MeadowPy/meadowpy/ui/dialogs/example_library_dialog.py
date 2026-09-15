@@ -19,10 +19,36 @@ import html as _html
 from meadowpy.resources.example_library import EXAMPLE_CATEGORIES
 
 
-class _CategoryButton(QWidget):
-    """A styled category button with icon and name."""
+class _CompletedClickWidget(QWidget):
+    """Emit ``clicked`` only after a complete left click inside the widget."""
 
     clicked = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._left_button_pressed = False
+
+    def mousePressEvent(self, event):
+        self._left_button_pressed = (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        should_emit = (
+            self._left_button_pressed
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        self._left_button_pressed = False
+        super().mouseReleaseEvent(event)
+        if should_emit:
+            self.clicked.emit()
+
+
+class _CategoryButton(_CompletedClickWidget):
+    """A styled category button with icon and name."""
 
     def __init__(self, icon: str, name: str, count: int, parent=None):
         super().__init__(parent)
@@ -81,16 +107,9 @@ class _CategoryButton(QWidget):
             child.style().polish(child)
         self.update()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(event)
-
-
-class _ExampleCard(QWidget):
+class _ExampleCard(_CompletedClickWidget):
     """A card widget for an individual example."""
 
-    clicked = pyqtSignal()
     double_clicked = pyqtSignal()
 
     def __init__(self, name: str, desc: str, parent=None):
@@ -141,13 +160,11 @@ class _ExampleCard(QWidget):
             child.style().polish(child)
         self.update()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(event)
-
     def mouseDoubleClickEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        ):
             self.double_clicked.emit()
         super().mouseDoubleClickEvent(event)
 

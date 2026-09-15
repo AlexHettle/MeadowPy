@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
@@ -1894,16 +1894,38 @@ def test_example_library_cards_only_select_with_left_click(qapp):
         QTest.mouseClick(target_category, button)
         assert dialog._current_cat == 0
 
-    QTest.mouseClick(target_category, Qt.MouseButton.LeftButton)
+    QTest.mousePress(target_category, Qt.MouseButton.LeftButton)
+    assert dialog._current_cat == 0
+    QTest.mouseRelease(target_category, Qt.MouseButton.LeftButton)
     assert dialog._current_cat == 1
     assert dialog._current_ex == 0
+
+    cancelled_category = dialog._cat_buttons[0]
+    QTest.mousePress(cancelled_category, Qt.MouseButton.LeftButton)
+    QTest.mouseRelease(
+        cancelled_category,
+        Qt.MouseButton.LeftButton,
+        pos=QPoint(-1, -1),
+    )
+    assert dialog._current_cat == 1
 
     target_example = dialog._example_cards[1]
     for button in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
         QTest.mouseClick(target_example, button)
         assert dialog._current_ex == 0
 
-    QTest.mouseClick(target_example, Qt.MouseButton.LeftButton)
+    QTest.mousePress(target_example, Qt.MouseButton.LeftButton)
+    assert dialog._current_ex == 0
+    QTest.mouseRelease(target_example, Qt.MouseButton.LeftButton)
+    assert dialog._current_ex == 1
+
+    cancelled_example = dialog._example_cards[0]
+    QTest.mousePress(cancelled_example, Qt.MouseButton.LeftButton)
+    QTest.mouseRelease(
+        cancelled_example,
+        Qt.MouseButton.LeftButton,
+        pos=QPoint(-1, -1),
+    )
     assert dialog._current_ex == 1
 
     dialog.deleteLater()
