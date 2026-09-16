@@ -489,14 +489,50 @@ def test_header_glow_painter_tracks_button_states_and_renders(qapp):
     assert entry["state"] == "hover"
     assert surface.update_count == 1
 
+    def mouse_event(event_type, button):
+        buttons = (
+            button
+            if event_type == QEvent.Type.MouseButtonPress
+            else Qt.MouseButton.NoButton
+        )
+        return QMouseEvent(
+            event_type,
+            QPointF(1, 1),
+            button,
+            buttons,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+    for button_type in (
+        Qt.MouseButton.RightButton,
+        Qt.MouseButton.MiddleButton,
+    ):
+        update_count = surface.update_count
+        assert painter.eventFilter(
+            button,
+            mouse_event(QEvent.Type.MouseButtonPress, button_type),
+        ) is False
+        assert painter.eventFilter(
+            button,
+            mouse_event(QEvent.Type.MouseButtonRelease, button_type),
+        ) is False
+        assert entry["state"] == "hover"
+        assert surface.update_count == update_count
+
     assert painter.eventFilter(button, QEvent(QEvent.Type.HoverLeave)) is False
     assert entry["state"] == "idle"
 
-    assert painter.eventFilter(button, QEvent(QEvent.Type.MouseButtonPress)) is False
+    assert painter.eventFilter(
+        button,
+        mouse_event(QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton),
+    ) is False
     assert entry["state"] == "press"
 
     button._under_mouse = True
-    assert painter.eventFilter(button, QEvent(QEvent.Type.MouseButtonRelease)) is False
+    assert painter.eventFilter(
+        button,
+        mouse_event(QEvent.Type.MouseButtonRelease, Qt.MouseButton.LeftButton),
+    ) is False
     assert entry["state"] == "hover"
 
     painter.set_button_color(button, QColor("#445566"))

@@ -43,10 +43,17 @@ class HeaderGlowPainter(QObject):
                 elif etype == QEvent.Type.HoverLeave:
                     entry["state"] = "idle"
                     self._surface.update()
-                elif etype == QEvent.Type.MouseButtonPress and obj.isEnabled():
+                elif (
+                    etype == QEvent.Type.MouseButtonPress
+                    and event.button() == Qt.MouseButton.LeftButton
+                    and obj.isEnabled()
+                ):
                     entry["state"] = "press"
                     self._surface.update()
-                elif etype == QEvent.Type.MouseButtonRelease:
+                elif (
+                    etype == QEvent.Type.MouseButtonRelease
+                    and event.button() == Qt.MouseButton.LeftButton
+                ):
                     entry["state"] = (
                         "hover" if obj.underMouse() and obj.isEnabled()
                         else "idle"
