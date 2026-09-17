@@ -256,11 +256,15 @@ class _FakeOutputText:
 
 
 class _FakeMousePress:
-    def __init__(self):
+    def __init__(self, button=Qt.MouseButton.LeftButton):
         self._position = QPointF(4, 8)
+        self._button = button
 
     def type(self):
         return QEvent.Type.MouseButtonPress
+
+    def button(self):
+        return self._button
 
     def position(self):
         return self._position
@@ -284,6 +288,31 @@ def test_traceback_click_event_emits_navigation_target():
 
     assert handled is True
     assert signal.calls == [("C:/tmp/demo.py", 12)]
+
+
+@pytest.mark.parametrize(
+    "button",
+    [Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton],
+)
+def test_traceback_click_ignores_non_left_buttons(button):
+    output_text = _FakeOutputText(
+        '  File "C:/tmp/demo.py", line 12, in <module>'
+    )
+    signal = _RecordingSignal()
+    panel = SimpleNamespace(
+        _output_text=output_text,
+        traceback_navigate=signal,
+    )
+
+    handled = OutputPanel.eventFilter(
+        panel,
+        output_text.viewport(),
+        _FakeMousePress(button),
+    )
+
+    assert handled is False
+    assert signal.calls == []
+    assert output_text.positions == []
 
 
 def test_copy_output_leaves_clipboard_unchanged_when_empty(qapp):

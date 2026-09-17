@@ -544,6 +544,8 @@ class OutputPanel(QDockWidget):
             etype = event.type()
 
             if etype == QEvent.Type.MouseButtonPress:
+                if event.button() != Qt.MouseButton.LeftButton:
+                    return False
                 pos = event.position().toPoint()
                 cursor = self._output_text.cursorForPosition(pos)
                 line_text = cursor.block().text()
