@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, Qt
+from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QFrame, QMessageBox, QScrollArea, QToolButton, QWidget
@@ -382,7 +382,7 @@ def test_welcome_widget_expands_and_fits_narrow_viewport(qapp):
     welcome.deleteLater()
 
 
-def test_welcome_template_cards_only_activate_on_left_click(qapp):
+def test_welcome_template_cards_require_completed_left_click(qapp):
     welcome = WelcomeWidget()
     welcome.resize(800, 600)
     welcome.show()
@@ -395,6 +395,11 @@ def test_welcome_template_cards_only_activate_on_left_click(qapp):
 
     QTest.mouseClick(card, Qt.MouseButton.RightButton)
     QTest.mouseClick(card, Qt.MouseButton.MiddleButton)
+    QTest.mouseRelease(card, Qt.MouseButton.LeftButton)
+
+    QTest.mousePress(card, Qt.MouseButton.LeftButton)
+    assert selected == []
+    QTest.mouseRelease(card, Qt.MouseButton.LeftButton, pos=QPoint(-1, -1))
 
     assert selected == []
 

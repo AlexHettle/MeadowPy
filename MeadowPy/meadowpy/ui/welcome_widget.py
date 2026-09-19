@@ -17,6 +17,34 @@ from meadowpy.ui.welcome_hero import _WelcomeHeroWidget
 from meadowpy.ui.welcome_templates import TEMPLATES
 
 
+class _TemplateCard(QFrame):
+    """Card that activates after a completed left click inside its bounds."""
+
+    activated = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._left_button_pressed = False
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        self._left_button_pressed = (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        should_activate = (
+            self._left_button_pressed
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        self._left_button_pressed = False
+        super().mouseReleaseEvent(event)
+        if should_activate:
+            self.activated.emit()
+
+
 class WelcomeWidget(QWidget):
     """Welcome screen displayed as a tab when no files are open.
 
@@ -209,7 +237,7 @@ class WelcomeWidget(QWidget):
         return btn
 
     def _make_template_card(self, tmpl: dict) -> QFrame:
-        card = QFrame()
+        card = _TemplateCard()
         card.setObjectName("welcomeTemplateCard")
         card.setCursor(Qt.CursorShape.PointingHandCursor)
         card.setFrameShape(QFrame.Shape.StyledPanel)
@@ -251,19 +279,11 @@ class WelcomeWidget(QWidget):
 
         card_layout.addStretch()
 
-        # Make the whole card clickable without treating context or
-        # middle-click gestures as requests to open the template.
-        card.mousePressEvent = (
-            lambda event, template=tmpl: self._on_template_card_pressed(
-                event, template
-            )
+        # Activate only after a completed left click within the card.
+        card.activated.connect(
+            lambda template=tmpl: self._on_template_clicked(template)
         )
         return card
-
-    def _on_template_card_pressed(self, event, tmpl: dict) -> None:
-        """Open a template only for the standard left-button gesture."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._on_template_clicked(tmpl)
 
     def _on_template_clicked(self, tmpl: dict) -> None:
         self.template_selected.emit(tmpl["name"], tmpl["code"])
