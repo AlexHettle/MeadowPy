@@ -1,7 +1,7 @@
 """File explorer panel — shows project directory tree."""
 
 import shutil
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from PyQt6.QtCore import (
     Qt,
@@ -53,12 +53,24 @@ _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
 _MAX_PREFETCH_SUBDIRS = 40
 _PENDING_REEXPAND_DELAY_MS = 30
 _BLOCKED_FILE_TOOLTIP = "This file type cannot be opened in MeadowPy's text editor."
+_INVALID_ENTRY_NAME_MESSAGE = (
+    "Enter a single file or folder name without a drive, path separators, "
+    "or '.'/'..'."
+)
 
 
 def _name_is_visible_in_explorer(name: str) -> bool:
     if name in _HIDDEN_NAMES:
         return False
     return not any(name.endswith(suffix) for suffix in _HIDDEN_SUFFIXES)
+
+
+def _is_valid_entry_name(name: str) -> bool:
+    """Return whether *name* is one Windows filename component."""
+    if not name or name in {".", ".."}:
+        return False
+    path = PureWindowsPath(name)
+    return not path.anchor and len(path.parts) == 1 and path.name == name
 
 
 def _directory_has_visible_entries(path: str) -> bool | None:
@@ -769,7 +781,13 @@ class FileExplorerPanel(QDockWidget):
         )
         if not ok or not name.strip():
             return
-        new_path = parent_dir / name.strip()
+        name = name.strip()
+        if not _is_valid_entry_name(name):
+            QMessageBox.warning(
+                self, "Invalid Name", _INVALID_ENTRY_NAME_MESSAGE
+            )
+            return
+        new_path = parent_dir / name
         if new_path.exists():
             QMessageBox.warning(self, "File Exists", f"'{name}' already exists.")
             return
@@ -786,7 +804,13 @@ class FileExplorerPanel(QDockWidget):
         )
         if not ok or not name.strip():
             return
-        new_path = parent_dir / name.strip()
+        name = name.strip()
+        if not _is_valid_entry_name(name):
+            QMessageBox.warning(
+                self, "Invalid Name", _INVALID_ENTRY_NAME_MESSAGE
+            )
+            return
+        new_path = parent_dir / name
         if new_path.exists():
             QMessageBox.warning(self, "Already Exists", f"'{name}' already exists.")
             return
@@ -802,7 +826,13 @@ class FileExplorerPanel(QDockWidget):
         )
         if not ok or not new_name.strip() or new_name.strip() == old_path.name:
             return
-        new_path = old_path.parent / new_name.strip()
+        new_name = new_name.strip()
+        if not _is_valid_entry_name(new_name):
+            QMessageBox.warning(
+                self, "Invalid Name", _INVALID_ENTRY_NAME_MESSAGE
+            )
+            return
+        new_path = old_path.parent / new_name
         if new_path.exists():
             QMessageBox.warning(self, "Already Exists", f"'{new_name}' already exists.")
             return
