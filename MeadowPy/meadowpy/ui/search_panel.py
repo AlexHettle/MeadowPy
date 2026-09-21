@@ -308,6 +308,7 @@ class SearchPanel(QDockWidget):
                 re.compile(query, flags)
             except re.error as exc:
                 message = f"Invalid regular expression: {exc}"
+                self._reset_search_state()
                 self._status_label.setText(message)
                 self._status_label.setToolTip(message)
                 self._search_input.setFocus()

@@ -748,6 +748,16 @@ def test_search_panel_reports_invalid_regex_before_starting_search(qapp, tmp_pat
     panel.set_root_path(str(tmp_path))
     existing_path = str(tmp_path / "existing.py")
     panel._on_match_found(SearchResult(existing_path, 1, 0, "existing"))
+    cancelled = []
+    worker = SimpleNamespace(
+        cancel=lambda: cancelled.append(True),
+        match_found=DummySignal(),
+        finished=DummySignal(),
+    )
+    worker.match_found.connect(panel._on_match_found)
+    worker.finished.connect(panel._on_search_finished)
+    panel._worker = worker
+    panel._search_btn.setEnabled(False)
     confirmations = []
     panel._is_broad_search_root = lambda root: True
     panel._confirm_broad_search_root = (
@@ -762,7 +772,9 @@ def test_search_panel_reports_invalid_regex_before_starting_search(qapp, tmp_pat
     assert "position 0" in panel._status_label.text()
     assert panel._status_label.toolTip() == panel._status_label.text()
     assert panel._search_input.hasFocus()
-    assert panel._tree.topLevelItemCount() == 1
+    assert panel._tree.topLevelItemCount() == 0
+    assert panel._file_items == {}
+    assert cancelled == [True]
     assert confirmations == []
     assert panel._thread is None
     assert panel._worker is None
