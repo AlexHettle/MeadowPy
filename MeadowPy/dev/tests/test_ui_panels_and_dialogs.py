@@ -921,7 +921,9 @@ def test_search_panel_starts_confirmed_broad_search_and_cancels_previous(
 class FakeEditor:
     def __init__(self):
         self.selected = "needle"
+        self.selection = (0, 0, 0, len(self.selected))
         self.has_selection = True
+        self.selectionChanged = DummySignal()
         self.find_first_results = []
         self.find_next_results = []
         self.find_first_calls = []
@@ -934,11 +936,21 @@ class FakeEditor:
     def selectedText(self):
         return self.selected
 
+    def getSelection(self):
+        return self.selection
+
     def findFirst(self, *args):
         self.find_first_calls.append(args)
-        if self.find_first_results:
-            return self.find_first_results.pop(0)
-        return True
+        found = (
+            self.find_first_results.pop(0)
+            if self.find_first_results
+            else True
+        )
+        if found:
+            self.has_selection = True
+            self.selection = (0, 0, 0, len(self.selected))
+            self.selectionChanged.emit()
+        return found
 
     def findNext(self):
         if self.find_next_results:
@@ -959,7 +971,10 @@ class FakeFindWindow(QWidget):
         self.resize(900, 500)
         self._central = QWidget(self)
         self._central.setGeometry(100, 30, 700, 400)
-        self._tab_manager = SimpleNamespace(current_editor=lambda: self._editor)
+        self._tab_manager = SimpleNamespace(
+            current_editor=lambda: self._editor,
+            tab_changed=DummySignal(),
+        )
 
     def centralWidget(self):
         return self._central
@@ -1043,6 +1058,7 @@ def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
     assert not bar._replace_row.isHidden()
     bar._replace_input.setText("new")
     editor.find_first_results = [True]
+    bar.find_next()
     bar.replace_current()
     assert editor.replacements[-1] == "new"
 
@@ -1057,6 +1073,55 @@ def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
     bar.hide_bar()
     assert not bar.isVisible()
     assert editor.focused is True
+    bar.deleteLater()
+    window.deleteLater()
+
+
+def test_find_replace_bar_replaces_only_the_tracked_match(qapp):
+    editor = FakeEditor()
+    window = FakeFindWindow(editor)
+    bar = FindReplaceBar(window)
+    bar._replace_input.setText("new")
+    bar._find_input.setText("needle")
+
+    assert bar._replace_btn.isEnabled()
+
+    editor.selected = "unrelated"
+    editor.selection = (2, 0, 2, len(editor.selected))
+    editor.selectionChanged.emit()
+
+    assert not bar._replace_btn.isEnabled()
+    bar.replace_current()
+    assert editor.replacements == []
+
+    editor.find_first_results = [True]
+    bar.find_next()
+    window._editor = FakeEditor()
+    window._tab_manager.tab_changed.emit(window._editor)
+
+    assert not bar._replace_btn.isEnabled()
+    bar.replace_current()
+    assert editor.replacements == []
+
+    window._editor = editor
+    window._tab_manager.tab_changed.emit(editor)
+    editor.selected = "needle"
+    editor.find_first_results = [False]
+    bar.find_next()
+
+    assert not bar._replace_btn.isEnabled()
+    bar.replace_current()
+    assert editor.replacements == []
+
+    editor.find_first_results = [True, True]
+    bar.find_next()
+
+    assert bar._replace_btn.isEnabled()
+    bar.replace_current()
+    assert editor.replacements == ["new"]
+
+    bar._find_input.clear()
+    assert not bar._replace_btn.isEnabled()
     bar.deleteLater()
     window.deleteLater()
 

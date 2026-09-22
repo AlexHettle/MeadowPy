@@ -22,10 +22,20 @@ class FindReplaceBar(QFrame):
         self._replace_visible = False
         self._compact_layout = False
         self._layout_initialized = False
+        self._active_match_editor: CodeEditor | None = None
+        self._active_match_selection: tuple[int, int, int, int] | None = None
+        self._active_match_text: str | None = None
         self._central_widget = main_window.centralWidget()
         self._setup_ui()
         if self._central_widget is not None:
             self._central_widget.installEventFilter(self)
+        tab_changed = getattr(
+            getattr(main_window, "_tab_manager", None),
+            "tab_changed",
+            None,
+        )
+        if tab_changed is not None:
+            tab_changed.connect(self._on_editor_changed)
         self.hide()
 
     def _setup_ui(self) -> None:
@@ -95,6 +105,7 @@ class FindReplaceBar(QFrame):
         self._replace_btn = QPushButton("Replace")
         self._replace_btn.setToolTip("Replace the current match")
         self._replace_btn.setMinimumHeight(30)
+        self._replace_btn.setEnabled(False)
         self._replace_btn.clicked.connect(self.replace_current)
 
         self._replace_all_btn = QPushButton("Replace All")
@@ -150,61 +161,78 @@ class FindReplaceBar(QFrame):
         """Find the next occurrence."""
         editor = self._get_editor()
         if not editor:
+            self._clear_active_match()
             return
         text = self._find_input.text()
         if not text:
+            self._clear_active_match()
             return
 
-        if not editor.findFirst(
+        found = editor.findFirst(
             text,
             self._regex_btn.isChecked(),
             self._case_btn.isChecked(),
             self._word_btn.isChecked(),
             True,   # wrap around
             True,   # forward
-        ):
+        )
+        if not found:
+            self._clear_active_match()
             self._match_label.setText("No results")
         else:
+            self._remember_active_match(editor)
             self._match_label.setText("")
 
     def find_previous(self) -> None:
         """Find the previous occurrence."""
         editor = self._get_editor()
         if not editor:
+            self._clear_active_match()
             return
         text = self._find_input.text()
         if not text:
+            self._clear_active_match()
             return
 
-        if not editor.findFirst(
+        found = editor.findFirst(
             text,
             self._regex_btn.isChecked(),
             self._case_btn.isChecked(),
             self._word_btn.isChecked(),
             True,   # wrap around
             False,  # backward
-        ):
+        )
+        if not found:
+            self._clear_active_match()
             self._match_label.setText("No results")
         else:
+            self._remember_active_match(editor)
             self._match_label.setText("")
 
     def replace_current(self) -> None:
         """Replace the current match and find the next one."""
         editor = self._get_editor()
-        if editor and editor.hasSelectedText():
-            editor.replace(self._replace_input.text())
-            self.find_next()
+        if not self._selection_is_active_match(editor):
+            self._clear_active_match()
+            return
+        replacement = self._replace_input.text()
+        self._clear_active_match()
+        editor.replace(replacement)
+        self.find_next()
 
     def replace_all(self) -> None:
         """Replace all occurrences."""
         editor = self._get_editor()
         if not editor:
+            self._clear_active_match()
             return
         text = self._find_input.text()
         replacement = self._replace_input.text()
         if not text:
+            self._clear_active_match()
             return
 
+        self._clear_active_match()
         count = 0
         found = editor.findFirst(
             text, self._regex_btn.isChecked(), self._case_btn.isChecked(),
@@ -285,6 +313,7 @@ class FindReplaceBar(QFrame):
         if text:
             self.find_next()
         else:
+            self._clear_active_match()
             self._match_label.setText("")
 
     def _on_match_option_toggled(self, _checked: bool) -> None:
@@ -293,6 +322,72 @@ class FindReplaceBar(QFrame):
 
     def _get_editor(self) -> CodeEditor | None:
         return self._window._tab_manager.current_editor()
+
+    def _remember_active_match(self, editor: CodeEditor) -> None:
+        """Track the exact selection created by a successful search."""
+        self._clear_active_match()
+        if not editor.hasSelectedText():
+            return
+        try:
+            selection = tuple(editor.getSelection())
+            selected_text = editor.selectedText()
+        except (AttributeError, RuntimeError):
+            return
+        if len(selection) != 4:
+            return
+
+        self._active_match_editor = editor
+        self._active_match_selection = selection
+        self._active_match_text = selected_text
+        try:
+            editor.selectionChanged.connect(
+                self._on_active_match_selection_changed
+            )
+        except (AttributeError, RuntimeError):
+            pass
+        self._replace_btn.setEnabled(True)
+
+    def _selection_is_active_match(self, editor: CodeEditor | None) -> bool:
+        """Return whether the editor still holds the tracked search match."""
+        if (
+            editor is None
+            or editor is not self._active_match_editor
+            or self._active_match_selection is None
+            or not self._find_input.text()
+        ):
+            return False
+        try:
+            return (
+                editor.hasSelectedText()
+                and tuple(editor.getSelection())
+                == self._active_match_selection
+                and editor.selectedText() == self._active_match_text
+            )
+        except (AttributeError, RuntimeError):
+            return False
+
+    def _on_active_match_selection_changed(self) -> None:
+        if not self._selection_is_active_match(self._active_match_editor):
+            self._clear_active_match()
+
+    def _on_editor_changed(self, _editor=None) -> None:
+        self._clear_active_match()
+
+    def _clear_active_match(self) -> None:
+        """Forget the current match and disable single replacement."""
+        editor = self._active_match_editor
+        if editor is not None:
+            try:
+                editor.selectionChanged.disconnect(
+                    self._on_active_match_selection_changed
+                )
+            except (AttributeError, TypeError, RuntimeError):
+                pass
+        self._active_match_editor = None
+        self._active_match_selection = None
+        self._active_match_text = None
+        if hasattr(self, "_replace_btn"):
+            self._replace_btn.setEnabled(False)
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Escape:
