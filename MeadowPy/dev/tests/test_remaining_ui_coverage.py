@@ -920,28 +920,44 @@ def test_file_explorer_icon_provider_badge_click_and_live_theme(qapp, tmp_path):
     assert "#AA4499" in panel._project_badge.styleSheet()
     assert panel._project_badge.text() == tmp_path.name.upper()
 
-    click = QMouseEvent(
-        QEvent.Type.MouseButtonRelease,
-        QPointF(panel._project_badge.rect().center()),
-        Qt.MouseButton.LeftButton,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
+    def click_event(event_type, widget, position=None):
+        if position is None:
+            position = QPointF(widget.rect().center())
+        buttons = (
+            Qt.MouseButton.LeftButton
+            if event_type == QEvent.Type.MouseButtonPress
+            else Qt.MouseButton.NoButton
+        )
+        return QMouseEvent(
+            event_type,
+            position,
+            Qt.MouseButton.LeftButton,
+            buttons,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+    panel._project_badge.mouseReleaseEvent(
+        click_event(QEvent.Type.MouseButtonRelease, panel._project_badge)
     )
-    panel._project_badge.mouseReleaseEvent(click)
+    assert changed_folder.calls == []
+    panel._project_badge.mousePressEvent(
+        click_event(QEvent.Type.MouseButtonPress, panel._project_badge)
+    )
+    panel._project_badge.mouseReleaseEvent(
+        click_event(QEvent.Type.MouseButtonRelease, panel._project_badge)
+    )
     assert changed_folder.calls == [()]
 
     label = _ClickableLabel("Open")
     label.resize(80, 24)
     clicked = Recorder()
     label.clicked.connect(clicked)
-    label_click = QMouseEvent(
-        QEvent.Type.MouseButtonRelease,
-        QPointF(label.rect().center()),
-        Qt.MouseButton.LeftButton,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
+    label.mousePressEvent(
+        click_event(QEvent.Type.MouseButtonPress, label)
     )
-    label.mouseReleaseEvent(label_click)
+    label.mouseReleaseEvent(
+        click_event(QEvent.Type.MouseButtonRelease, label)
+    )
     assert clicked.calls == [()]
 
     panel.deleteLater()
@@ -1308,8 +1324,28 @@ def test_file_explorer_click_and_delegate_noop_visual_branches(qapp):
     clicked = Recorder()
     label.clicked.connect(clicked)
 
+    inside = QPointF(label.rect().center())
+    label.mousePressEvent(
+        QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            inside,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+    )
+    label.mouseReleaseEvent(
+        QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(-1, -1),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+    )
+
     for button, position in (
-        (Qt.MouseButton.RightButton, QPointF(label.rect().center())),
+        (Qt.MouseButton.RightButton, inside),
         (Qt.MouseButton.LeftButton, QPointF(-1, -1)),
     ):
         event = QMouseEvent(

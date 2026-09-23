@@ -141,19 +141,33 @@ class _ExplorerIconProvider(QFileIconProvider):
 
 
 class _ClickableLabel(QLabel):
-    """QLabel that emits ``clicked`` on left-mouse release."""
+    """QLabel that emits ``clicked`` after a completed left click."""
 
     clicked = pyqtSignal()
 
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
+        self._left_button_pressed = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
+    def mousePressEvent(self, event):
+        self._left_button_pressed = (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        super().mousePressEvent(event)
+
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.pos()):
-            self.clicked.emit()
+        should_emit = (
+            self._left_button_pressed
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        self._left_button_pressed = False
         super().mouseReleaseEvent(event)
+        if should_emit:
+            self.clicked.emit()
 
 
 class _FilteredFileSystemModel(QSortFilterProxyModel):
