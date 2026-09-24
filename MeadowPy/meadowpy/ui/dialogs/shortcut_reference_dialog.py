@@ -175,6 +175,7 @@ class _ShortcutRow(QFrame):
     def __init__(self, definition: ShortcutDefinition, shortcut: str, parent=None):
         super().__init__(parent)
         self.definition = definition
+        self._left_button_pressed = False
         self.setObjectName("shortcutRow")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._shortcut_text = ""
@@ -219,11 +220,22 @@ class _ShortcutRow(QFrame):
         )
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.selected.emit(self.definition.id)
-            event.accept()
-            return
+        self._left_button_pressed = (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        should_select = (
+            self._left_button_pressed
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        )
+        self._left_button_pressed = False
+        super().mouseReleaseEvent(event)
+        if should_select:
+            self.selected.emit(self.definition.id)
 
 
 class _ShortcutListSection(QFrame):

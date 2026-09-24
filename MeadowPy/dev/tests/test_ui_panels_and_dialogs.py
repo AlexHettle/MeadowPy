@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QPalette
+from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QMouseEvent, QPalette
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
     QFontComboBox,
@@ -116,6 +116,93 @@ def test_shortcut_confirmation_dialogs_expose_choices_and_actions(qapp):
     use_dialog.deleteLater()
     pick_dialog.deleteLater()
     reset_dialog.deleteLater()
+
+
+def test_shortcut_row_selects_only_after_completed_left_click(qapp):
+    definition = ShortcutDefinition(
+        "test.row",
+        "Test",
+        "Select row",
+        "Ctrl+R",
+        "Select a shortcut row.",
+    )
+    row = shortcut_reference_module._ShortcutRow(definition, "Ctrl+R")
+    row.resize(240, 40)
+    selected = Recorder()
+    row.selected.connect(selected)
+    inside = QPointF(row.rect().center())
+    outside = QPointF(-1, -1)
+
+    def mouse_event(event_type, position, button, buttons):
+        return QMouseEvent(
+            event_type,
+            position,
+            button,
+            buttons,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+    row.mouseReleaseEvent(
+        mouse_event(
+            QEvent.Type.MouseButtonRelease,
+            inside,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+        )
+    )
+    assert selected.calls == []
+
+    row.mousePressEvent(
+        mouse_event(
+            QEvent.Type.MouseButtonPress,
+            inside,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+        )
+    )
+    assert selected.calls == []
+    row.mouseReleaseEvent(
+        mouse_event(
+            QEvent.Type.MouseButtonRelease,
+            outside,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+        )
+    )
+    assert selected.calls == []
+
+    for button in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
+        row.mousePressEvent(
+            mouse_event(QEvent.Type.MouseButtonPress, inside, button, button)
+        )
+        row.mouseReleaseEvent(
+            mouse_event(
+                QEvent.Type.MouseButtonRelease,
+                inside,
+                button,
+                Qt.MouseButton.NoButton,
+            )
+        )
+    assert selected.calls == []
+
+    row.mousePressEvent(
+        mouse_event(
+            QEvent.Type.MouseButtonPress,
+            inside,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+        )
+    )
+    row.mouseReleaseEvent(
+        mouse_event(
+            QEvent.Type.MouseButtonRelease,
+            inside,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+        )
+    )
+    assert selected.calls == [(definition.id,)]
+    row.deleteLater()
 
 
 def test_shortcut_capture_escape_clear_and_memory_settings(qapp):
