@@ -77,6 +77,7 @@ class OllamaSetupDialog(QDialog):
         self._settings = settings
         self._thread: QThread | None = None
         self._worker: OllamaSetupCheckWorker | None = None
+        self._saved_values: tuple[str, bool, str] | None = None
 
         self.setWindowTitle("Ollama Setup")
         self.setMinimumSize(560, 430)
@@ -158,6 +159,10 @@ class OllamaSetupDialog(QDialog):
         actions.addWidget(self._save_btn)
         actions.addWidget(self._close_btn)
         layout.addLayout(actions)
+
+        self._url_input.textChanged.connect(self._refresh_save_button)
+        self._auto_connect.toggled.connect(self._refresh_save_button)
+        self._model_combo.currentTextChanged.connect(self._refresh_save_button)
 
     def _add_status_row(
         self, grid: QGridLayout, row: int, title: str
@@ -284,7 +289,31 @@ class OllamaSetupDialog(QDialog):
             self._settings.set("ollama.selected_model", model)
         self._settings.save()
         self._refresh_selected_status()
+        self._saved_values = self._current_values()
         self._save_btn.setText("Saved")
+
+    def _current_values(self) -> tuple[str, bool, str]:
+        model = (
+            self._model_combo.currentText()
+            or self._settings.get("ollama.selected_model")
+            or ""
+        )
+        return (
+            _normalize_api_url(self._url_input.text()),
+            self._auto_connect.isChecked(),
+            model,
+        )
+
+    def _refresh_save_button(self, *_args) -> None:
+        if self._saved_values is None:
+            self._save_btn.setText("Save Settings")
+            return
+        text = (
+            "Saved"
+            if self._current_values() == self._saved_values
+            else "Save Settings"
+        )
+        self._save_btn.setText(text)
 
     def _request_close(self) -> None:
         if self._thread and self._thread.isRunning():

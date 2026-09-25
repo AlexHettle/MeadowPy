@@ -256,3 +256,31 @@ def test_dialog_model_selection_empty_model_and_invalid_accent_paths(
     assert settings.get("ollama.selected_model") == ""
     assert dialog._save_btn.text() == "Saved"
     dialog.deleteLater()
+
+
+def test_dialog_resets_saved_indicator_when_settings_change(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    settings.set("ollama.api_url", "http://localhost:11434")
+    settings.set("ollama.auto_connect", False)
+    settings.set("ollama.selected_model", "llama3")
+    dialog = OllamaSetupDialog(settings)
+    dialog._on_check_finished(True, "Ollama is running.", ["llama3", "qwen3"])
+
+    dialog._save_settings()
+    assert dialog._save_btn.text() == "Saved"
+
+    dialog._url_input.setText("http://localhost:11435")
+    assert dialog._save_btn.text() == "Save Settings"
+    dialog._url_input.setText("http://localhost:11434/")
+    assert dialog._save_btn.text() == "Saved"
+
+    dialog._auto_connect.setChecked(True)
+    assert dialog._save_btn.text() == "Save Settings"
+    dialog._auto_connect.setChecked(False)
+    assert dialog._save_btn.text() == "Saved"
+
+    dialog._model_combo.setCurrentText("qwen3")
+    assert dialog._save_btn.text() == "Save Settings"
+    dialog._model_combo.setCurrentText("llama3")
+    assert dialog._save_btn.text() == "Saved"
+    dialog.deleteLater()
