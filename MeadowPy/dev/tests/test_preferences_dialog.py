@@ -18,6 +18,23 @@ def _set_combo_data(combo, value):
     combo.setCurrentIndex(index)
 
 
+def test_preferences_normalize_ollama_url_when_applied(qapp, tmp_path):
+    settings = Settings(tmp_path)
+    dialog = PreferencesDialog(settings)
+
+    dialog._ollama_url.setText("  http://localhost:11435///  ")
+    assert dialog._apply() is True
+    assert settings.get("ollama.api_url") == "http://localhost:11435"
+    assert dialog._ollama_url.text() == "http://localhost:11435"
+    assert dialog._pending_changes == {}
+
+    dialog._ollama_url.clear()
+    assert dialog._apply() is True
+    assert settings.get("ollama.api_url") == "http://localhost:11434"
+    assert dialog._ollama_url.text() == "http://localhost:11434"
+    dialog.deleteLater()
+
+
 def test_lint_preferences_expose_context_controls_and_preserve_provider_drafts(
     qapp, tmp_path
 ):
@@ -641,6 +658,7 @@ def test_lint_path_and_project_helpers_ignore_invalid_inputs(monkeypatch, qapp, 
         ({"editor.lint_delay_ms": 99}, "between 100"),
         ({"editor.lint_interpreter_mode": "invalid"}, "interpreter mode"),
         ({"editor.lint_working_directory": "cwd"}, "working directory"),
+        ({"ollama.api_url": 42}, "Ollama API URL must be text"),
         ({"editor.lint_interpreter_path": 42}, "must be text"),
         ({"security.trusted_lint_roots": "root"}, "list of folders"),
         ({"security.trusted_lint_roots": [""]}, "invalid folder"),

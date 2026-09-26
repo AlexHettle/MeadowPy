@@ -30,6 +30,7 @@ from meadowpy.core.linter import (
 )
 from meadowpy.editor.editor_fonts import editor_font_family
 from meadowpy.editor.themes import THEMES
+from meadowpy.ui.dialogs.ollama_setup_dialog import _normalize_api_url
 
 
 class _SettingsOverlay:
@@ -1359,6 +1360,13 @@ class PreferencesDialog(QDialog):
             }:
                 return None, "Choose a valid linter working directory."
 
+        ollama_url_key = "ollama.api_url"
+        if ollama_url_key in changes:
+            raw_url = changes[ollama_url_key]
+            if not isinstance(raw_url, str):
+                return None, "Ollama API URL must be text."
+            changes[ollama_url_key] = _normalize_api_url(raw_url)
+
         interpreter_path_key = "editor.lint_interpreter_path"
         if interpreter_path_key in changes:
             raw_path = changes[interpreter_path_key]
@@ -1543,6 +1551,10 @@ class PreferencesDialog(QDialog):
             self._settings.set(key, value)
         self._settings.save()
         self._pending_changes.clear()
+        if "ollama.api_url" in validated:
+            self._ollama_url.blockSignals(True)
+            self._ollama_url.setText(validated["ollama.api_url"])
+            self._ollama_url.blockSignals(False)
         if changed_keys:
             self.preferences_applied.emit(changed_keys)
         if hasattr(self, "_active_lint_provider"):
