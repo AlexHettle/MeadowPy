@@ -204,6 +204,9 @@ class WorkspaceController(MainWindowController):
             self._tab_manager.setTabToolTip(i, renamed_path)
             if i == self._tab_manager.currentIndex():
                 self._update_run_file_button(editor)
+        recent_files = self.context.recent_files
+        if recent_files is not None:
+            recent_files.remap_path(old_path, new_path)
 
     def _on_explorer_file_deleted(self, deleted_path: str) -> None:
         """Close any open tab whose file was deleted in the explorer."""
@@ -229,6 +232,9 @@ class WorkspaceController(MainWindowController):
                 else:
                     self._tab_manager.removeTab(i)
                     editor.deleteLater()
+        recent_files = self.context.recent_files
+        if recent_files is not None:
+            recent_files.remove_within(deleted_path)
 
     # ── Drag & Drop ──────────────────────────────────────────────────
 

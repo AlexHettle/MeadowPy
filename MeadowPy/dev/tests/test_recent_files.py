@@ -84,6 +84,60 @@ def test_remove_and_clear_update_settings(tmp_path):
     assert recorder.calls == [([remaining],), ([],)]
 
 
+def test_remap_path_updates_descendants_without_changing_recent_order(tmp_path):
+    _, manager = make_manager(tmp_path, max_files=10)
+    old_folder = tmp_path / "package"
+    nested_folder = old_folder / "nested"
+    nested_folder.mkdir(parents=True)
+    child = old_folder / "child.py"
+    nested = nested_folder / "module.py"
+    sibling = tmp_path / "package-extra" / "keep.py"
+    sibling.parent.mkdir()
+    for path in (child, nested, sibling):
+        path.write_text("", encoding="utf-8")
+
+    manager.add(str(nested))
+    manager.add(str(sibling))
+    manager.add(str(child))
+    recorder = SignalRecorder()
+    manager.recent_files_changed.connect(recorder)
+
+    new_folder = tmp_path / "renamed_package"
+    old_folder.rename(new_folder)
+    manager.remap_path(str(old_folder), str(new_folder))
+
+    assert manager.get_files() == [
+        str((new_folder / "child.py").resolve()),
+        str(sibling.resolve()),
+        str((new_folder / "nested" / "module.py").resolve()),
+    ]
+    assert recorder.calls == [(manager.get_files(),)]
+
+
+def test_remove_within_removes_exact_path_and_descendants(tmp_path):
+    _, manager = make_manager(tmp_path, max_files=10)
+    folder = tmp_path / "package"
+    folder.mkdir()
+    child = folder / "child.py"
+    sibling = tmp_path / "package-extra.py"
+    child.write_text("", encoding="utf-8")
+    sibling.write_text("", encoding="utf-8")
+    manager.add(str(sibling))
+    manager.add(str(child))
+    recorder = SignalRecorder()
+    manager.recent_files_changed.connect(recorder)
+
+    child.unlink()
+    folder.rmdir()
+    manager.remove_within(str(folder))
+    assert manager.get_files() == [str(sibling.resolve())]
+
+    sibling.unlink()
+    manager.remove_within(str(sibling))
+    assert manager.get_files() == []
+    assert recorder.calls == [([str(sibling.resolve())],), ([],)]
+
+
 def test_get_files_returns_copy(tmp_path):
     settings, manager = make_manager(tmp_path)
     stored_files = [str(Path(tmp_path / "alpha.py"))]

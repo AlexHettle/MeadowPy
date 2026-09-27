@@ -57,6 +57,49 @@ class RecentFilesManager(QObject):
         ]
         self._store_files(files)
 
+    def remap_path(self, old_path: str, new_path: str) -> None:
+        """Replace a renamed path and any descendants without reordering."""
+        old_root = Path(old_path).resolve()
+        new_root = Path(new_path).resolve()
+        remapped_files: list[str] = []
+        seen: set[str] = set()
+        changed = False
+
+        for file_path in self.get_files():
+            resolved = Path(file_path).resolve()
+            try:
+                relative_path = resolved.relative_to(old_root)
+            except ValueError:
+                remapped = file_path
+            else:
+                remapped = str(new_root / relative_path)
+                changed = changed or remapped != file_path
+
+            comparison_key = _path_comparison_key(remapped)
+            if comparison_key in seen:
+                changed = True
+                continue
+            seen.add(comparison_key)
+            remapped_files.append(remapped)
+
+        if changed:
+            self._store_files(remapped_files)
+
+    def remove_within(self, deleted_path: str) -> None:
+        """Remove a deleted path and every recent file beneath it."""
+        deleted_root = Path(deleted_path).resolve()
+        files = self.get_files()
+        remaining_files = []
+        for file_path in files:
+            resolved = Path(file_path).resolve()
+            try:
+                resolved.relative_to(deleted_root)
+            except ValueError:
+                remaining_files.append(file_path)
+
+        if len(remaining_files) != len(files):
+            self._store_files(remaining_files)
+
     def clear(self) -> None:
         """Clear the entire recent files list."""
         self._store_files([])

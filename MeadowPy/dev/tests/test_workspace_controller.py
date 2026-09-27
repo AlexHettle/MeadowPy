@@ -576,8 +576,18 @@ def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path
         WorkspaceEditor(str(tmp_path / "other.py")),
     ]
     tabs = WorkspaceTabs(editors)
+    recent_calls = []
+    recent = SimpleNamespace(
+        remap_path=lambda old, new: recent_calls.append(("rename", old, new)),
+        remove_within=lambda path: recent_calls.append(("delete", path)),
+    )
     controller = WorkspaceController(
-        MainWindowContext(SimpleNamespace(_tab_manager=tabs), MutableSettings(), None, None)
+        MainWindowContext(
+            SimpleNamespace(_tab_manager=tabs),
+            MutableSettings(),
+            None,
+            recent,
+        )
     )
 
     controller._on_explorer_file_renamed(str(old_path), str(new_path))
@@ -590,6 +600,10 @@ def test_explorer_rename_and_delete_keep_open_tabs_in_sync(monkeypatch, tmp_path
     assert editors[1].deleted_later is True
     assert editors[0].deleted_later is False
     assert editors[2].deleted_later is False
+    assert recent_calls == [
+        ("rename", str(old_path), str(new_path)),
+        ("delete", str(tmp_path / "folder")),
+    ]
 
 
 def test_explorer_folder_rename_updates_descendant_tab_paths(monkeypatch, tmp_path):
