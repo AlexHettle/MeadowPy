@@ -53,9 +53,16 @@ _HIDDEN_SUFFIXES = {".pyc", ".pyo"}
 _MAX_PREFETCH_SUBDIRS = 40
 _PENDING_REEXPAND_DELAY_MS = 30
 _BLOCKED_FILE_TOOLTIP = "This file type cannot be opened in MeadowPy's text editor."
+_INVALID_WINDOWS_NAME_CHARS = frozenset('<>:"/\\|?*')
+_RESERVED_WINDOWS_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in "123456789¹²³"}
+    | {f"LPT{number}" for number in "123456789¹²³"}
+)
 _INVALID_ENTRY_NAME_MESSAGE = (
-    "Enter a single file or folder name without a drive, path separators, "
-    "or '.'/'..'."
+    "Enter one valid Windows file or folder name. Avoid paths, reserved "
+    "names such as CON or NUL, the characters < > : \" / \\ | ? *, and "
+    "names ending with a space or period."
 )
 
 
@@ -68,6 +75,13 @@ def _name_is_visible_in_explorer(name: str) -> bool:
 def _is_valid_entry_name(name: str) -> bool:
     """Return whether *name* is one Windows filename component."""
     if not name or name in {".", ".."}:
+        return False
+    if name.endswith((" ", ".")):
+        return False
+    if any(char in _INVALID_WINDOWS_NAME_CHARS or ord(char) < 32 for char in name):
+        return False
+    base_name = name.partition(".")[0].upper()
+    if base_name in _RESERVED_WINDOWS_NAMES:
         return False
     path = PureWindowsPath(name)
     return not path.anchor and len(path.parts) == 1 and path.name == name
@@ -793,9 +807,8 @@ class FileExplorerPanel(QDockWidget):
         name, ok = QInputDialog.getText(
             self, "New File", "File name:", text="untitled.py"
         )
-        if not ok or not name.strip():
+        if not ok or not name:
             return
-        name = name.strip()
         if not _is_valid_entry_name(name):
             QMessageBox.warning(
                 self, "Invalid Name", _INVALID_ENTRY_NAME_MESSAGE
@@ -816,9 +829,8 @@ class FileExplorerPanel(QDockWidget):
         name, ok = QInputDialog.getText(
             self, "New Folder", "Folder name:", text="new_folder"
         )
-        if not ok or not name.strip():
+        if not ok or not name:
             return
-        name = name.strip()
         if not _is_valid_entry_name(name):
             QMessageBox.warning(
                 self, "Invalid Name", _INVALID_ENTRY_NAME_MESSAGE
@@ -838,9 +850,8 @@ class FileExplorerPanel(QDockWidget):
         new_name, ok = QInputDialog.getText(
             self, "Rename", "New name:", text=old_path.name
         )
-        if not ok or not new_name.strip() or new_name.strip() == old_path.name:
+        if not ok or not new_name or new_name == old_path.name:
             return
-        new_name = new_name.strip()
         if not _is_valid_entry_name(new_name):
             QMessageBox.warning(
                 self, "Invalid Name", _INVALID_ENTRY_NAME_MESSAGE

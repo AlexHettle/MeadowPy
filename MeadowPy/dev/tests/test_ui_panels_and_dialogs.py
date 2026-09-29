@@ -1897,7 +1897,15 @@ def test_file_explorer_context_actions_create_rename_delete_and_theme(monkeypatc
 
 
 def test_file_explorer_entry_names_must_be_single_components():
-    for name in ("file.py", "folder", "archive.tar.gz"):
+    for name in (
+        "file.py",
+        "folder",
+        "archive.tar.gz",
+        ".gitignore",
+        "COM10.txt",
+        "com1_notes.py",
+        "report 2026.txt",
+    ):
         assert _is_valid_entry_name(name) is True
 
     for name in (
@@ -1909,6 +1917,27 @@ def test_file_explorer_entry_names_must_be_single_components():
         "/outside.py",
         r"C:\outside.py",
         "C:outside.py",
+        "CON",
+        "con.txt",
+        "NUL.log",
+        "PRN",
+        "AUX.py",
+        "COM1",
+        "com9.txt",
+        "COM¹.log",
+        "LPT1",
+        "lpt9.txt",
+        "LPT³.log",
+        "bad:name.py",
+        "bad?.py",
+        "bad*.py",
+        "bad|name.py",
+        'bad"name.py',
+        "bad<name.py",
+        "bad>name.py",
+        "trailing.",
+        "trailing ",
+        "control\x1f.py",
     ):
         assert _is_valid_entry_name(name) is False
 
@@ -1966,6 +1995,54 @@ def test_file_explorer_rejects_paths_for_create_and_rename(
     assert not outside_file.exists()
     assert not outside_folder.exists()
     assert not outside_rename.exists()
+    panel.deleteLater()
+
+
+def test_file_explorer_rejects_invalid_windows_names_for_actions(
+    monkeypatch, qapp, tmp_path
+):
+    from meadowpy.ui import file_explorer as file_explorer_module
+
+    panel = FileExplorerPanel()
+    created = Recorder()
+    renamed = Recorder()
+    panel.file_created.connect(created)
+    panel.file_renamed.connect(renamed)
+    old_file = tmp_path / "old.py"
+    old_file.write_text("original\n", encoding="utf-8")
+    responses = iter(
+        (
+            ("CON", True),
+            ("bad:name", True),
+            ("NUL.txt", True),
+            ("trailing ", True),
+        )
+    )
+    warnings = []
+    monkeypatch.setattr(
+        file_explorer_module.QInputDialog,
+        "getText",
+        lambda *args, **kwargs: next(responses),
+    )
+    monkeypatch.setattr(
+        file_explorer_module.QMessageBox,
+        "warning",
+        lambda parent, title, body: warnings.append((title, body)),
+    )
+
+    panel._action_new_file(tmp_path)
+    panel._action_new_folder(tmp_path)
+    panel._fs_model = SimpleNamespace(filePath=lambda index: str(old_file))
+    panel._action_rename(object())
+    panel._action_new_file(tmp_path)
+
+    assert warnings == [
+        ("Invalid Name", file_explorer_module._INVALID_ENTRY_NAME_MESSAGE)
+    ] * 4
+    assert created.calls == []
+    assert renamed.calls == []
+    assert old_file.read_text(encoding="utf-8") == "original\n"
+    assert not (tmp_path / "trailing").exists()
     panel.deleteLater()
 
 
