@@ -179,6 +179,7 @@ class OutputPanel(QDockWidget):
         self._output_history: list[tuple[str, str]] = []
         self._mode = self._MODE_REPL
         self._settings = settings
+        self._pressed_traceback_target: tuple[int, str, int] | None = None
         self._setup_ui()
 
     # ------------------------------------------------------------------
@@ -544,17 +545,29 @@ class OutputPanel(QDockWidget):
             etype = event.type()
 
             if etype == QEvent.Type.MouseButtonPress:
+                self._pressed_traceback_target = None
                 if event.button() != Qt.MouseButton.LeftButton:
                     return False
-                pos = event.position().toPoint()
-                cursor = self._output_text.cursorForPosition(pos)
-                line_text = cursor.block().text()
-                match = TRACEBACK_RE.match(line_text)
-                if match:
-                    file_path = match.group(1)
-                    line_num = int(match.group(2))
-                    self.traceback_navigate.emit(file_path, line_num)
+                target = self._traceback_target_at(event.position().toPoint())
+                if target is not None:
+                    self._pressed_traceback_target = target
                     return True
+
+            if etype == QEvent.Type.MouseButtonRelease:
+                pressed_target = self._pressed_traceback_target
+                self._pressed_traceback_target = None
+                if (
+                    event.button() != Qt.MouseButton.LeftButton
+                    or pressed_target is None
+                ):
+                    return False
+                released_target = self._traceback_target_at(
+                    event.position().toPoint()
+                )
+                if released_target == pressed_target:
+                    _, file_path, line_num = released_target
+                    self.traceback_navigate.emit(file_path, line_num)
+                return True
 
             if etype == QEvent.Type.MouseMove:
                 pos = event.position().toPoint()
@@ -569,6 +582,14 @@ class OutputPanel(QDockWidget):
                     viewport.setCursor(Qt.CursorShape.IBeamCursor)
 
         return super().eventFilter(obj, event)
+
+    def _traceback_target_at(self, pos) -> tuple[int, str, int] | None:
+        """Return the document row and destination for a traceback link."""
+        block = self._output_text.cursorForPosition(pos).block()
+        match = TRACEBACK_RE.match(block.text())
+        if match is None:
+            return None
+        return block.position(), match.group(1), int(match.group(2))
 
     # ------------------------------------------------------------------
     # Internal

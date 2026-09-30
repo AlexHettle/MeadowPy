@@ -226,24 +226,30 @@ class _RecordingSignal:
 
 
 class _FakeBlock:
-    def __init__(self, text):
+    def __init__(self, text, position=0):
         self._text = text
+        self._position = position
 
     def text(self):
         return self._text
 
+    def position(self):
+        return self._position
+
 
 class _FakeCursor:
-    def __init__(self, line_text):
+    def __init__(self, line_text, block_position=0):
         self._line_text = line_text
+        self._block_position = block_position
 
     def block(self):
-        return _FakeBlock(self._line_text)
+        return _FakeBlock(self._line_text, self._block_position)
 
 
 class _FakeOutputText:
-    def __init__(self, line_text):
+    def __init__(self, line_text, block_position=0):
         self._line_text = line_text
+        self._block_position = block_position
         self._viewport = object()
         self.positions = []
 
@@ -252,16 +258,21 @@ class _FakeOutputText:
 
     def cursorForPosition(self, pos):
         self.positions.append(pos)
-        return _FakeCursor(self._line_text)
+        return _FakeCursor(self._line_text, self._block_position)
 
 
-class _FakeMousePress:
-    def __init__(self, button=Qt.MouseButton.LeftButton):
+class _FakeMouseEvent:
+    def __init__(
+        self,
+        event_type=QEvent.Type.MouseButtonPress,
+        button=Qt.MouseButton.LeftButton,
+    ):
         self._position = QPointF(4, 8)
+        self._event_type = event_type
         self._button = button
 
     def type(self):
-        return QEvent.Type.MouseButtonPress
+        return self._event_type
 
     def button(self):
         return self._button
@@ -270,24 +281,91 @@ class _FakeMousePress:
         return self._position
 
 
-def test_traceback_click_event_emits_navigation_target():
+def test_traceback_navigation_requires_completed_click_on_same_line():
     output_text = _FakeOutputText(
         '  File "C:/tmp/demo.py", line 12, in <module>'
     )
     signal = _RecordingSignal()
     panel = SimpleNamespace(
         _output_text=output_text,
+        _pressed_traceback_target=None,
+        _traceback_target_at=lambda pos: OutputPanel._traceback_target_at(
+            panel, pos
+        ),
+        traceback_navigate=signal,
+    )
+
+    press_handled = OutputPanel.eventFilter(
+        panel,
+        output_text.viewport(),
+        _FakeMouseEvent(),
+    )
+
+    assert press_handled is True
+    assert signal.calls == []
+
+    release_handled = OutputPanel.eventFilter(
+        panel,
+        output_text.viewport(),
+        _FakeMouseEvent(QEvent.Type.MouseButtonRelease),
+    )
+
+    assert release_handled is True
+    assert signal.calls == [("C:/tmp/demo.py", 12)]
+
+
+def test_traceback_navigation_ignores_release_on_different_line():
+    output_text = _FakeOutputText(
+        '  File "C:/tmp/demo.py", line 12, in <module>',
+        block_position=10,
+    )
+    signal = _RecordingSignal()
+    panel = SimpleNamespace(
+        _output_text=output_text,
+        _pressed_traceback_target=None,
+        _traceback_target_at=lambda pos: OutputPanel._traceback_target_at(
+            panel, pos
+        ),
+        traceback_navigate=signal,
+    )
+
+    assert OutputPanel.eventFilter(
+        panel,
+        output_text.viewport(),
+        _FakeMouseEvent(),
+    ) is True
+
+    output_text._block_position = 80
+    release_handled = OutputPanel.eventFilter(
+        panel,
+        output_text.viewport(),
+        _FakeMouseEvent(QEvent.Type.MouseButtonRelease),
+    )
+
+    assert release_handled is True
+    assert signal.calls == []
+
+
+def test_traceback_navigation_ignores_release_without_press():
+    output_text = _FakeOutputText(
+        '  File "C:/tmp/demo.py", line 12, in <module>'
+    )
+    signal = _RecordingSignal()
+    panel = SimpleNamespace(
+        _output_text=output_text,
+        _pressed_traceback_target=None,
         traceback_navigate=signal,
     )
 
     handled = OutputPanel.eventFilter(
         panel,
         output_text.viewport(),
-        _FakeMousePress(),
+        _FakeMouseEvent(QEvent.Type.MouseButtonRelease),
     )
 
-    assert handled is True
-    assert signal.calls == [("C:/tmp/demo.py", 12)]
+    assert handled is False
+    assert signal.calls == []
+    assert output_text.positions == []
 
 
 @pytest.mark.parametrize(
@@ -301,13 +379,14 @@ def test_traceback_click_ignores_non_left_buttons(button):
     signal = _RecordingSignal()
     panel = SimpleNamespace(
         _output_text=output_text,
+        _pressed_traceback_target=None,
         traceback_navigate=signal,
     )
 
     handled = OutputPanel.eventFilter(
         panel,
         output_text.viewport(),
-        _FakeMousePress(button),
+        _FakeMouseEvent(button=button),
     )
 
     assert handled is False
