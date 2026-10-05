@@ -54,6 +54,8 @@ class Settings(QObject):
                 if isinstance(loaded, dict):
                     self._data = loaded
                     self._migrate_loaded_defaults()
+                else:
+                    self._data = {}
             except (json.JSONDecodeError, UnicodeDecodeError, OSError):
                 self._data = {}
         else:

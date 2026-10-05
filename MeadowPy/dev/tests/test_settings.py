@@ -2,6 +2,8 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 from meadowpy.constants import (
     CONFIG_DIR_NAME,
     DEFAULT_SETTINGS,
@@ -214,11 +216,14 @@ def test_load_invalid_utf8_resets_to_empty_data(tmp_path):
     assert settings.get("editor.theme") == DEFAULT_SETTINGS["editor.theme"]
 
 
-def test_load_ignores_non_object_json_and_uses_defaults(tmp_path):
+@pytest.mark.parametrize("payload", [["editor.font_size", 20], None, "text", 42, True])
+def test_load_non_object_json_clears_stale_data_and_uses_defaults(tmp_path, payload):
     config_file = tmp_path / "settings.json"
-    config_file.write_text(json.dumps(["editor.font_size", 20]), encoding="utf-8")
+    config_file.write_text(json.dumps(payload), encoding="utf-8")
 
     settings = Settings(tmp_path)
+    settings.set("editor.font_size", DEFAULT_SETTINGS["editor.font_size"] + 1)
+    settings.set("custom.key", "stale")
     settings.load()
 
     assert settings.get("editor.font_size") == DEFAULT_SETTINGS["editor.font_size"]
