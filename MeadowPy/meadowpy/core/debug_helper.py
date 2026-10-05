@@ -205,7 +205,7 @@ def _safe_evaluate(expression: str, frame) -> dict:
 def _collect_executable_lines(filepath: str) -> tuple[set[int], str | None]:
     """Return recursively compiled line starts, or a verification error."""
     try:
-        with open(filepath, "r", encoding="utf-8") as source_file:
+        with open(filepath, "rb") as source_file:
             source = source_file.read()
         root_code = compile(source, filepath, "exec")
     except SyntaxError as exc:
@@ -740,9 +740,10 @@ def main() -> None:
     finish_reason = "completed"
 
     try:
+        with open(script_path, "rb") as source_file:
+            source = source_file.read()
         debugger.run(
-            compile(open(script_path, "r", encoding="utf-8").read(),
-                    script_path, "exec"),
+            compile(source, script_path, "exec"),
             {"__name__": "__main__",
              "__file__": script_path,
              "__builtins__": __builtins__},

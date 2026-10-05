@@ -428,10 +428,10 @@ def _run_until_two_pauses(
         debugger_socket.close()
 
 
-def _run_helper_subprocess(tmp_path, source):
+def _run_helper_subprocess(tmp_path, source, encoding="utf-8"):
     """Run the standalone helper over its real TCP/subprocess boundary."""
     script = tmp_path / "subprocess_target.py"
-    script.write_text(source, encoding="utf-8")
+    script.write_text(source, encoding=encoding)
     helper = os.path.abspath(debug_helper.__file__)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.settimeout(REAL_HELPER_TIMEOUT_SECONDS)
@@ -924,6 +924,25 @@ def test_debugger_acknowledges_accepted_and_rejected_breakpoints(tmp_path):
     assert "does not exist" in payload["rejected"][str(script)]["99"]
 
 
+@pytest.mark.parametrize("encoding", ["latin-1", "utf-8-sig"])
+def test_debugger_accepts_breakpoints_in_encoded_python_source(tmp_path, encoding):
+    script = tmp_path / "encoded.py"
+    script.write_text(
+        f"# coding: {encoding}\nvalue = 'caf\u00e9'\n",
+        encoding=encoding,
+    )
+    debugger = debug_helper.MeadowPyDebugger(CapturingSocket())
+
+    try:
+        accepted, rejected = debugger._update_breakpoints({str(script): [2]})
+
+        assert accepted == {str(script): [2]}
+        assert rejected == {}
+        assert debugger._has_breakpoint(str(script), 2) is True
+    finally:
+        debugger.clear_all_breaks()
+
+
 def test_debugger_rejects_comment_and_blank_breakpoint_lines(tmp_path):
     script = tmp_path / "non_executable.py"
     script.write_text(
@@ -1346,6 +1365,24 @@ def test_real_helper_subprocess_preserves_target_exit_status(
         assert stderr_text in stderr
     else:
         assert stderr == ""
+
+
+@pytest.mark.parametrize("encoding", ["latin-1", "utf-8-sig"])
+def test_real_helper_subprocess_runs_encoded_python_source(tmp_path, encoding):
+    returncode, finished, stdout, stderr = _run_helper_subprocess(
+        tmp_path,
+        f"# coding: {encoding}\nvalue = 'caf\u00e9'\nprint(ascii(value))\n",
+        encoding=encoding,
+    )
+
+    assert returncode == 0
+    assert finished == {
+        "event": "finished",
+        "reason": "completed",
+        "exit_code": 0,
+    }
+    assert stdout == "'caf\\xe9'\n"
+    assert stderr == ""
 
 
 def test_main_exits_with_usage_when_arguments_are_missing(monkeypatch, capsys):
