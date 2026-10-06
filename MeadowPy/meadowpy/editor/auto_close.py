@@ -54,7 +54,19 @@ class AutoCloseHandler:
 
         # Case 2: Typing a quote
         if char in self.QUOTES:
-            count_before = line_content[:col].count(char)
+            count_before = 0
+            escaped = False
+            for previous_char in line_content[:col]:
+                if escaped:
+                    escaped = False
+                elif previous_char == "\\":
+                    escaped = True
+                elif previous_char == char:
+                    count_before += 1
+
+            # An escaped quote is literal text, not an auto-close delimiter.
+            if escaped:
+                return False
 
             # Skip over if closing quote already at cursor
             if col < len(line_content) and line_content[col] == char:

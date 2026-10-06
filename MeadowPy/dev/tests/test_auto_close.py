@@ -1,3 +1,5 @@
+import pytest
+
 from meadowpy.core.settings import Settings
 from meadowpy.editor.auto_close import AutoCloseHandler
 from tests.helpers import DummyEditor, DummyKeyEvent
@@ -92,6 +94,50 @@ def test_handle_key_does_not_pair_closing_quote_before_closer(tmp_path):
     assert handler.handle_key(DummyKeyEvent('"')) is False
     assert editor.all_text() == text
     assert editor.getCursorPosition() == (0, cursor_col)
+
+
+@pytest.mark.parametrize("quote", ["'", '"'])
+@pytest.mark.parametrize("backslashes", [1, 2, 3, 4])
+def test_handle_key_counts_only_unescaped_quotes(tmp_path, quote, backslashes):
+    text = quote + "hello" + "\\" * backslashes + quote + " + "
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(text)))
+
+    handled = handler.handle_key(DummyKeyEvent(quote))
+
+    if backslashes % 2:
+        assert handled is False
+        assert editor.all_text() == text
+        assert editor.getCursorPosition() == (0, len(text))
+    else:
+        assert handled is True
+        assert editor.all_text() == text + quote * 2
+        assert editor.getCursorPosition() == (0, len(text) + 1)
+
+
+@pytest.mark.parametrize("quote", ["'", '"'])
+def test_handle_key_skips_closing_quote_after_escaped_quote(tmp_path, quote):
+    prefix = quote + "hello\\" + quote + " world"
+    text = prefix + quote
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(prefix)))
+
+    assert handler.handle_key(DummyKeyEvent(quote)) is True
+    assert editor.all_text() == text
+    assert editor.getCursorPosition() == (0, len(prefix) + 1)
+
+
+@pytest.mark.parametrize("quote", ["'", '"'])
+@pytest.mark.parametrize("backslashes", [1, 2, 3, 4])
+def test_handle_key_does_not_skip_an_escaped_quote(tmp_path, quote, backslashes):
+    prefix = quote + "hello" + "\\" * backslashes
+    text = prefix + quote
+    editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(prefix)))
+
+    handled = handler.handle_key(DummyKeyEvent(quote))
+
+    assert handled is (backslashes % 2 == 0)
+    assert editor.all_text() == text
+    expected_col = len(prefix) + (backslashes % 2 == 0)
+    assert editor.getCursorPosition() == (0, expected_col)
 
 
 def test_handle_backspace_removes_auto_inserted_pair(tmp_path):
