@@ -100,12 +100,19 @@ class WatchPanel(QDockWidget):
 
     def _rebuild_table(self) -> None:
         """Rebuild the table rows from the expression list."""
+        values = {
+            self._table.item(row, 0).text(): QTableWidgetItem(
+                self._table.item(row, 1)
+            )
+            for row in range(self._table.rowCount())
+        }
         self._table.setRowCount(len(self._expressions))
         for row, expr in enumerate(self._expressions):
             self._table.setItem(row, 0, QTableWidgetItem(expr))
-            # Value column starts as "(not evaluated)"
-            value_item = QTableWidgetItem("(not evaluated)")
-            value_item.setForeground(QColor("#888888"))
+            value_item = values.get(expr)
+            if value_item is None:
+                value_item = QTableWidgetItem("(not evaluated)")
+                value_item.setForeground(QColor("#888888"))
             self._table.setItem(row, 1, value_item)
 
             # Remove button

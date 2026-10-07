@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextCursor
 from PyQt6.QtWidgets import QMenu, QStatusBar
@@ -91,6 +93,49 @@ def test_debug_panels_render_stack_variables_and_watch_expressions(qapp):
 
     for widget in (stack, variables, watch):
         widget.deleteLater()
+
+
+@pytest.mark.parametrize("action", ["add", "remove"])
+def test_watch_list_changes_preserve_other_evaluation_results(qapp, action):
+    watch = WatchPanel()
+    try:
+        for expression in ("temporary", "len(items)", "missing"):
+            watch._input.setText(expression)
+            watch._add_expression()
+        watch.update_value("len(items)", "3", "")
+        watch.update_value("missing", "", "NameError: missing")
+
+        expected_values = {}
+        for row, expression in enumerate(watch.get_expressions()):
+            item = watch._table.item(row, 1)
+            expected_values[expression] = (
+                item.text(), item.toolTip(), item.foreground()
+            )
+
+        requested = Recorder()
+        watch.evaluate_requested.connect(requested)
+        if action == "add":
+            watch._input.setText("new_expression")
+            watch._add_expression()
+            assert watch.get_expressions() == [
+                "temporary", "len(items)", "missing", "new_expression"
+            ]
+            assert requested.calls == [("new_expression",)]
+            assert watch._table.item(3, 1).text() == "(not evaluated)"
+            assert watch._table.item(3, 1).toolTip() == ""
+        else:
+            watch._on_cell_clicked(0, 2)
+            assert watch.get_expressions() == ["len(items)", "missing"]
+            assert requested.calls == []
+            del expected_values["temporary"]
+
+        for expression, expected in expected_values.items():
+            row = watch.get_expressions().index(expression)
+            assert watch._table.item(row, 0).text() == expression
+            item = watch._table.item(row, 1)
+            assert (item.text(), item.toolTip(), item.foreground()) == expected
+    finally:
+        watch.deleteLater()
 
 
 def test_problems_panel_updates_counts_navigation_and_linter_errors(qapp):
