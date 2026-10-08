@@ -1,3 +1,5 @@
+import pytest
+
 from PyQt6.QtCore import QProcess
 
 import meadowpy.core.repl_manager as repl_module
@@ -201,6 +203,34 @@ def test_process_stderr_buffer_keeps_partial_prompt_buffered():
     manager._process_stderr_buffer()
 
     assert manager._stderr_buffer == ">>"
+
+
+@pytest.mark.parametrize("prompt", [">>> ", "... "])
+@pytest.mark.parametrize("split_at", [1, 2, 3])
+@pytest.mark.parametrize("banner_done", [False, True])
+def test_on_stderr_recognizes_prompts_split_across_reads(prompt, split_at, banner_done):
+    manager = ReplManager()
+    manager._banner_done = banner_done
+    process = FakeQProcess()
+    manager._process = process
+    output = SignalRecorder()
+    prompts = SignalRecorder()
+    manager.output_received.connect(output)
+    manager.prompt_ready.connect(prompts)
+
+    process.stderr_bytes = prompt[:split_at].encode("ascii")
+    manager._on_stderr()
+
+    assert output.calls == []
+    assert prompts.calls == []
+
+    process.stderr_bytes = prompt[split_at:].encode("ascii")
+    manager._on_stderr()
+
+    assert output.calls == []
+    assert prompts.calls == [(prompt,)]
+    assert manager._stderr_buffer == ""
+    assert manager._banner_done is True
 
 
 def test_on_error_emits_known_system_messages():

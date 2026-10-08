@@ -187,7 +187,7 @@ class ReplManager(QObject):
         last = parts[-1] if parts else ""
         if last and not last.endswith("\n") and not _PROMPT_RE.match(last):
             # Could be a partial prompt — keep it buffered
-            if last in (">", ">>", ".", "..", ". ", ".. "):
+            if last in (">", ">>", ">>>", ".", "..", "...", ". ", ".. "):
                 self._stderr_buffer = last
                 parts = parts[:-1]
             else:
