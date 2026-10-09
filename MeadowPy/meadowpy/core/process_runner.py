@@ -79,9 +79,9 @@ class ProcessRunner(QObject):
             suffix=".py",
             dir=str(tmp_dir),
         )
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(code)
         try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(code)
             self._start_process(
                 interpreter,
                 ["-u", tmp_path],

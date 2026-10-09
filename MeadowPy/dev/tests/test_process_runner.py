@@ -1,4 +1,5 @@
 import sys
+from contextlib import contextmanager
 
 import pytest
 from PyQt6.QtCore import QElapsedTimer, QEvent, QProcess
@@ -105,6 +106,37 @@ def test_run_code_writes_temp_file_and_starts_process(tmp_path, monkeypatch):
     runner._cleanup_temp()
     assert runner._temp_file is None
     assert not temp_file.exists()
+
+
+def test_run_code_removes_partial_temp_file_when_write_fails(tmp_path, monkeypatch):
+    runner = ProcessRunner()
+    monkeypatch.setattr(process_module.Path, "home", lambda: tmp_path)
+    original_fdopen = process_module.os.fdopen
+    process_calls = []
+    monkeypatch.setattr(
+        runner, "_start_process",
+        lambda *args, **kwargs: process_calls.append((args, kwargs)),
+    )
+
+    @contextmanager
+    def failing_fdopen(*args, **kwargs):
+        with original_fdopen(*args, **kwargs) as handle:
+            class PartialWriteFailure:
+                def write(self, code):
+                    handle.write(code[:5])
+                    handle.flush()
+                    raise OSError("disk full")
+
+            yield PartialWriteFailure()
+
+    monkeypatch.setattr(process_module.os, "fdopen", failing_fdopen)
+
+    with pytest.raises(OSError, match="disk full"):
+        runner.run_code("print('hello')", "python.exe", str(tmp_path))
+
+    assert process_calls == []
+    assert runner._temp_file is None
+    assert list(process_module._selection_temp_dir().glob("selection-*.py")) == []
 
 
 def test_run_code_removes_temp_file_when_start_process_fails(tmp_path, monkeypatch):
