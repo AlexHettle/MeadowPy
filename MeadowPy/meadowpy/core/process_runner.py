@@ -1,5 +1,6 @@
 """Process execution engine — runs Python scripts via QProcess."""
 
+import codecs
 import os
 import tempfile
 from pathlib import Path
@@ -52,6 +53,10 @@ class ProcessRunner(QObject):
         self._process: QProcess | None = None
         self._temp_file: str | None = None
         self._process_description: str | None = None
+        self._output_decoders = {
+            stream: codecs.getincrementaldecoder("utf-8")(errors="replace")
+            for stream in ("stdout", "stderr")
+        }
 
     # ------------------------------------------------------------------
     # Public API
@@ -144,6 +149,8 @@ class ProcessRunner(QObject):
         self._cleanup_temp()
         self._temp_file = temp_file
         self._process_description = description
+        for decoder in self._output_decoders.values():
+            decoder.reset()
         process = QProcess(self)
         self._process = process
         process.setWorkingDirectory(working_dir)
@@ -221,7 +228,9 @@ class ProcessRunner(QObject):
             return
         self._forward_process_output(self._process, "stderr")
 
-    def _forward_process_output(self, process, stream: str) -> None:
+    def _forward_process_output(
+        self, process, stream: str, *, final: bool = False
+    ) -> None:
         """Drain one process output channel and emit any remaining text."""
         try:
             if stream == "stdout":
@@ -230,7 +239,7 @@ class ProcessRunner(QObject):
                 data = process.readAllStandardError().data()
         except RuntimeError:
             return
-        text = data.decode("utf-8", errors="replace")
+        text = self._output_decoders[stream].decode(data, final=final)
         if text:
             self.output_received.emit(text, stream)
 
@@ -241,8 +250,8 @@ class ProcessRunner(QObject):
 
         process = self._process
         if process is not None:
-            self._forward_process_output(process, "stdout")
-            self._forward_process_output(process, "stderr")
+            self._forward_process_output(process, "stdout", final=True)
+            self._forward_process_output(process, "stderr", final=True)
         self._cleanup_temp()
         if exit_status == QProcess.ExitStatus.CrashExit:
             desc = "Process was terminated"

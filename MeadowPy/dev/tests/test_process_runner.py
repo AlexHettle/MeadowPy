@@ -10,6 +10,7 @@ from tests.helpers import DummySignal, FakeProcess, SignalRecorder
 
 
 class FakeQProcess(FakeProcess):
+    ExitStatus = QProcess.ExitStatus
     ProcessChannelMode = QProcess.ProcessChannelMode
     ProcessError = QProcess.ProcessError
     ProcessState = QProcess.ProcessState
@@ -445,6 +446,112 @@ def test_stdout_and_stderr_are_forwarded():
     runner._on_stderr()
 
     assert output.calls == [("alpha", "stdout"), ("beta", "stderr")]
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+@pytest.mark.parametrize(
+    ("character", "split"),
+    [
+        ("\u00e9", 1),
+        ("\u20ac", 1),
+        ("\u20ac", 2),
+        ("\U0001f600", 1),
+        ("\U0001f600", 2),
+        ("\U0001f600", 3),
+    ],
+)
+def test_output_preserves_utf8_characters_split_between_reads(
+    stream, character, split
+):
+    runner = ProcessRunner()
+    process = FakeQProcess()
+    runner._process = process
+    output = SignalRecorder()
+    runner.output_received.connect(output)
+    read_output = getattr(runner, f"_on_{stream}")
+    encoded = character.encode("utf-8")
+
+    setattr(process, f"{stream}_bytes", encoded[:split])
+    read_output()
+
+    assert output.calls == []
+
+    setattr(process, f"{stream}_bytes", encoded[split:])
+    read_output()
+
+    assert output.calls == [(character, stream)]
+
+
+def test_output_keeps_stdout_and_stderr_utf8_buffers_independent():
+    runner = ProcessRunner()
+    process = FakeQProcess()
+    runner._process = process
+    output = SignalRecorder()
+    runner.output_received.connect(output)
+
+    process.stdout_bytes = b"\xe2"
+    runner._on_stdout()
+    process.stderr_bytes = b"\xc3"
+    runner._on_stderr()
+    process.stdout_bytes = b"\x82\xac"
+    runner._on_stdout()
+    process.stderr_bytes = b"\xa9"
+    runner._on_stderr()
+
+    assert output.calls == [("\u20ac", "stdout"), ("\u00e9", "stderr")]
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+@pytest.mark.parametrize(
+    ("remaining", "expected"),
+    [(b"\x82\xac", "\u20ac"), (b"", "\ufffd")],
+)
+def test_finished_finalizes_pending_utf8_before_finished_signal(
+    stream, remaining, expected
+):
+    runner = ProcessRunner()
+    process = FakeQProcess()
+    runner._process = process
+    events = []
+    runner.output_received.connect(
+        lambda text, channel: events.append((text, channel))
+    )
+    runner.process_finished.connect(
+        lambda code, description: events.append((code, description))
+    )
+    setattr(process, f"{stream}_bytes", b"\xe2")
+    getattr(runner, f"_on_{stream}")()
+    assert events == []
+    setattr(process, f"{stream}_bytes", remaining)
+
+    runner._on_finished(0, QProcess.ExitStatus.NormalExit)
+
+    assert events == [
+        (expected, stream),
+        (0, "Process finished successfully"),
+    ]
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+@pytest.mark.parametrize("finish_first", [False, True])
+def test_new_process_resets_pending_utf8(monkeypatch, stream, finish_first):
+    monkeypatch.setattr(process_module, "QProcess", FakeQProcess)
+    runner = ProcessRunner()
+    output = SignalRecorder()
+    runner.output_received.connect(output)
+    runner._start_process("python.exe", [], ".", description="First run")
+    setattr(runner._process, f"{stream}_bytes", b"\xe2")
+    getattr(runner, f"_on_{stream}")()
+    assert output.calls == []
+    if finish_first:
+        runner._on_finished(0, QProcess.ExitStatus.NormalExit)
+    output.calls.clear()
+
+    runner._start_process("python.exe", [], ".", description="Next run")
+    setattr(runner._process, f"{stream}_bytes", b"next")
+    getattr(runner, f"_on_{stream}")()
+
+    assert output.calls == [("next", stream)]
 
 
 @pytest.mark.parametrize(
