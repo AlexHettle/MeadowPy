@@ -111,7 +111,7 @@ class SearchWorker(QObject):
                         if os.path.getsize(fpath) > _MAX_FILE_SIZE:
                             self._large_files_skipped += 1
                             continue
-                        with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                        with open(fpath, "r", encoding="utf-8-sig", errors="ignore") as f:
                             for line_num, line_text in enumerate(f, start=1):
                                 if self._cancelled:
                                     break
