@@ -116,6 +116,11 @@ class AutoCloseHandler:
         char_after = line_content[col] if col < len(line_content) else ""
 
         if char_before in self.PAIRS and self.PAIRS[char_before] == char_after:
+            if char_before in self.QUOTES:
+                prefix = line_content[: col - 1]
+                backslashes = len(prefix) - len(prefix.rstrip("\\"))
+                if backslashes % 2:
+                    return False  # an escaped quote is not an opening delimiter
             # Delete both characters of the pair
             self._editor.setSelection(line, col - 1, line, col + 1)
             self._editor.removeSelectedText()

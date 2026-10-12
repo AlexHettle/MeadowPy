@@ -179,3 +179,26 @@ def test_handle_backspace_ignores_selected_text(tmp_path):
 
     assert handler.handle_backspace() is False
     assert editor.all_text() == "()"
+
+
+@pytest.mark.parametrize("quote", ["'", '"'])
+@pytest.mark.parametrize("backslashes", [0, 1, 2, 3, 4])
+def test_handle_backspace_respects_escaped_quotes(tmp_path, quote, backslashes):
+    prefix = quote + "hello" + "\\" * backslashes
+    text = prefix + quote * 2
+    cursor = (0, len(prefix) + 1)
+    editor, handler = make_handler(tmp_path, text=text, cursor=cursor)
+
+    handled = handler.handle_backspace()
+
+    if backslashes % 2:
+        # Leave the escaped quote to normal Backspace; keep the closing quote.
+        assert handled is False
+        assert editor.all_text() == text
+        assert editor.getCursorPosition() == cursor
+    else:
+        assert handled is True
+        assert editor.all_text() == prefix
+        assert editor.getCursorPosition() == (0, len(prefix))
+    assert editor.hasSelectedText() is False
+    assert editor.selection is None
