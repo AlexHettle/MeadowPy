@@ -1,3 +1,8 @@
+import pytest
+from PyQt6.QtCore import QCoreApplication, QEvent, Qt
+from PyQt6.QtTest import QTest
+
+from meadowpy.editor.code_editor import CodeEditor
 from meadowpy.core.settings import Settings
 from meadowpy.editor.smart_indent import SmartIndentHandler
 from tests.helpers import DummyEditor
@@ -109,3 +114,43 @@ def test_handle_return_falls_through_on_blank_line(tmp_path):
     _, handler = make_handler(tmp_path, text="    ", cursor=(0, 4))
 
     assert handler.handle_return() is False
+
+
+@pytest.mark.parametrize("text", ["if ready:", "    return value"])
+def test_handle_return_leaves_selection_for_default_handler(tmp_path, text):
+    cursor = (0, len(text))
+    editor, handler = make_handler(tmp_path, text=text, cursor=cursor)
+    editor.setSelection(0, 0, *cursor)
+
+    assert handler.handle_return() is False
+    assert editor.all_text() == text
+    assert editor.getCursorPosition() == cursor
+    assert editor.hasSelectedText() is True
+    assert editor.selection == (0, 0, *cursor)
+
+
+@pytest.mark.parametrize("text", ["if ready:", "    return value"])
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+def test_enter_replaces_selected_code(qapp, tmp_path, text, key):
+    settings = Settings(tmp_path)
+    settings.set("editor.smart_indent", True)
+    settings.set("editor.auto_complete", False)
+    editor = CodeEditor(settings)
+    original = text + "\nkeep = 1"
+    try:
+        editor.setText(original)
+        editor.setSelection(0, 0, 0, len(text))
+        assert editor.selectedText() == text
+
+        QTest.keyClick(editor, key)
+
+        assert editor.text() == "\n\nkeep = 1"
+        assert editor.getCursorPosition() == (1, 0)
+        assert editor.hasSelectedText() is False
+        editor.undo()
+        assert editor.text() == original
+    finally:
+        editor.close()
+        editor.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()

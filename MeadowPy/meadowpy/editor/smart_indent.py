@@ -36,6 +36,10 @@ class SmartIndentHandler:
         if not self._settings.get("editor.smart_indent"):
             return False
 
+        # Let QScintilla replace selected text as part of the Enter key edit.
+        if self._editor.hasSelectedText():
+            return False
+
         line, col = self._editor.getCursorPosition()
         line_text = self._editor.text(line)
         # Only look at text before the cursor
