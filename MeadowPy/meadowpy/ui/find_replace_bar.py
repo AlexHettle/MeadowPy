@@ -238,10 +238,14 @@ class FindReplaceBar(QFrame):
             text, self._regex_btn.isChecked(), self._case_btn.isChecked(),
             self._word_btn.isChecked(), False, True, 0, 0,
         )
-        while found:
-            editor.replace(replacement)
-            count += 1
-            found = editor.findNext()
+        editor.beginUndoAction()
+        try:
+            while found:
+                editor.replace(replacement)
+                count += 1
+                found = editor.findNext()
+        finally:
+            editor.endUndoAction()
 
         self._match_label.setText(f"{count} replaced")
 

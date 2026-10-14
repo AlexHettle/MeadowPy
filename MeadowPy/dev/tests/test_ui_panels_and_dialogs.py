@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
+import pytest
+from PyQt6.Qsci import QsciScintilla
+from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QAction, QColor, QFont, QKeyEvent, QMouseEvent, QPalette
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
@@ -1015,6 +1017,7 @@ class FakeEditor:
         self.find_next_results = []
         self.find_first_calls = []
         self.replacements = []
+        self.undo_actions = []
         self.focused = False
 
     def hasSelectedText(self):
@@ -1046,6 +1049,12 @@ class FakeEditor:
 
     def replace(self, replacement):
         self.replacements.append(replacement)
+
+    def beginUndoAction(self):
+        self.undo_actions.append("begin")
+
+    def endUndoAction(self):
+        self.undo_actions.append("end")
 
     def setFocus(self):
         self.focused = True
@@ -1156,12 +1165,75 @@ def test_find_replace_bar_uses_editor_selection_and_replace_workflows(qapp):
     bar.replace_all()
     assert editor.replacements == ["new", "new"]
     assert bar._match_label.text() == "2 replaced"
+    assert editor.undo_actions == ["begin", "end"]
 
     bar.hide_bar()
     assert not bar.isVisible()
     assert editor.focused is True
     bar.deleteLater()
     window.deleteLater()
+
+
+@pytest.mark.parametrize("replacement", ["new", "", "needle!"])
+def test_replace_all_is_one_undoable_edit(qapp, replacement):
+    editor = QsciScintilla()
+    window = FakeFindWindow(editor)
+    bar = FindReplaceBar(window)
+    original = "needle = 1\n# needle\nprint('needle')\n"
+    prefix = "# earlier edit\n"
+    try:
+        editor.setText(original)
+        editor.beginUndoAction()
+        try:
+            editor.insertAt(prefix, 0, 0)
+        finally:
+            editor.endUndoAction()
+        before_replace = prefix + original
+        bar._find_input.setText("needle")
+        bar._replace_input.setText(replacement)
+
+        bar.replace_all()
+
+        expected = before_replace.replace("needle", replacement)
+        assert editor.text() == expected
+        assert bar._match_label.text() == "3 replaced"
+        editor.undo()
+        assert editor.text() == before_replace
+        editor.redo()
+        assert editor.text() == expected
+        editor.undo()
+        editor.undo()
+        assert editor.text() == original
+    finally:
+        window.close()
+        editor.close()
+        window.deleteLater()
+        editor.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()
+
+
+def test_replace_all_ends_undo_action_if_replacement_fails(qapp, monkeypatch):
+    editor = FakeEditor()
+    window = FakeFindWindow(editor)
+    bar = FindReplaceBar(window)
+
+    def fail_replace(_replacement):
+        raise RuntimeError("replacement failed")
+
+    try:
+        bar._find_input.setText("needle")
+        monkeypatch.setattr(editor, "replace", fail_replace)
+
+        with pytest.raises(RuntimeError, match="replacement failed"):
+            bar.replace_all()
+
+        assert editor.undo_actions == ["begin", "end"]
+    finally:
+        window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()
 
 
 def test_find_replace_bar_replaces_only_the_tracked_match(qapp):
