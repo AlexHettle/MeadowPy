@@ -788,7 +788,7 @@ class CodeEditor(QsciScintilla):
 
         # Scan upward to find the nearest def/class line at the same or
         # lower indentation level.
-        def_re = _re.compile(r"^(\s*)(def |class )")
+        def_re = _re.compile(r"^(\s*)((?:async\s+)?def |class )")
         def_line = -1
         def_indent = 0
         for i in range(line, -1, -1):

@@ -124,6 +124,33 @@ def test_find_enclosing_def_returns_prompt_code_and_docstring_line(qapp, tmp_pat
     editor.deleteLater()
 
 
+@pytest.mark.parametrize(
+    ("prefix", "indent", "insert_line"),
+    [
+        ("", "", 1),
+        ("class Client:\n", "    ", 2),
+        ("def outer():\n", "    ", 2),
+    ],
+    ids=["top-level", "method", "nested-function"],
+)
+def test_find_enclosing_def_targets_async_function(
+    qapp, tmp_path, prefix, indent, insert_line
+):
+    editor = make_editor(qapp, tmp_path)
+    function_code = (
+        f"{indent}async def fetch():\n"
+        f"{indent}    return 1"
+    )
+    try:
+        editor.setText(prefix + function_code)
+
+        assert editor._find_enclosing_def(insert_line) == (
+            function_code, insert_line
+        )
+    finally:
+        dispose_editor(qapp, editor)
+
+
 def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_path):
     editor = make_editor(qapp, tmp_path)
     editor.setText("print(missing)\n")
