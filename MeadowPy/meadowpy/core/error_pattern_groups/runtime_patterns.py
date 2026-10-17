@@ -65,7 +65,7 @@ RUNTIME_PATTERNS: list[ErrorPattern] = [
     ),
     (
         re.compile(r"ZeroDivisionError: integer modulo by zero"),
-        "You can't use the modulo (%%) operator with zero as the "
+        "You can't use the modulo (%) operator with zero as the "
         "divisor. Check that the right side isn't 0.",
     ),
     (

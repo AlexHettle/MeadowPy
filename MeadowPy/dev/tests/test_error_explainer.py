@@ -152,6 +152,16 @@ def test_explain_error_uses_generic_pattern_when_needed():
     assert "denominator isn't 0" in explanation
 
 
+def test_explain_error_names_the_python_modulo_operator():
+    with pytest.raises(ZeroDivisionError) as error:
+        _ = 7 % 0
+
+    explanation = assert_hint(f"{type(error.value).__name__}: {error.value}")
+
+    assert "modulo (%) operator" in explanation
+    assert "Check that the right side isn't 0." in explanation
+
+
 def test_explain_error_matches_unbound_local_error_old_and_new_wording():
     old_message = "UnboundLocalError: local variable 'score' referenced before assignment"
     new_message = (
