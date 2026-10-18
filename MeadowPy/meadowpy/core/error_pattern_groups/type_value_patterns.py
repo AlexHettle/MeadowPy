@@ -15,7 +15,10 @@ TYPE_VALUE_PATTERNS: list[ErrorPattern] = [
         "match the other (e.g. str() or int()).",
     ),
     (
-        re.compile(r"TypeError: can only concatenate (.+) .* to (.+)"),
+        re.compile(
+            r'TypeError: can only concatenate .+ \(not "([^"]+)"\) '
+            r"to (.+)"
+        ),
         "You can't add a {0} to a {1}. Use str() to convert numbers "
         "to text, or int()/float() for the reverse.",
     ),

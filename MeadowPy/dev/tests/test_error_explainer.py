@@ -191,3 +191,22 @@ def test_explain_error_falls_back_to_raw_template_for_bad_placeholders(monkeypat
     explanation = explain_error("ExampleError: mismatched template")
 
     assert explanation == "Broken placeholder {1}\n"
+
+
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [
+        pytest.param("hello", 3, id="str-plus-int"),
+        pytest.param([1], "hello", id="list-plus-str"),
+        pytest.param((1,), [2], id="tuple-plus-list"),
+    ],
+)
+def test_explain_error_names_incompatible_concatenation_types(left, right):
+    with pytest.raises(TypeError) as error:
+        _ = left + right
+
+    explanation = assert_hint(f"{type(error.value).__name__}: {error.value}")
+
+    assert explanation.startswith(
+        f"You can't add a {type(right).__name__} to a {type(left).__name__}. "
+    )
