@@ -56,6 +56,7 @@ class FindReplaceBar(QFrame):
         self._find_input.setMinimumHeight(30)
         self._find_input.textChanged.connect(self._on_find_text_changed)
         self._find_input.returnPressed.connect(self.find_next)
+        self._find_input.installEventFilter(self)
 
         self._case_btn = self._make_toggle("Aa", "Match Case")
         self._word_btn = self._make_toggle("W", "Match Whole Word")
@@ -304,6 +305,17 @@ class FindReplaceBar(QFrame):
         self._layout_initialized = True
 
     def eventFilter(self, watched, event) -> bool:
+        if (
+            watched is self._find_input
+            and event.type() == QEvent.Type.KeyPress
+            and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+            and (
+                event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+            ) == Qt.KeyboardModifier.ShiftModifier
+        ):
+            # Handle this before QLineEdit emits returnPressed for next match.
+            self.find_previous()
+            return True
         if (
             watched is self._central_widget
             and event.type() in {QEvent.Type.Resize, QEvent.Type.Move}

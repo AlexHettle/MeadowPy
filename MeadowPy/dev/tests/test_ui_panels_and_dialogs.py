@@ -1326,6 +1326,44 @@ def test_find_replace_bar_ignores_missing_editor_and_empty_searches(qapp):
     window.deleteLater()
 
 
+@pytest.mark.parametrize(
+    ("key", "keypad_modifier"),
+    [
+        (Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+        (Qt.Key.Key_Enter, Qt.KeyboardModifier.NoModifier),
+        (Qt.Key.Key_Enter, Qt.KeyboardModifier.KeypadModifier),
+    ],
+)
+@pytest.mark.parametrize("backward", [False, True])
+def test_find_input_enter_searches_once_in_requested_direction(
+    qapp, key, keypad_modifier, backward
+):
+    editor = FakeEditor()
+    window = FakeFindWindow(editor)
+    bar = FindReplaceBar(window)
+    try:
+        window.show()
+        bar.toggle_find()
+        qapp.processEvents()
+        editor.find_first_calls.clear()
+        modifiers = keypad_modifier
+        if backward:
+            modifiers |= Qt.KeyboardModifier.ShiftModifier
+
+        QTest.keyClick(bar._find_input, key, modifiers)
+
+        assert editor.find_first_calls == [
+            ("needle", False, False, False, True, not backward)
+        ]
+        assert bar._find_input.text() == "needle"
+    finally:
+        bar._clear_active_match()
+        window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()
+
+
 def test_find_replace_bar_handles_escape_and_shift_enter_keys(qapp):
     editor = FakeEditor()
     window = FakeFindWindow(editor)
