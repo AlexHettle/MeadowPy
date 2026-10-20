@@ -201,14 +201,14 @@ TYPE_VALUE_PATTERNS: list[ErrorPattern] = [
     (
         re.compile(
             r"ValueError: invalid literal for int\(\) with base \d+: "
-            r"'(.+)'"
+            r"'(.*)'"
         ),
         "Python can't convert '{0}' to a number. Make sure the "
         "string contains only digits.",
     ),
     (
         re.compile(
-            r"ValueError: could not convert string to float: '(.+)'"
+            r"ValueError: could not convert string to float: '(.*)'"
         ),
         "Python can't convert '{0}' to a decimal number. Make sure "
         "the string contains only numbers and at most one decimal "

@@ -210,3 +210,27 @@ def test_explain_error_names_incompatible_concatenation_types(left, right):
     assert explanation.startswith(
         f"You can't add a {type(right).__name__} to a {type(left).__name__}. "
     )
+
+
+@pytest.mark.parametrize(
+    ("convert", "target"),
+    [
+        pytest.param(int, "number", id="int"),
+        pytest.param(float, "decimal number", id="float"),
+    ],
+)
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param("", id="empty"),
+        pytest.param(" ", id="whitespace"),
+        pytest.param("abc", id="non-numeric"),
+    ],
+)
+def test_explain_error_describes_invalid_numeric_strings(convert, target, value):
+    with pytest.raises(ValueError) as error:
+        convert(value)
+
+    explanation = assert_hint(f"{type(error.value).__name__}: {error.value}")
+
+    assert explanation.startswith(f"Python can't convert '{value}' to a {target}. ")
