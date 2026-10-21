@@ -64,6 +64,14 @@ RUNTIME_PATTERNS: list[ErrorPattern] = [
         "denominator isn't 0.0 before dividing.",
     ),
     (
+        re.compile(
+            r"ZeroDivisionError: (?:integer division or modulo|"
+            r"float floor division) by zero"
+        ),
+        "You can't use floor division (//) with zero as the divisor. "
+        "Check that the right side isn't 0.",
+    ),
+    (
         re.compile(r"ZeroDivisionError: integer modulo by zero"),
         "You can't use the modulo (%) operator with zero as the "
         "divisor. Check that the right side isn't 0.",
@@ -71,7 +79,7 @@ RUNTIME_PATTERNS: list[ErrorPattern] = [
     (
         re.compile(r"OverflowError: math range error"),
         "The result of a math operation is too large. Check your "
-        "input values — they may be unreasonably large.",
+        "input values - they may be unreasonably large.",
     ),
     (
         re.compile(
@@ -163,7 +171,7 @@ RUNTIME_PATTERNS: list[ErrorPattern] = [
     ),
     (
         re.compile(r"AssertionError$"),
-        "An assert statement failed — the condition you were "
+        "An assert statement failed - the condition you were "
         "checking turned out to be False. Check your assumptions "
         "about the data.",
     ),

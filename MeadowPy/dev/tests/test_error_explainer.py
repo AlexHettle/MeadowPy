@@ -234,3 +234,22 @@ def test_explain_error_describes_invalid_numeric_strings(convert, target, value)
     explanation = assert_hint(f"{type(error.value).__name__}: {error.value}")
 
     assert explanation.startswith(f"Python can't convert '{value}' to a {target}. ")
+
+
+@pytest.mark.parametrize(
+    ("numerator", "denominator"),
+    [
+        pytest.param(7, 0, id="int-by-int"),
+        pytest.param(7.0, 0, id="float-by-int"),
+        pytest.param(7, 0.0, id="int-by-float"),
+        pytest.param(7.0, 0.0, id="float-by-float"),
+    ],
+)
+def test_explain_error_describes_floor_division_by_zero(numerator, denominator):
+    with pytest.raises(ZeroDivisionError) as error:
+        _ = numerator // denominator
+
+    explanation = assert_hint(f"{type(error.value).__name__}: {error.value}")
+
+    assert "floor division (//)" in explanation
+    assert "Check that the right side isn't 0." in explanation
