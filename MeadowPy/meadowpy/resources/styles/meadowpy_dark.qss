@@ -1604,12 +1604,8 @@ QDockWidget::title {
 #terminalText {
     background: #1E1E1E;
     border: none;
-    font-family: Consolas, "Courier New", monospace;
-    font-size: 13px;
     color: #CCCCCC;
     padding: 6px;
-    selection-background-color: {{ACCENT}};
-    selection-color: #FFFFFF;
 }
 
 /* ===== Welcome Screen ===== */

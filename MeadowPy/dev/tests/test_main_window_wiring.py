@@ -40,7 +40,6 @@ def test_main_window_refreshes_theme_icons_and_shortcut_consumers(monkeypatch):
 
     actions = [IconConsumer() for _ in range(4)]
     restart_button = IconConsumer()
-    terminal_refreshes = []
     window = SimpleNamespace(
         _settings=SimpleNamespace(
             get=lambda key, default=None: "default_dark"
@@ -52,9 +51,6 @@ def test_main_window_refreshes_theme_icons_and_shortcut_consumers(monkeypatch):
         _debug_action=actions[2],
         _restart_console_action=actions[3],
         _output_panel=SimpleNamespace(_restart_repl_btn=restart_button),
-        _terminal_panel=SimpleNamespace(
-            refresh_theme_icons=lambda: terminal_refreshes.append(True)
-        ),
     )
 
     MainWindow._refresh_themed_icons(window)
@@ -68,7 +64,6 @@ def test_main_window_refreshes_theme_icons_and_shortcut_consumers(monkeypatch):
     ]
     assert all(len(action.icons) == 1 for action in actions)
     assert len(restart_button.icons) == 1
-    assert terminal_refreshes == [True]
 
     reapplied = []
     toolbar_updates = []

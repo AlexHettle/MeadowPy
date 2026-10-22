@@ -51,7 +51,8 @@ dev\Run Tests.bat
 - New Python file can be saved.
 - `F5` runs a Python file.
 - Output panel accepts `input()`.
-- Terminal panel opens and runs a simple command such as `dir`.
+- Terminal panel opens and runs a simple command such as `dir` on Windows or
+  `ls` on Linux and macOS.
 - `Shift+F5` runs selected code or current line.
 - `F9` toggles a breakpoint.
 - `F6` starts debugging.

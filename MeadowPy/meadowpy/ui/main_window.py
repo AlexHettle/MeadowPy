@@ -336,13 +336,15 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self._search_panel, self._terminal_panel)
         self._terminal_panel.hide()
 
+        # New shells start in the file explorer's project folder.
+        self._file_explorer.root_folder_changed.connect(
+            self._terminal_panel.set_working_directory
+        )
         if self._file_explorer.root_path:
             self._terminal_panel.set_working_directory(
                 self._file_explorer.root_path
             )
-        self._file_explorer.root_folder_changed.connect(
-            self._terminal_panel.set_working_directory
-        )
+
 
     def _create_run_actions(self) -> None:
         """Create shared Run/Stop QActions used by menu and toolbar."""
@@ -393,10 +395,6 @@ class MainWindow(QMainWindow):
                 btn = getattr(op, attr, None)
                 if btn is not None:
                     btn.setIcon(load_themed_icon(icon_name, theme_name))
-
-        terminal_panel = getattr(self, "_terminal_panel", None)
-        if terminal_panel is not None:
-            terminal_panel.refresh_theme_icons()
 
     def _make_action(
         self,

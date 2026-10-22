@@ -23,6 +23,7 @@ The application dependencies are listed in
 - `PyQt6-QScintilla`
 - `flake8`
 - `pylint`
+- `pywinpty` (Windows only, for the Terminal panel)
 
 ## Install Python
 

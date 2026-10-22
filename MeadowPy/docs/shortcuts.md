@@ -147,14 +147,16 @@ mode. During a running script, the input line sends stdin to the script.
 
 These shortcuts apply inside the Terminal panel:
 
+Keys go to the shell, so shell shortcuts such as `Tab` completion and `Up` /
+`Down` history work as they do in any terminal. The terminal itself handles:
+
 | Action | Shortcut |
 | --- | --- |
-| Send command | `Enter` |
-| Complete command, parameter, or path | `Tab` |
-| Previous completion match | `Shift+Tab` |
-| Previous terminal command | `Up` |
-| Next terminal command | `Down` |
-| Copy selected text, or interrupt with no selection | `Ctrl+C` |
+| Interrupt the running program | `Ctrl+C` |
+| Copy selected text | `Ctrl+Shift+C` |
+| Paste | `Ctrl+Shift+V` |
+| Select all | `Ctrl+Shift+A` |
+| Hide the Terminal panel | `Ctrl+Shift+T` |
 
 ## AI Chat Input
 
