@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -6,7 +5,6 @@ from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent, QKeySequence
 
 import meadowpy.pyqtterm as pyqtterm_module
-from meadowpy.pyqtterm import Terminal
 from meadowpy.ui.terminal_panel import TerminalPanel
 
 
@@ -16,20 +14,6 @@ class FakeSettings:
 
     def get(self, key, default=None):
         return self.values.get(key, default)
-
-
-class FakeShellProcess:
-    def __init__(self):
-        self.terminated = False
-
-    def poll(self):
-        return 0
-
-    def terminate(self):
-        self.terminated = True
-
-    def wait(self):
-        return 0
 
 
 def _shortcut_override(key, modifiers):
@@ -179,63 +163,46 @@ def test_terminal_panel_focus_terminal_focuses_view(qapp, monkeypatch):
         panel.stop()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX PTY spawn path")
-def test_terminal_spawns_shell_in_working_directory_as_session_leader(
-    qapp, monkeypatch, tmp_path
+def test_terminal_panel_toggle_on_focuses_the_terminal_and_toggle_off_does_not(
+    qapp, monkeypatch
 ):
-    spawned = {}
-
-    def fake_popen(argv, **kwargs):
-        spawned["argv"] = argv
-        spawned["kwargs"] = kwargs
-        return FakeShellProcess()
-
-    monkeypatch.setattr(pyqtterm_module.subprocess, "Popen", fake_popen)
-    monkeypatch.setenv("SHELL", "/bin/fake-shell")
-    terminal = Terminal(cwd=str(tmp_path))
+    panel = TerminalPanel()
+    focused = []
+    monkeypatch.setattr(panel, "focus_terminal", lambda: focused.append(True))
     try:
-        terminal._start_process()
+        panel._on_toggle_triggered(False)
+        qapp.processEvents()
+        assert focused == []
 
-        assert spawned["argv"][-1] == "/bin/fake-shell"
-        assert spawned["argv"][1:3] == ["-I", "-S"]
-        assert spawned["kwargs"]["cwd"] == str(tmp_path)
-        assert spawned["kwargs"]["start_new_session"] is True
-        assert "preexec_fn" not in spawned["kwargs"]
+        panel._on_toggle_triggered(True)
+        qapp.processEvents()
+        assert focused == [True]
     finally:
-        terminal.stop()
+        panel.stop()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX PTY spawn path")
-def test_terminal_ignores_missing_working_directory(qapp, monkeypatch, tmp_path):
-    spawned = {}
-
-    def fake_popen(argv, **kwargs):
-        spawned.update(kwargs)
-        return FakeShellProcess()
-
-    monkeypatch.setattr(pyqtterm_module.subprocess, "Popen", fake_popen)
-    terminal = Terminal(cwd=str(tmp_path / "missing"))
+def test_terminal_panel_does_not_restart_a_shell_after_shutdown_began(qapp, monkeypatch):
+    panel = TerminalPanel()
+    restarts = []
+    monkeypatch.setattr(panel._terminal_view, "restart", lambda: restarts.append(True))
     try:
-        terminal._start_process()
+        panel._on_terminal_stopped()
+        panel._mark_stopping()
+        qapp.processEvents()
 
-        assert spawned["cwd"] is None
+        assert restarts == []
     finally:
-        terminal.stop()
+        panel.stop()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX PTY spawn path")
-def test_terminal_runs_custom_command_instead_of_shell(qapp, monkeypatch):
-    spawned = {}
-
-    def fake_popen(argv, **kwargs):
-        spawned["argv"] = argv
-        return FakeShellProcess()
-
-    monkeypatch.setattr(pyqtterm_module.subprocess, "Popen", fake_popen)
-    terminal = Terminal(command=["top", "-b"])
+def test_terminal_panel_restarts_a_shell_that_exited_on_its_own(qapp, monkeypatch):
+    panel = TerminalPanel()
+    restarts = []
+    monkeypatch.setattr(panel._terminal_view, "restart", lambda: restarts.append(True))
     try:
-        terminal._start_process()
+        panel._terminal_view.stopped.emit()
+        qapp.processEvents()
 
-        assert spawned["argv"][-2:] == ["top", "-b"]
+        assert restarts == [True]
     finally:
-        terminal.stop()
+        panel.stop()

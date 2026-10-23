@@ -2,8 +2,6 @@
 branch = True
 source = meadowpy
 data_file = dev/.coverage
-omit =
-    meadowpy/pyqtterm.py
 
 [report]
 show_missing = True
