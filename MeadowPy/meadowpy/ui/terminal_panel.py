@@ -20,7 +20,7 @@ from meadowpy.ui.panel_title_bar import (
     configure_panel_title_bar,
     configure_panel_title_label,
 )
-from meadowpy.terminal import Terminal
+from meadowpy.pyqtterm import Terminal
 
 _TERMINAL_PANEL_DEFAULT_FONT_SIZE = 13
 _TERMINAL_PANEL_SHELL_EXITED_MESSAGE = "[Shell exited. Press any key to start a new one.]"

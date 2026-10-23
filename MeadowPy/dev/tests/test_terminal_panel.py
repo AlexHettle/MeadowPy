@@ -5,8 +5,8 @@ import pytest
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent, QKeySequence
 
-import meadowpy.terminal as terminal_module
-from meadowpy.terminal import Terminal
+import meadowpy.pyqtterm as pyqtterm_module
+from meadowpy.pyqtterm import Terminal
 from meadowpy.ui.terminal_panel import TerminalPanel
 
 
@@ -47,7 +47,7 @@ def test_terminal_panel_defaults_to_home_directory_and_settings_font(qapp):
     try:
         assert panel._working_directory == str(Path.home())
         assert panel._terminal_view._term_cwd == str(Path.home())
-        assert panel._terminal_view._term_font_name == terminal_module._TERM_DEFAULT_FONT_FAMILY
+        assert panel._terminal_view._term_font_name == pyqtterm_module._TERM_DEFAULT_FONT_FAMILY
         assert panel._terminal_view._term_font_size == 17
     finally:
         panel.stop()
@@ -79,7 +79,7 @@ def test_terminal_panel_update_font_size_keeps_font_family(qapp):
     panel = TerminalPanel(settings=FakeSettings({"editor.font_family": "Arial"}))
     try:
         family = panel._terminal_view._term_font_name
-        assert family == terminal_module._TERM_DEFAULT_FONT_FAMILY
+        assert family == pyqtterm_module._TERM_DEFAULT_FONT_FAMILY
         before = panel._terminal_view.charheight
 
         panel.update_font_size(30)
@@ -190,7 +190,7 @@ def test_terminal_spawns_shell_in_working_directory_as_session_leader(
         spawned["kwargs"] = kwargs
         return FakeShellProcess()
 
-    monkeypatch.setattr(terminal_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(pyqtterm_module.subprocess, "Popen", fake_popen)
     monkeypatch.setenv("SHELL", "/bin/fake-shell")
     terminal = Terminal(cwd=str(tmp_path))
     try:
@@ -213,7 +213,7 @@ def test_terminal_ignores_missing_working_directory(qapp, monkeypatch, tmp_path)
         spawned.update(kwargs)
         return FakeShellProcess()
 
-    monkeypatch.setattr(terminal_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(pyqtterm_module.subprocess, "Popen", fake_popen)
     terminal = Terminal(cwd=str(tmp_path / "missing"))
     try:
         terminal._start_process()
@@ -231,7 +231,7 @@ def test_terminal_runs_custom_command_instead_of_shell(qapp, monkeypatch):
         spawned["argv"] = argv
         return FakeShellProcess()
 
-    monkeypatch.setattr(terminal_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(pyqtterm_module.subprocess, "Popen", fake_popen)
     terminal = Terminal(command=["top", "-b"])
     try:
         terminal._start_process()

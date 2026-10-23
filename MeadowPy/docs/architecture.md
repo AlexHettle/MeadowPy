@@ -334,7 +334,7 @@ The integrated shell terminal is implemented in:
 
 ```text
 meadowpy/ui/terminal_panel.py   (dock panel)
-meadowpy/terminal.py            (terminal emulator widget)
+meadowpy/pyqtterm.py            (terminal emulator widget)
 ```
 
 Flow:
