@@ -333,7 +333,8 @@ The Output panel has two modes:
 The integrated shell terminal is implemented in:
 
 ```text
-meadowpy/ui/terminal_panel.py
+meadowpy/ui/terminal_panel.py   (dock panel)
+meadowpy/pyqtterm.py            (terminal emulator widget)
 ```
 
 Flow:
@@ -341,17 +342,18 @@ Flow:
 ```text
 View > Terminal Panel / Ctrl+Shift+T
   -> TerminalPanel is shown and focused
-  -> QProcess starts the default operating-system shell
-  -> commands are written to shell stdin
-  -> stdout/stderr stream into the terminal view
-  -> Tab asks the shell completion engine for matches, with a local fallback
-  -> Up/Down browse terminal command history
-  -> Ctrl+C sends interrupt when no text is selected
+  -> on first show, Terminal starts the shell on a PTY
+     (pty on Linux and macOS, pywinpty on Windows)
+  -> a reader thread queues the shell output
+  -> Terminal parses the escape sequences into a cell grid and paints it
+  -> key and mouse events are translated back into bytes for the shell
+  -> when the shell exits, any key starts a new one
 ```
 
 The terminal starts in the open project folder when one exists. Otherwise it
-uses the user's home folder. It is tabified with the other bottom panels and
-is stopped during main-window shutdown.
+uses the user's home folder. The panel follows the editor font and the active
+theme. It is tabified with the other bottom panels and is stopped during
+main-window shutdown.
 
 ## Debug Flow
 

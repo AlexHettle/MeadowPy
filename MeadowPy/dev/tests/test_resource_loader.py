@@ -34,7 +34,7 @@ def _call_name(node):
 def _icon_call_argument_index(source_path, call_name):
     if call_name in DIRECT_ICON_CALL_ARGUMENTS:
         return DIRECT_ICON_CALL_ARGUMENTS[call_name]
-    if source_path.name in {"output_panel.py", "terminal_panel.py"}:
+    if source_path.name == "output_panel.py":
         if call_name == "_make_tool_button":
             return 0
     if source_path.name == "tool_bar.py":

@@ -354,10 +354,7 @@ def test_custom_panel_title_rows_share_height_and_centering(qapp):
         FileExplorerPanel(),
         ProblemsPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
         OutputPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
-        TerminalPanel(
-            settings=FakeSettings({"editor.theme": "default_dark"}),
-            auto_start_on_show=False,
-        ),
+        TerminalPanel(settings=FakeSettings({"editor.theme": "default_dark"})),
         AIChatPanel(),
         SearchPanel(),
         SymbolOutlinePanel(),
@@ -481,8 +478,7 @@ def test_tabified_dock_tabs_match_panel_title_row_height(qapp):
     )
     search_panel = SearchPanel()
     terminal_panel = TerminalPanel(
-        settings=FakeSettings({"editor.theme": "default_dark"}),
-        auto_start_on_show=False,
+        settings=FakeSettings({"editor.theme": "default_dark"})
     )
     panels = [
         explorer_panel,

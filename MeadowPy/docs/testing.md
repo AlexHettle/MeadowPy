@@ -310,7 +310,8 @@ For UI changes, run a short manual smoke test after automated tests:
 2. Open or create a Python file.
 3. Run it with `F5`.
 4. Try `input()` through the Output panel.
-5. Open the Terminal panel and run a simple command such as `dir`.
+5. Open the Terminal panel and run a simple command such as `dir` on Windows
+   or `ls` on Linux and macOS.
 6. Toggle a breakpoint and start debug with `F6`.
 7. Open Preferences if settings changed.
 8. Open AI setup if AI behavior changed.

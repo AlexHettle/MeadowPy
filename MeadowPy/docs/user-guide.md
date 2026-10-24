@@ -279,20 +279,25 @@ or:
 Ctrl+Shift+T
 ```
 
-The Terminal panel starts an operating-system shell inside MeadowPy. On
-Windows, it uses PowerShell by default. When a project folder is open, new
-terminal sessions start in that folder. Otherwise, they start in your home
-folder.
+The Terminal panel starts an operating-system shell inside MeadowPy, using
+your `SHELL` on Linux and macOS and PowerShell on Windows. When a project
+folder is open, new terminal sessions start in that folder. Otherwise, they
+start in your home folder. A shell that is already running stays in its
+current folder when you open a different project.
 
 Terminal behavior:
 
-- Type a command and press Enter to run it.
-- Tab completes commands, parameters, and paths. Press Tab again to cycle
-  forward, or Shift+Tab to cycle backward.
-- Up and Down browse terminal command history.
-- Ctrl+C copies selected text, or sends an interrupt when no text is selected.
-- The title bar can clear the visible terminal output.
-- Terminal output understands common ANSI color sequences.
+- The terminal is a full terminal emulator, so interactive programs such as
+  `vim`, `htop`, and `python` work, and completion, history, and colors come
+  from your shell.
+- Ctrl+C sends an interrupt to the running program.
+- Ctrl+Shift+C copies selected text, Ctrl+Shift+V pastes, and Ctrl+Shift+A
+  selects everything. The right-click menu has the same actions.
+- Ctrl+Shift+T (or your custom shortcut) still hides the panel while the
+  terminal has focus. Other keyboard shortcuts go to the shell.
+- The terminal always uses a monospace font, follows the editor font size, and
+  follows the active theme.
+- When the shell exits, press any key to start a new one.
 
 ## Debugging
 
