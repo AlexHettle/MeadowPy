@@ -525,7 +525,7 @@ def test_block_cursor_inverts_the_character_under_it(qapp):
             for y in range(terminal.charheight)
         }
 
-        assert image.pixelColor(0, 0).name() == "#ffffff"
+        assert image.pixelColor(*cell_xy(terminal, 0, 0)).name() == "#ffffff"
         assert min(brightness) < 128
     finally:
         terminal.stop()
