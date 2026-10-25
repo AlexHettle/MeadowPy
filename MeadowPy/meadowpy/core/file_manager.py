@@ -188,7 +188,7 @@ class FileManager(QObject):
                 raise LargeFileError(path, size_bytes)
             rest = f.read()
         data = sample + rest
-        return self._decode_text(data, path.name)
+        return self.decode_text(data, path.name)
 
     def write_file(self, file_path: str, content: str) -> None:
         """Write content to file with UTF-8 encoding."""
@@ -209,7 +209,8 @@ class FileManager(QObject):
         return control_count / len(sample) > 0.03
 
     @staticmethod
-    def _decode_text(data: bytes, filename: str) -> str:
+    def decode_text(data: bytes, filename: str) -> str:
+        """Decode editor/search text and normalize line endings."""
         encodings = ["utf-8-sig"]
         if data.startswith(_UTF32_BOMS):
             encodings.append("utf-32")

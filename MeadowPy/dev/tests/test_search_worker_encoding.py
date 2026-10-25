@@ -1,11 +1,11 @@
-"""Regression coverage for UTF-8 signatures in project search."""
+"""Regression coverage for editor-supported encodings in project search."""
 
 import pytest
 
 from meadowpy.ui.search_panel import SearchWorker
 
 
-@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "latin-1", "utf-16", "utf-32"])
 @pytest.mark.parametrize(
     ("pattern", "use_regex"),
     [("^needle", True), ("needle", False)],
@@ -51,3 +51,23 @@ def test_search_worker_preserves_interior_bom_characters(tmp_path):
         (match.file_path, match.line_num, match.column, match.line_text)
         for match in matches
     ] == [(str(file_path), 2, 0, "\ufeffneedle")]
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "latin-1", "utf-16", "utf-32"])
+def test_search_worker_finds_non_ascii_text_at_visible_column(tmp_path, encoding):
+    file_path = tmp_path / "notes.txt"
+    file_path.write_bytes("header\r\n  d\u00e9j\u00e0 caf\u00e9\r\n".encode(encoding))
+    worker = SearchWorker(str(tmp_path), "caf\u00e9", True, False)
+    matches = []
+    totals = []
+    worker.match_found.connect(matches.append)
+    worker.finished.connect(totals.append)
+
+    worker.run()
+
+    assert totals == [1]
+    assert [
+        (match.file_path, match.line_num, match.column, match.line_text)
+        for match in matches
+    ] == [(str(file_path), 2, 7, "  d\u00e9j\u00e0 caf\u00e9")]
+    assert worker.large_files_skipped == 0

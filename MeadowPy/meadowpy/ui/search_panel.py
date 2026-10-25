@@ -2,6 +2,7 @@
 
 import os
 import re
+from io import StringIO
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
@@ -20,6 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from meadowpy.core.file_manager import FileManager
 from meadowpy.core.qt_threads import stop_qthread
 from meadowpy.ui.item_delegates import NoFocusDelegate
 from meadowpy.ui.panel_title_bar import (
@@ -111,19 +113,20 @@ class SearchWorker(QObject):
                         if os.path.getsize(fpath) > _MAX_FILE_SIZE:
                             self._large_files_skipped += 1
                             continue
-                        with open(fpath, "r", encoding="utf-8-sig", errors="ignore") as f:
-                            for line_num, line_text in enumerate(f, start=1):
-                                if self._cancelled:
-                                    break
-                                m = regex.search(line_text)
-                                if m:
-                                    count += 1
-                                    self.match_found.emit(
-                                        SearchResult(
-                                            fpath, line_num, m.start(),
-                                            line_text.rstrip("\n\r"),
-                                        )
+                        with open(fpath, "rb") as f:
+                            text = FileManager.decode_text(f.read(), fname)
+                        for line_num, line_text in enumerate(StringIO(text), start=1):
+                            if self._cancelled:
+                                break
+                            m = regex.search(line_text)
+                            if m:
+                                count += 1
+                                self.match_found.emit(
+                                    SearchResult(
+                                        fpath, line_num, m.start(),
+                                        line_text.rstrip("\n\r"),
                                     )
+                                )
                     except (OSError, UnicodeDecodeError):
                         continue
         except Exception:
