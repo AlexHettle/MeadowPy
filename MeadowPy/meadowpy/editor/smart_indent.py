@@ -58,8 +58,11 @@ class SmartIndentHandler:
             self._insert_newline_with_indent(new_indent)
             return True
 
-        # Case 2: Line starts with a dedent keyword -> next line should dedent
-        if self._starts_with_dedent_keyword(text_before_cursor):
+        # Only dedent a completed line, not text split off after the cursor.
+        if (
+            not line_text[col:].strip()
+            and self._starts_with_dedent_keyword(text_before_cursor)
+        ):
             if len(current_indent) >= len(indent_str):
                 new_indent = current_indent[: -len(indent_str)]
             else:

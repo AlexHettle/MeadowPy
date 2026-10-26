@@ -73,6 +73,23 @@ def test_handle_return_dedents_parenthesized_return_expression(tmp_path):
     assert editor.getCursorPosition() == (1, 0)
 
 
+@pytest.mark.parametrize("keyword", ["return", "raise"])
+@pytest.mark.parametrize("indent", ["    ", "\t"])
+def test_handle_return_preserves_indent_when_splitting_statement(
+    tmp_path, keyword, indent
+):
+    prefix = f"{indent}{keyword} "
+    text = prefix + "value"
+    cursor = (0, len(prefix))
+    editor, handler = make_handler(
+        tmp_path, text=text, cursor=cursor, use_spaces=indent != "\t"
+    )
+
+    assert handler.handle_return() is False
+    assert editor.all_text() == text
+    assert editor.getCursorPosition() == cursor
+
+
 def test_handle_return_preserves_incomplete_parenthesized_expression(tmp_path):
     text = "    return("
     editor, handler = make_handler(tmp_path, text=text, cursor=(0, len(text)))
@@ -127,6 +144,43 @@ def test_handle_return_leaves_selection_for_default_handler(tmp_path, text):
     assert editor.getCursorPosition() == cursor
     assert editor.hasSelectedText() is True
     assert editor.selection == (0, 0, *cursor)
+
+
+@pytest.mark.parametrize("keyword", ["return", "raise"])
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+def test_enter_preserves_indent_when_splitting_statement(
+    qapp, tmp_path, keyword, key
+):
+    settings = Settings(tmp_path)
+    settings.set("editor.smart_indent", True)
+    settings.set("editor.auto_indent", True)
+    settings.set("editor.auto_complete", False)
+    settings.set("editor.use_spaces", True)
+    settings.set("editor.tab_width", 4)
+    editor = CodeEditor(settings)
+    prefix = f"    {keyword} "
+    original = prefix + "value\n    keep = 1"
+    try:
+        editor.setText(original)
+        editor.setCursorPosition(0, len(prefix))
+
+        # Native newline insertion and auto-indent can be separate undo steps.
+        # Group this edit so undo checks restoration, not Qt's undo grouping.
+        editor.beginUndoAction()
+        try:
+            QTest.keyClick(editor, key)
+        finally:
+            editor.endUndoAction()
+
+        assert editor.text() == prefix + "\n    value\n    keep = 1"
+        assert editor.getCursorPosition() == (1, 4)
+        editor.undo()
+        assert editor.text() == original
+    finally:
+        editor.close()
+        editor.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()
 
 
 @pytest.mark.parametrize("text", ["if ready:", "    return value"])
