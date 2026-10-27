@@ -152,9 +152,18 @@ def test_explain_error_uses_generic_pattern_when_needed():
     assert "denominator isn't 0" in explanation
 
 
-def test_explain_error_names_the_python_modulo_operator():
+@pytest.mark.parametrize(
+    ("numerator", "denominator"),
+    [
+        pytest.param(7, 0, id="int-by-int"),
+        pytest.param(7.0, 0, id="float-by-int"),
+        pytest.param(7, 0.0, id="int-by-float"),
+        pytest.param(7.0, 0.0, id="float-by-float"),
+    ],
+)
+def test_explain_error_names_the_python_modulo_operator(numerator, denominator):
     with pytest.raises(ZeroDivisionError) as error:
-        _ = 7 % 0
+        _ = numerator % denominator
 
     explanation = assert_hint(f"{type(error.value).__name__}: {error.value}")
 
