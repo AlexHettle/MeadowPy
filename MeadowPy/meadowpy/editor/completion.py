@@ -17,8 +17,9 @@ def get_python_completions() -> list[str]:
 
     words = set()
 
-    # Python keywords
+    # Python keywords, including contextual keywords such as match and case.
     words.update(keyword.kwlist)
+    words.update(keyword.softkwlist)
 
     # Builtin names (excluding dunder names)
     words.update(name for name in dir(builtins) if not name.startswith("_"))

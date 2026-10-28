@@ -206,6 +206,16 @@ def test_python_completions_fall_back_without_stdlib_module_names(monkeypatch):
     assert "asyncio" not in completions
 
 
+def test_create_apis_includes_pattern_matching_keywords(monkeypatch):
+    monkeypatch.setattr(completion, "_CACHED_COMPLETIONS", None)
+    monkeypatch.setattr(completion, "QsciAPIs", FakeApis)
+
+    apis = completion.create_apis(object())
+
+    assert {"match", "case", "_"}.issubset(apis.words)
+    assert apis.prepared is True
+
+
 def test_create_apis_populates_and_prepares(monkeypatch):
     monkeypatch.setattr(completion, "QsciAPIs", FakeApis)
     monkeypatch.setattr(completion, "get_python_completions", lambda: ["alpha", "beta"])
