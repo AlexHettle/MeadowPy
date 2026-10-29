@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from meadowpy.core.file_manager import FileManager
+from meadowpy.core.file_manager import FileManager, TEXT_SNIFF_BYTES
 from meadowpy.core.qt_threads import stop_qthread
 from meadowpy.ui.item_delegates import NoFocusDelegate
 from meadowpy.ui.panel_title_bar import (
@@ -114,7 +114,10 @@ class SearchWorker(QObject):
                             self._large_files_skipped += 1
                             continue
                         with open(fpath, "rb") as f:
-                            text = FileManager.decode_text(f.read(), fname)
+                            data = f.read()
+                        if FileManager._looks_binary(data[:TEXT_SNIFF_BYTES]):
+                            continue
+                        text = FileManager.decode_text(data, fname)
                         for line_num, line_text in enumerate(StringIO(text), start=1):
                             if self._cancelled:
                                 break
