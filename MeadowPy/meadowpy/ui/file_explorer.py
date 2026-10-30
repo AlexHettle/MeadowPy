@@ -69,7 +69,7 @@ _INVALID_ENTRY_NAME_MESSAGE = (
 def _name_is_visible_in_explorer(name: str) -> bool:
     if name in _HIDDEN_NAMES:
         return False
-    return not any(name.endswith(suffix) for suffix in _HIDDEN_SUFFIXES)
+    return not any(name.lower().endswith(suffix) for suffix in _HIDDEN_SUFFIXES)
 
 
 def _is_valid_entry_name(name: str) -> bool:
