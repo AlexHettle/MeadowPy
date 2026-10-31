@@ -100,7 +100,7 @@ class SearchWorker(QObject):
                 # Prune hidden/build directories in-place
                 dirnames[:] = [
                     d for d in dirnames
-                    if d not in _SKIP_DIRS and not d.startswith(".")
+                    if os.path.normcase(d) not in _SKIP_DIRS and not d.startswith(".")
                 ]
                 for fname in filenames:
                     if self._cancelled:
