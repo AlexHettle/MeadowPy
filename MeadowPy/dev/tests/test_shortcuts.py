@@ -1,5 +1,7 @@
 from collections import Counter
 
+import pytest
+
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
 
@@ -196,6 +198,33 @@ def test_shortcut_events_match_exact_shortcuts(qapp):
     assert event_matches_shortcut(plain_letter, "S") is False
     assert shortcut_from_key_event(modifier_only) == ""
     assert event_matches_shortcut(modifier_only, "Ctrl+S") is False
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [None, True, False, 42, 0, 1.5, [], ["Ctrl+S"], {}, {"key": "Ctrl+S"}],
+)
+def test_shortcut_overrides_ignore_non_string_saved_values(tmp_path, invalid_value):
+    settings = Settings(tmp_path)
+    settings.set(
+        SHORTCUT_OVERRIDES_KEY,
+        {
+            "file.save": invalid_value,
+            "file.open": "Ctrl+Alt+O",
+            "file.save_as": "",
+        },
+    )
+    settings.save()
+    reloaded = Settings(tmp_path)
+    reloaded.load()
+
+    assert shortcut_overrides(reloaded) == {
+        "file.open": "Ctrl+Alt+O",
+        "file.save_as": "",
+    }
+    assert get_shortcut(reloaded, "file.save") == get_default_shortcut("file.save")
+    assert get_shortcut(reloaded, "file.open") == "Ctrl+Alt+O"
+    assert get_shortcut(reloaded, "file.save_as") == ""
 
 
 def test_shortcut_overrides_sanitize_stored_settings():

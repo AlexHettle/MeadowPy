@@ -418,7 +418,7 @@ def _raw_overrides(settings: Any) -> dict[str, str]:
     overrides = {}
     for shortcut_id, value in data.items():
         shortcut_id = str(shortcut_id)
-        if shortcut_id not in SHORTCUTS_BY_ID:
+        if shortcut_id not in SHORTCUTS_BY_ID or not isinstance(value, str):
             continue
         normalized = normalize_shortcut(value)
         if normalized and not _shortcut_is_assignable(normalized):
