@@ -79,7 +79,12 @@ class _SymbolItemDelegate(NoFocusDelegate):
             QStyle.SubElement.SE_ItemViewItemText, opt, opt.widget
         )
 
-        fg = opt.palette.color(QPalette.ColorRole.Text)
+        text_role = (
+            QPalette.ColorRole.HighlightedText
+            if opt.state & QStyle.StateFlag.State_Selected
+            else QPalette.ColorRole.Text
+        )
+        fg = opt.palette.color(text_role)
 
         # Only the class diamond is tinted with the accent; ƒ for
         # functions/methods keeps the neutral text color.
