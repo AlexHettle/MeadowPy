@@ -63,7 +63,11 @@ class Settings(QObject):
 
     def _migrate_loaded_defaults(self) -> None:
         """Update saved settings that only contain an older default layout."""
-        if self._data.get("window.state") in LEGACY_DEFAULT_WINDOW_STATES:
+        window_state = self._data.get("window.state")
+        if (
+            isinstance(window_state, str)
+            and window_state in LEGACY_DEFAULT_WINDOW_STATES
+        ):
             self._data["window.state"] = DEFAULT_WINDOW_STATE
             self._data["window.layout_version"] = DEFAULT_WINDOW_LAYOUT_VERSION
         restore_migration = self._data.get(

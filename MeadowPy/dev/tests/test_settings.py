@@ -262,6 +262,32 @@ def test_load_preserves_custom_window_state(tmp_path):
     assert settings.get("window.state") == "custom-layout"
 
 
+@pytest.mark.parametrize("window_state", [[], {}, ["invalid"], {"layout": "invalid"}])
+def test_load_skips_unhashable_window_state_without_losing_preferences(
+    tmp_path, window_state
+):
+    config_file = tmp_path / "settings.json"
+    config_file.write_text(
+        json.dumps({
+            "window.state": window_state,
+            "editor.font_size": 18,
+            "general.restore_tabs_on_startup": False,
+        }),
+        encoding="utf-8",
+    )
+
+    settings = Settings(tmp_path)
+    settings.load()
+
+    assert settings.get("window.state") == window_state
+    assert settings.get("editor.font_size") == 18
+    assert settings.get("general.restore_tabs_on_startup") is True
+    assert (
+        settings.get("general.restore_tabs_migration_version")
+        == RESTORE_TABS_MIGRATION_VERSION
+    )
+
+
 def test_reset_to_defaults_clears_custom_values_and_writes_defaults(tmp_path):
     settings = Settings(tmp_path)
     settings.set("editor.font_size", 99)
