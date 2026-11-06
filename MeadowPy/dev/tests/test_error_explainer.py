@@ -262,3 +262,46 @@ def test_explain_error_describes_floor_division_by_zero(numerator, denominator):
 
     assert "floor division (//)" in explanation
     assert "Check that the right side isn't 0." in explanation
+
+
+@pytest.mark.parametrize(
+    "separator",
+    [
+        "During handling of the above exception, another exception occurred:",
+        "The above exception was the direct cause of the following exception:",
+    ],
+    ids=["implicit-context", "explicit-cause"],
+)
+@pytest.mark.parametrize(
+    ("earlier_error", "final_error"),
+    [
+        (
+            "NameError: name 'handled' is not defined",
+            "NameError: name 'current' is not defined",
+        ),
+        (
+            "NameError: name 'handled' is not defined",
+            "ZeroDivisionError: division by zero",
+        ),
+        (
+            "ZeroDivisionError: division by zero",
+            "NameError: name 'current' is not defined",
+        ),
+    ],
+    ids=["same-pattern", "earlier-pattern-first", "final-pattern-first"],
+)
+def test_explain_error_prioritizes_final_chained_exception(
+    separator, earlier_error, final_error
+):
+    traceback_text = (
+        "Traceback (most recent call last):\n"
+        '  File "demo.py", line 1, in <module>\n'
+        f"{earlier_error}\n\n"
+        f"{separator}\n\n"
+        "Traceback (most recent call last):\n"
+        '  File "demo.py", line 3, in <module>\n'
+        f"{final_error}\n"
+    )
+
+    assert explain_error(traceback_text) == assert_hint(final_error)
+

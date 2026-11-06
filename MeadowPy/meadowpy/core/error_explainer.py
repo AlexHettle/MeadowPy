@@ -11,17 +11,20 @@ from meadowpy.core.error_patterns import ERROR_PATTERNS
 def explain_error(stderr_text: str) -> str | None:
     """Return a beginner-friendly explanation for a Python error, or None.
 
-    Scans *stderr_text* for a line that matches one of the known error
-    patterns and returns a short, plain-English hint.
+    Scans *stderr_text* from the bottom for the most recent matching error
+    and returns a short, plain-English hint.
     """
-    for pattern, template in ERROR_PATTERNS:
-        match = pattern.search(stderr_text)
-        if match:
-            # Fill in {0}, {1}, … from captured groups
-            groups = match.groups()
-            try:
-                explanation = template.format(*groups)
-            except (IndexError, KeyError):
-                explanation = template
-            return f"{explanation}\n"
+    # Chained tracebacks end with the error that stopped the program.
+    # Keep specific patterns ahead of generic ones within each line.
+    for line in reversed(stderr_text.splitlines()):
+        for pattern, template in ERROR_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                # Fill in {0}, {1}, … from captured groups
+                groups = match.groups()
+                try:
+                    explanation = template.format(*groups)
+                except (IndexError, KeyError):
+                    explanation = template
+                return f"{explanation}\n"
     return None
