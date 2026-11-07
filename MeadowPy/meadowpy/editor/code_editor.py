@@ -506,8 +506,11 @@ class CodeEditor(QsciScintilla):
                 self.toggle_comment()
                 return
 
-        # Smart indent on Enter
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        # Python-specific indentation must not alter other file types.
+        if (
+            is_python_file_path(self.file_path)
+            and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        ):
             if self._smart_indent.handle_return():
                 return
 

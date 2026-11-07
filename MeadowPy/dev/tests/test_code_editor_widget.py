@@ -1899,6 +1899,67 @@ def test_key_press_event_routes_comment_indent_backspace_autoclose_and_fallback(
     editor.deleteLater()
 
 
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+@pytest.mark.parametrize(
+    ("file_name", "expected_calls"),
+    [
+        (None, ["return"]),
+        ("script.py", ["return"]),
+        ("script.pyw", ["return"]),
+        ("SCRIPT.PY", ["return"]),
+        ("notes.txt", []),
+        ("readme.md", []),
+        ("readme.markdown", []),
+        ("data.json", []),
+        ("config.yaml", []),
+        ("config.yml", []),
+        ("config.ini", []),
+        ("config.cfg", []),
+        ("config.properties", []),
+        ("config.toml", []),
+        ("data.csv", []),
+        ("output.log", []),
+    ],
+)
+def test_python_smart_indent_dispatch_respects_file_type(
+    qapp, tmp_path, key, file_name, expected_calls
+):
+    editor = make_editor(qapp, tmp_path)
+    try:
+        editor.file_path = str(tmp_path / file_name) if file_name else None
+        handler = RecordingHandler(return_value=True)
+        editor._smart_indent = handler
+
+        editor.keyPressEvent(
+            QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
+        )
+
+        assert handler.calls == expected_calls
+    finally:
+        dispose_editor(qapp, editor)
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+@pytest.mark.parametrize("line", ["    return", "    heading:"])
+def test_plain_text_enter_avoids_python_smart_indent(
+    qapp, tmp_path, key, line
+):
+    editor = make_editor(qapp, tmp_path)
+    try:
+        editor.file_path = str(tmp_path / "notes.txt")
+        editor.setText(line)
+        editor.setCursorPosition(0, len(line))
+
+        editor.keyPressEvent(
+            QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
+        )
+
+        assert editor.text() == line + "\n    "
+        assert editor.getCursorPosition() == (1, 4)
+    finally:
+        dispose_editor(qapp, editor)
+
+
 def test_ctrl_slash_does_not_comment_non_python_files(qapp, tmp_path):
     editor = make_editor(qapp, tmp_path)
     editor.file_path = str(tmp_path / "notes.txt")
