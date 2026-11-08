@@ -234,6 +234,7 @@ def test_explain_error_names_incompatible_concatenation_types(left, right):
         pytest.param("", id="empty"),
         pytest.param(" ", id="whitespace"),
         pytest.param("abc", id="non-numeric"),
+        pytest.param("can't", id="apostrophe"),
     ],
 )
 def test_explain_error_describes_invalid_numeric_strings(convert, target, value):
