@@ -217,6 +217,8 @@ class FileManager(QObject):
             encodings = ["utf-32"]
         elif data.startswith(_UTF16_BOMS):
             encodings = ["utf-16"]
+        elif data.startswith(b"\xef\xbb\xbf"):
+            encodings = ["utf-8-sig"]
         else:
             encodings = ["utf-8-sig", "latin-1"]
 

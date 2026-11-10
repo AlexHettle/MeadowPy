@@ -99,3 +99,30 @@ def test_search_worker_skips_binary_content_with_unlisted_extensions(
         for match in matches
     ] == [(str(text_path), 1, 1, "\tneedle text")]
     assert worker.large_files_skipped == 0
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"\xef\xbb\xbfneedle\xff", b"\xef\xbb\xbfneedle\xe2\x82"],
+    ids=["invalid-byte-utf8", "truncated-utf8"],
+)
+def test_search_worker_skips_malformed_utf8_bom_text(tmp_path, payload):
+    damaged_path = tmp_path / "damaged.txt"
+    damaged_path.write_bytes(payload)
+    text_path = tmp_path / "notes.txt"
+    text_path.write_bytes(b"needle text\n")
+    worker = SearchWorker(str(tmp_path), "needle", True, False)
+    matches = []
+    totals = []
+    worker.match_found.connect(matches.append)
+    worker.finished.connect(totals.append)
+
+    worker.run()
+
+    assert totals == [1]
+    assert [
+        (match.file_path, match.line_num, match.column, match.line_text)
+        for match in matches
+    ] == [(str(text_path), 1, 0, "needle text")]
+    assert worker.large_files_skipped == 0
+    assert damaged_path.read_bytes() == payload

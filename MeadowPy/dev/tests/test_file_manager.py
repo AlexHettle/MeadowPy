@@ -236,7 +236,7 @@ def test_read_file_falls_back_to_latin1(tmp_path):
     assert manager.read_file(str(file_path)) == "café"
 
 
-@pytest.mark.parametrize("encoding", ["utf-16", "utf-32"])
+@pytest.mark.parametrize("encoding", ["utf-8-sig", "utf-16", "utf-32"])
 def test_read_file_decodes_unicode_bom_text(tmp_path, encoding):
     recent = Mock()
     manager = FileManager(settings=Mock(), recent_files=recent)
@@ -363,6 +363,8 @@ def test_write_file_preserves_newlines_without_translation(tmp_path):
 @pytest.mark.parametrize(
     "payload",
     [
+        b"\xef\xbb\xbfA\xff",
+        b"\xef\xbb\xbfA\xe2\x82",
         b"\xff\xfeA\x00B",
         b"\xfe\xff\x00A\x00",
         b"\xff\xfe\x00\x00A\x00\x00",
@@ -373,6 +375,8 @@ def test_write_file_preserves_newlines_without_translation(tmp_path):
         b"\x00\x00\xfe\xff\x00\x11\x00\x00",
     ],
     ids=[
+        "invalid-byte-utf8",
+        "truncated-utf8",
         "truncated-utf16-le",
         "truncated-utf16-be",
         "truncated-utf32-le",
