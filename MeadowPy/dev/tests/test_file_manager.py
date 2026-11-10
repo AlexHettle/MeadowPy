@@ -358,3 +358,44 @@ def test_write_file_preserves_newlines_without_translation(tmp_path):
     manager.write_file(str(file_path), "a\nb\n")
 
     assert file_path.read_text(encoding="utf-8") == "a\nb\n"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"\xff\xfeA\x00B",
+        b"\xfe\xff\x00A\x00",
+        b"\xff\xfe\x00\x00A\x00\x00",
+        b"\x00\x00\xfe\xff\x00\x00A",
+        b"\xff\xfe\x00\xd8",
+        b"\xfe\xff\xd8\x00",
+        b"\xff\xfe\x00\x00\x00\x00\x11\x00",
+        b"\x00\x00\xfe\xff\x00\x11\x00\x00",
+    ],
+    ids=[
+        "truncated-utf16-le",
+        "truncated-utf16-be",
+        "truncated-utf32-le",
+        "truncated-utf32-be",
+        "unpaired-surrogate-utf16-le",
+        "unpaired-surrogate-utf16-be",
+        "invalid-codepoint-utf32-le",
+        "invalid-codepoint-utf32-be",
+    ],
+)
+def test_open_file_rejects_malformed_bom_text(tmp_path, payload):
+    recent = Mock()
+    manager = FileManager(settings=Mock(), recent_files=recent)
+    recorder = SignalRecorder()
+    manager.file_opened.connect(recorder)
+    file_path = tmp_path / "damaged.txt"
+    file_path.write_bytes(payload)
+
+    assert manager.open_file(str(file_path)) is None
+
+    assert isinstance(manager.last_open_error, UnsupportedFileError)
+    assert "text encoding MeadowPy could not read" in str(manager.last_open_error)
+    assert manager.last_open_error_path == str(file_path)
+    recent.add.assert_not_called()
+    assert recorder.calls == []
+    assert file_path.read_bytes() == payload

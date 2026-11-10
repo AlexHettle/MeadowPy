@@ -211,12 +211,14 @@ class FileManager(QObject):
     @staticmethod
     def decode_text(data: bytes, filename: str) -> str:
         """Decode editor/search text and normalize line endings."""
-        encodings = ["utf-8-sig"]
+        # A Unicode BOM declares the encoding; do not hide damaged text by
+        # falling back to Latin-1 when that decoder rejects the payload.
         if data.startswith(_UTF32_BOMS):
-            encodings.append("utf-32")
+            encodings = ["utf-32"]
         elif data.startswith(_UTF16_BOMS):
-            encodings.append("utf-16")
-        encodings.append("latin-1")
+            encodings = ["utf-16"]
+        else:
+            encodings = ["utf-8-sig", "latin-1"]
 
         for encoding in encodings:
             try:
