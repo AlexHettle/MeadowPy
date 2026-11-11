@@ -151,6 +151,61 @@ def test_find_enclosing_def_targets_async_function(
         dispose_editor(qapp, editor)
 
 
+@pytest.mark.parametrize(
+    ("signature", "body", "insert_line"),
+    [
+        ("def greet(\n    name,\n):", "    return name", 3),
+        ("async def fetch(\n    url,\n):", "    return url", 3),
+        ("class Client(\n    Base,\n):", "    pass", 3),
+        (
+            "def greet(\n    name,  # ) does not close the signature\n):",
+            "    return name",
+            3,
+        ),
+        (
+            'def greet(\n    name="(",\n):',
+            "    return name",
+            3,
+        ),
+        (
+            "class Client:\n    def greet(\n        self,\n        name,\n    ):",
+            "        return name",
+            5,
+        ),
+    ],
+    ids=["function", "async-function", "class", "comment", "string", "method"],
+)
+def test_find_enclosing_def_places_docstring_after_complete_signature(
+    qapp, tmp_path, signature, body, insert_line
+):
+    editor = make_editor(qapp, tmp_path)
+    try:
+        editor.setText(signature + "\n" + body)
+
+        result = editor._find_enclosing_def(insert_line)
+
+        assert result is not None
+        func_code, actual_insert_line = result
+        assert actual_insert_line == insert_line
+        expected_code = signature.removeprefix("class Client:\n") + "\n" + body
+        assert func_code == expected_code
+    finally:
+        dispose_editor(qapp, editor)
+
+
+@pytest.mark.parametrize(
+    "source", ["def greet(\n    name,", 'def greet(name="""unfinished']
+)
+def test_find_enclosing_def_rejects_incomplete_signature(qapp, tmp_path, source):
+    editor = make_editor(qapp, tmp_path)
+    try:
+        editor.setText(source)
+
+        assert editor._find_enclosing_def(editor.lines() - 1) is None
+    finally:
+        dispose_editor(qapp, editor)
+
+
 def test_breakpoint_current_line_and_lint_helpers_track_editor_state(qapp, tmp_path):
     editor = make_editor(qapp, tmp_path)
     editor.setText("print(missing)\n")

@@ -1,6 +1,7 @@
 """Core code editor widget based on QScintilla."""
 
 import ast
+import tokenize
 from bisect import bisect_left
 from collections.abc import Iterable, Mapping
 from enum import Enum
@@ -811,14 +812,21 @@ class CodeEditor(QsciScintilla):
         body_lines = [self.text(def_line).rstrip("\n\r")]
         insert_line = def_line + 1
 
-        # Handle multi-line signatures (lines ending with \ or unclosed paren)
-        while insert_line < total_lines:
-            prev = body_lines[-1]
-            if prev.rstrip().endswith("\\") or prev.count("(") > prev.count(")"):
-                body_lines.append(self.text(insert_line).rstrip("\n\r"))
-                insert_line += 1
-            else:
-                break
+        # A logical newline ends the whole signature, not a parameter line.
+        # Tokenization also ignores parentheses inside comments and strings.
+        signature_lines = (self.text(i) for i in range(def_line, total_lines))
+        try:
+            tokens = tokenize.generate_tokens(lambda: next(signature_lines, ""))
+            for token in tokens:
+                if token.type == tokenize.NEWLINE:
+                    insert_line = def_line + token.end[0]
+                    break
+        except (IndentationError, tokenize.TokenError):
+            return None  # no safe insertion point in an unfinished signature
+        body_lines.extend(
+            self.text(i).rstrip("\n\r")
+            for i in range(def_line + 1, insert_line)
+        )
 
         # Collect body lines (indented deeper than the def)
         max_body = 30
