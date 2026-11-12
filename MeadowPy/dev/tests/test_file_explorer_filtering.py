@@ -1,4 +1,6 @@
-"""Regression coverage for bytecode filtering in the file explorer."""
+"""Regression coverage for hidden names and bytecode in the file explorer."""
+
+import os
 
 import pytest
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
@@ -49,4 +51,32 @@ def test_explorer_preserves_names_without_bytecode_suffix(qapp, tmp_path, filena
 
     assert proxy.rowCount() == 1
     assert proxy.index(0, 0).data() == filename
+    assert _directory_has_visible_entries(str(tmp_path)) is True
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows directory names ignore case")
+@pytest.mark.parametrize(
+    "directory_name",
+    ["__pycache__", "__PYCACHE__", "Node_Modules", "NODE_MODULES",
+     ".GIT", ".VENV", ".PyTest_Cache", ".VSCode"],
+)
+def test_explorer_hides_windows_generated_directories_regardless_of_case(
+    qapp, tmp_path, directory_name
+):
+    (tmp_path / directory_name).mkdir()
+    source = _NamedItemModel()
+    source.appendRow(QStandardItem(directory_name))
+    proxy = _FilteredFileSystemModel()
+    proxy.setSourceModel(source)
+
+    assert proxy.rowCount() == 0
+    assert _directory_has_visible_entries(str(tmp_path)) is False
+
+    # Match whole names, not prefixes that can belong to user directories.
+    visible_name = directory_name + "_tools"
+    (tmp_path / visible_name).mkdir()
+    source.appendRow(QStandardItem(visible_name))
+
+    assert proxy.rowCount() == 1
+    assert proxy.index(0, 0).data() == visible_name
     assert _directory_has_visible_entries(str(tmp_path)) is True

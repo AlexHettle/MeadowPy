@@ -1,5 +1,6 @@
 """File explorer panel — shows project directory tree."""
 
+import os
 import shutil
 from pathlib import Path, PureWindowsPath
 
@@ -67,7 +68,7 @@ _INVALID_ENTRY_NAME_MESSAGE = (
 
 
 def _name_is_visible_in_explorer(name: str) -> bool:
-    if name in _HIDDEN_NAMES:
+    if os.path.normcase(name) in _HIDDEN_NAMES:
         return False
     return not any(name.lower().endswith(suffix) for suffix in _HIDDEN_SUFFIXES)
 
