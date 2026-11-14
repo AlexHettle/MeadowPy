@@ -168,3 +168,45 @@ def test_updates_remain_usable_when_settings_cannot_be_saved(tmp_path):
     assert manager.get_files() == []
     assert recorder.calls == [([alpha],), ([],), ([beta],), ([],)]
     assert settings.save.call_count == 4
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [None, False, True, 0, 42, 3.5, "alpha.py", {"alpha.py": True}],
+)
+def test_get_files_recovers_from_non_list_saved_values(tmp_path, stored):
+    settings, manager = make_manager(tmp_path)
+    settings.set("window.recent_files", stored)
+    settings.save()
+    settings.load()
+
+    assert manager.get_files() == []
+
+    alpha = str((tmp_path / "alpha.py").resolve())
+    manager.add(alpha)
+    settings.load()
+
+    assert manager.get_files() == [alpha]
+    assert settings.get("window.recent_files") == [alpha]
+
+
+def test_get_files_filters_invalid_saved_entries_without_mutating_settings(tmp_path):
+    settings, manager = make_manager(tmp_path, max_files=5)
+    alpha = str((tmp_path / "alpha.py").resolve())
+    beta = str((tmp_path / "beta.py").resolve())
+    stored = [alpha, None, 42, False, {}, [], "", beta]
+    settings.set("window.recent_files", stored)
+    settings.save()
+    settings.load()
+
+    assert manager.get_files() == [alpha, beta]
+    assert settings.get("window.recent_files") == stored
+
+    recorder = SignalRecorder()
+    manager.recent_files_changed.connect(recorder)
+    manager.add(beta)
+    settings.load()
+
+    assert manager.get_files() == [beta, alpha]
+    assert settings.get("window.recent_files") == [beta, alpha]
+    assert recorder.calls == [([beta, alpha],)]

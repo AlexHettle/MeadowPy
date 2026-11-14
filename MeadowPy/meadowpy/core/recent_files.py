@@ -107,7 +107,9 @@ class RecentFilesManager(QObject):
     def get_files(self) -> list[str]:
         """Return the current recent files list."""
         files = self._settings.get("window.recent_files", [])
-        return list(files) if files else []
+        if not isinstance(files, list):
+            return []
+        return [path for path in files if isinstance(path, str) and path]
 
     def _store_files(self, files: list[str]) -> None:
         """Update the list, treating persistence as a best-effort operation."""
