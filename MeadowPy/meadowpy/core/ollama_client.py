@@ -441,9 +441,14 @@ class OllamaClient(QObject):
             terminate_timeout_ms=_HEALTH_TERMINATE_TIMEOUT_MS,
         )
 
+    def _health_signal_is_current(self) -> bool:
+        """Return whether a health callback belongs to the active worker."""
+        sender = self.sender()
+        return sender is None or sender is self._worker
+
     def _on_health_result(self, connected: bool, message: str) -> None:
         """Handle health check result from the worker."""
-        if self._shutting_down:
+        if self._shutting_down or not self._health_signal_is_current():
             return
 
         changed = (connected != self._connected)
@@ -460,7 +465,7 @@ class OllamaClient(QObject):
 
     def _on_models_result(self, models: list[str]) -> None:
         """Handle model list result from the worker."""
-        if self._shutting_down:
+        if self._shutting_down or not self._health_signal_is_current():
             return
 
         self._models = models
