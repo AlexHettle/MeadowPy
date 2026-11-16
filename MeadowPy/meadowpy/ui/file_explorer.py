@@ -859,10 +859,13 @@ class FileExplorerPanel(QDockWidget):
             )
             return
         new_path = old_path.parent / new_name
-        if new_path.exists():
-            QMessageBox.warning(self, "Already Exists", f"'{new_name}' already exists.")
-            return
         try:
+            # A case-only rename can target the same existing entry on Windows.
+            if new_path.exists() and (
+                new_path != old_path or not old_path.samefile(new_path)
+            ):
+                QMessageBox.warning(self, "Already Exists", f"'{new_name}' already exists.")
+                return
             old_path.rename(new_path)
         except OSError as e:
             QMessageBox.critical(self, "Error", f"Could not rename:\n{e}")
