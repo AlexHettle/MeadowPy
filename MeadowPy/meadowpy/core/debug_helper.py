@@ -71,14 +71,17 @@ def _safe_repr(value) -> str:
 
 def _collect_variables(frame) -> dict:
     """Return ``{"locals": {...}, "globals": {...}}`` for *frame*."""
+    # User-defined repr methods can mutate either namespace during inspection.
+    local_items = list(frame.f_locals.items())
+    global_items = list(frame.f_globals.items())
     local_vars = {}
-    for name, val in frame.f_locals.items():
+    for name, val in local_items:
         if name.startswith("__") and name.endswith("__"):
             continue
         local_vars[name] = _safe_repr(val)
 
     global_vars = {}
-    for name, val in frame.f_globals.items():
+    for name, val in global_items:
         if name.startswith("__") and name.endswith("__"):
             continue
         # Skip modules, functions, classes — keep only "simple" globals

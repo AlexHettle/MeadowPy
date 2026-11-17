@@ -1,4 +1,7 @@
 import inspect
+from types import SimpleNamespace
+
+import pytest
 
 from meadowpy.core import debug_helper
 
@@ -109,3 +112,33 @@ def test_internal_frame_detection_and_dunder_local_filtering():
     assert debug_helper._is_internal_frame(debug_helper._normalise_source_path(
         debug_helper.bdb.__file__
     )) is True
+
+
+@pytest.mark.parametrize("scope", ["locals", "globals", "shared"])
+@pytest.mark.parametrize("remove_existing", [False, True])
+def test_collect_variables_survives_namespace_mutation_in_repr(
+    scope, remove_existing
+):
+    values = {}
+
+    class MutatingRepr:
+        def __repr__(self):
+            if remove_existing:
+                values.pop("other", None)
+            else:
+                values["added"] = 99
+            return "mutated"
+
+    values.update(value=MutatingRepr(), other=42)
+    frame = SimpleNamespace(
+        f_locals=values if scope in {"locals", "shared"} else {},
+        f_globals=values if scope in {"globals", "shared"} else {},
+    )
+
+    variables = debug_helper._collect_variables(frame)
+
+    expected = {"value": "mutated", "other": "42"}
+    assert variables == {
+        "locals": expected if scope in {"locals", "shared"} else {},
+        "globals": expected if scope in {"globals", "shared"} else {},
+    }
