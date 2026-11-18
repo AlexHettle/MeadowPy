@@ -242,9 +242,26 @@ class FindReplaceBar(QFrame):
         editor.beginUndoAction()
         try:
             while found:
+                empty_match = not editor.hasSelectedText()
                 editor.replace(replacement)
                 count += 1
-                found = editor.findNext()
+                if empty_match:
+                    # Skip one original character after an empty match so the
+                    # replacement cannot repeatedly match the same boundary.
+                    position = editor.SendScintilla(editor.SCI_GETCURRENTPOS)
+                    if position >= editor.SendScintilla(editor.SCI_GETLENGTH):
+                        break
+                    position = editor.SendScintilla(
+                        editor.SCI_POSITIONAFTER, position
+                    )
+                    line, index = editor.lineIndexFromPosition(position)
+                    found = editor.findFirst(
+                        text, self._regex_btn.isChecked(),
+                        self._case_btn.isChecked(), self._word_btn.isChecked(),
+                        False, True, line, index,
+                    )
+                else:
+                    found = editor.findNext()
         finally:
             editor.endUndoAction()
 
